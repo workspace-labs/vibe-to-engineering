@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<!--
+  vibe-to-engineering — Engineering Migration Plan template.
+
+  Fill-in rules (references/migration-plan.md, section 5):
+  - Replace every placeholder written in double braces. The renderer refuses a file that still contains one.
+  - Blocks between a "repeat" comment and its "/repeat" comment are examples: copy them once per item and delete
+    the ones you do not need.
+  - Escape &, < and > in text you insert (trees and code included). Two literal braces are written &#123;&#123;.
+  - Keep the file static and self-contained: no scripts or event handlers, no external stylesheets, fonts or images.
+  - Trees: plain text from `checkpoint.py tree`. On the overview page each tree holds about 30 lines at most
+    (`tree --depth 2` shortens one); a longer tree is not hidden, it spills visibly, so look at the page.
+    Mark the current tree with "→ moves" and "✗ removed", the target tree with "+ new".
+  - Severity and risk badges: class "material" or "minor"; "high", "medium" or "low".
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Engineering Migration Plan — {{PROJECT_NAME}}</title>
+<style>
+:root {
+  --ink: #16202c; --muted: #566273; --faint: #8993a1;
+  --line: #7c8795; --soft: #d3d9e1; --zebra: #f1f4f7; --paper: #ffffff; --wash: #f6f8fa;
+  --banner: #1b2a44;
+  --now: #a3431f; --now-tint: #fbeee7;
+  --move: #274c8c; --move-tint: #e9eef8;
+  --goal: #0d6b5b; --goal-tint: #e3f2ee;
+  --material-bg: #fbe2e2; --material-ink: #8a1c1c;
+  --minor-bg: #fdf0d3; --minor-ink: #7a4a05;
+  --low-bg: #e1f1e8; --low-ink: #1d5e3a;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+}
+@page {
+  size: A4;
+  margin: 16mm 15mm 18mm;
+  @bottom-left { content: "Engineering Migration Plan"; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 7.5pt; color: #8993a1; }
+  @bottom-right { content: "Page " counter(page) " of " counter(pages); font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 7.5pt; color: #8993a1; }
+}
+@page overview { size: A4 landscape; margin: 12mm 13mm 14mm; }
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; color-scheme: light; }
+body { margin: 0; font-family: var(--sans); font-size: 9.6pt; line-height: 1.45; color: var(--ink); background: var(--paper); }
+@media screen {
+  body { background: #e3e7ed; padding: 24px 0; }
+  .sheet { background: var(--paper); width: 210mm; min-height: 297mm; margin: 0 auto 24px; padding: 16mm 15mm 18mm; box-sizing: border-box;
+           box-shadow: 0 1px 3px rgba(22, 32, 44, .12), 0 10px 28px rgba(22, 32, 44, .08); }
+  .sheet.overview { width: 297mm; min-height: 210mm; padding: 12mm 13mm 14mm; }
+}
+@media print {
+  .sheet { break-after: page; }
+  .sheet:last-child { break-after: auto; }
+}
+.overview { page: overview; }
+
+h1 { font-size: 25pt; line-height: 1.12; margin: 7mm 0 2mm; letter-spacing: -.01em; }
+h2 { font-size: 13.5pt; margin: 0 0 3mm; padding-bottom: 1.6mm; border-bottom: 1.2pt solid var(--banner); break-after: avoid; }
+h2 .n { color: var(--faint); margin-right: 2mm; }
+h3 { font-size: 10.5pt; margin: 5mm 0 2mm; break-after: avoid; }
+p { margin: 0 0 2.4mm; }
+ul { margin: 0 0 2.4mm; padding-left: 4.5mm; }
+li { margin: 0 0 1mm; }
+.block + .block { margin-top: 8mm; }
+.lead { color: var(--muted); margin-bottom: 3.5mm; }
+.eyebrow { font-size: 7.6pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+code, .path { font-family: var(--mono); font-size: .9em; }
+
+/* cover */
+.cover-top { display: flex; justify-content: space-between; align-items: center; padding-bottom: 3mm; border-bottom: .8pt solid var(--soft); }
+.status { font-size: 7.6pt; font-weight: 800; letter-spacing: .08em; padding: 1.2mm 2.8mm; border-radius: 1.6mm; background: #fff4d6; color: #7a4a05; border: .8pt solid #e2bd62; }
+.meta { color: var(--muted); font-size: 8.8pt; margin-bottom: 5mm; }
+.meta span + span::before { content: "·"; margin: 0 2mm; color: var(--faint); }
+.verdict { margin: 0 0 5mm; padding: 3.4mm 4mm; border-left: 3pt solid var(--now); background: var(--now-tint); }
+.verdict b { letter-spacing: .04em; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin: 0 0 5mm; }
+.tile { border: .8pt solid var(--soft); border-radius: 2mm; padding: 3mm 4mm; }
+.tile b { display: block; font-size: 20pt; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 8pt; color: var(--muted); }
+.story { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 5mm; }
+.card { border: .8pt solid var(--soft); border-radius: 2mm; padding: 3.4mm 4mm; break-inside: avoid; }
+.card h3 { margin: 0 0 1.8mm; display: flex; align-items: center; gap: 2mm; font-size: 10pt; }
+.dot { display: inline-flex; width: 5.4mm; height: 5.4mm; border-radius: 50%; background: var(--banner); color: #fff; font-size: 7.6pt; font-weight: 700; align-items: center; justify-content: center; flex: none; }
+.card.now { border-top: 2.4pt solid var(--now); } .card.now .dot { background: var(--now); }
+.card.wrong { border-top: 2.4pt solid var(--material-ink); } .card.wrong .dot { background: var(--material-ink); }
+.card.goal { border-top: 2.4pt solid var(--goal); } .card.goal .dot { background: var(--goal); }
+.card.move { border-top: 2.4pt solid var(--move); } .card.move .dot { background: var(--move); }
+.authorize { border: 1pt solid var(--banner); border-radius: 2mm; padding: 3.4mm 4mm; background: var(--wash); break-inside: avoid; }
+
+/* the CURRENT → MIGRATION → TARGET page */
+.journey-title { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4mm; }
+.journey-title h2 { border: 0; padding: 0; margin: 0; font-size: 15pt; letter-spacing: .08em; }
+.journey-title .to { color: var(--faint); margin: 0 2.5mm; }
+.journey { display: grid; grid-template-columns: 1fr 7mm .92fr 7mm 1fr; height: 156mm; }
+.stage { border: .8pt solid var(--soft); border-radius: 2mm; display: flex; flex-direction: column; min-height: 0; }
+.stage > header { padding: 2.4mm 3.6mm; color: #fff; border-radius: 1.7mm 1.7mm 0 0; }
+.stage > header b { font-size: 11pt; letter-spacing: .14em; }
+.stage > header span { display: block; font-size: 8pt; opacity: .92; }
+.stage.now > header { background: var(--now); }
+.stage.move > header { background: var(--move); }
+.stage.goal > header { background: var(--goal); }
+.stage .body { padding: 3mm 3.6mm; flex: 1; display: flex; flex-direction: column; gap: 3mm; min-height: 0; }
+.stage.now .body { background: linear-gradient(var(--now-tint), var(--paper) 30mm); }
+.stage.goal .body { background: linear-gradient(var(--goal-tint), var(--paper) 30mm); }
+.stage .notes { margin-top: auto; border-top: .8pt solid var(--soft); padding-top: 2mm; font-size: 8pt; }
+.stage .notes b { display: block; font-size: 7.2pt; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 1mm; }
+.stage .notes ul { margin: 0; }
+.arrow { display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 15pt; }
+pre.tree { font-family: var(--mono); font-size: 7.3pt; line-height: 1.32; margin: 0; white-space: pre; flex: 1; min-height: 0; } /* never clipped: too long shows */
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.steps li { position: relative; padding: 0 0 3.2mm 8.4mm; margin: 0; }
+.steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: .2mm; width: 5.6mm; height: 5.6mm; border-radius: 50%;
+                    background: var(--move); color: #fff; font-size: 7.6pt; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.steps li b { display: block; font-size: 9pt; line-height: 1.3; }
+.steps li span { display: block; color: var(--muted); font-size: 8.2pt; line-height: 1.35; }
+.legend { margin-top: 3mm; font-size: 7.8pt; color: var(--muted); }
+.legend span + span { margin-left: 5mm; }
+
+/* tables: solid banner header, full grid, zebra rows, a firm closing line */
+table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.6pt; margin: 1.5mm 0 5mm; }
+thead { display: table-header-group; }
+th { background: var(--banner); color: #fff; font-size: 7.3pt; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; text-align: left; padding: 2.2mm 2.4mm; border: 0; }
+td { border: .8pt solid var(--line); padding: 2mm 2.4mm; vertical-align: top; overflow-wrap: anywhere; }
+tbody tr:nth-child(even) td { background: var(--zebra); }
+tbody tr:last-child td { border-bottom: 1.6pt solid var(--banner); }
+tr { break-inside: avoid; }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.badge { display: inline-block; padding: .5mm 1.8mm; border-radius: 1.2mm; font-size: 7pt; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.badge.material, .badge.high { background: var(--material-bg); color: var(--material-ink); }
+.badge.minor, .badge.medium { background: var(--minor-bg); color: var(--minor-ink); }
+.badge.low { background: var(--low-bg); color: var(--low-ink); }
+
+/* phases */
+.phase { border: .8pt solid var(--soft); border-radius: 2mm; padding: 3.4mm 4mm 1mm; margin: 0 0 5mm; break-inside: avoid; }
+.phase > h3 { margin: 0 0 2.6mm; display: flex; justify-content: space-between; align-items: center; gap: 3mm; }
+.facts { display: grid; grid-template-columns: 30mm 1fr; gap: 1.8mm 4mm; margin: 0; }
+.facts dt { font-size: 7.3pt; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: .5mm; }
+.facts dd { margin: 0; min-width: 0; }
+.facts pre.tree { font-size: 7.3pt; background: var(--wash); border: .8pt solid var(--soft); border-radius: 1.4mm; padding: 2mm 2.6mm; }
+.facts table { margin: 0 0 1mm; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+.approval { border: 1.4pt solid var(--banner); border-radius: 2mm; padding: 5mm; break-inside: avoid; }
+.reply { font-family: var(--mono); font-size: 11pt; background: var(--zebra); border: .8pt solid var(--line); border-radius: 1.4mm; padding: 2.4mm 3.6mm; display: inline-block; margin: 1mm 0 3mm; }
+</style>
+</head>
+<body>
+
+<!-- ============ Page 1 — the summary for the owner (plain language) ============ -->
+<section class="sheet" id="summary">
+  <div class="cover-top">
+    <span class="eyebrow">Engineering Migration Plan</span>
+    <span class="status">AWAITING HUMAN APPROVAL</span>
+  </div>
+  <h1>{{PROJECT_NAME}}</h1>
+  <div class="meta"><span>Plan version {{PLAN_VERSION}}</span><span>{{PLAN_DATE}}</span><span class="path">{{PROJECT_PATH}}</span><span>{{STACK}}</span></div>
+
+  <p class="verdict"><b>MIGRATION RECOMMENDED.</b> {{VERDICT_REASON}}</p>
+
+  <div class="tiles">
+    <div class="tile"><b>{{MATERIAL_COUNT}}</b><span>material findings (plus {{MINOR_COUNT}} minor, not acted on)</span></div>
+    <div class="tile"><b>{{PHASE_COUNT}}</b><span>phases, each approved separately</span></div>
+    <div class="tile"><b>{{FILES_TOUCHED}}</b><span>files moved, split or edited across the plan</span></div>
+  </div>
+
+  <div class="story">
+    <div class="card now"><h3><span class="dot">1</span>Where the project is now</h3><p>{{SUMMARY_NOW}}</p></div>
+    <div class="card wrong"><h3><span class="dot">2</span>What is wrong</h3><p>{{SUMMARY_WRONG}}</p></div>
+    <div class="card goal"><h3><span class="dot">3</span>The proposed architecture</h3><p>{{SUMMARY_TARGET}}</p></div>
+    <div class="card move"><h3><span class="dot">4</span>How it gets there</h3><p>{{SUMMARY_PATH}}</p></div>
+  </div>
+
+  <div class="authorize">
+    <p class="eyebrow">What your approval authorizes</p>
+    <p>Creating and verifying a recovery baseline — a saved copy of the whole project that it can be put back to — and then <b>Phase 1 only</b>. Every later phase waits for its own approval. The product's behavior stays the same, nothing is committed or published, and nothing is deleted without a saved copy.</p>
+  </div>
+</section>
+
+<!-- ============ Page 2 — CURRENT → MIGRATION → TARGET (landscape) ============ -->
+<section class="sheet overview" id="overview">
+  <div class="journey-title">
+    <h2>CURRENT <span class="to">→</span> MIGRATION <span class="to">→</span> TARGET</h2>
+    <span class="eyebrow">{{PROJECT_NAME}} · plan version {{PLAN_VERSION}}</span>
+  </div>
+  <div class="journey">
+    <div class="stage now">
+      <header><b>CURRENT</b><span>Where the project is now</span></header>
+      <div class="body">
+<pre class="tree">{{CURRENT_TREE}}</pre>
+        <div class="notes"><b>Main problems</b><ul>
+          <!-- repeat: one line per material finding, at most four -->
+          <li>{{PROBLEM_LINE}}</li>
+          <!-- /repeat -->
+        </ul></div>
+      </div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="stage move">
+      <header><b>MIGRATION</b><span>One approved phase at a time</span></header>
+      <div class="body">
+        <ol class="steps">
+          <!-- repeat: one item per phase -->
+          <li><b>{{PHASE_TITLE}}</b><span>{{PHASE_ONE_LINE}}</span></li>
+          <!-- /repeat -->
+        </ol>
+        <div class="notes"><b>After every phase</b>Tests and checks run, a recovery checkpoint is saved, and the work stops for your approval.</div>
+      </div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="stage goal">
+      <header><b>TARGET</b><span>Where the project will be</span></header>
+      <div class="body">
+<pre class="tree">{{TARGET_TREE}}</pre>
+        <div class="notes"><b>What gets better</b><ul>
+          <!-- repeat: one line per improvement, at most four -->
+          <li>{{IMPROVEMENT_LINE}}</li>
+          <!-- /repeat -->
+        </ul></div>
+      </div>
+    </div>
+  </div>
+  <p class="legend"><span>→ moves</span><span>✗ removed</span><span>+ new</span><span>Dependency and build-output folders are not shown.</span></p>
+</section>
+
+<!-- ============ Findings and target architecture ============ -->
+<section class="sheet">
+  <div class="block" id="findings">
+    <h2><span class="n">1</span>Findings</h2>
+    <p class="lead">Every finding cites evidence that can be checked in the project. Material findings justify the migration; minor ones are listed but not acted on.</p>
+    <table>
+      <colgroup><col style="width:7%"><col style="width:12%"><col style="width:16%"><col style="width:40%"><col style="width:25%"></colgroup>
+      <thead><tr><th>ID</th><th>Severity</th><th>Criterion</th><th>Evidence</th><th>Impact</th></tr></thead>
+      <tbody>
+        <!-- repeat: one row per finding; severity class "material" or "minor" -->
+        <tr><td>{{FINDING_ID}}</td><td><span class="badge {{SEVERITY_CLASS}}">{{SEVERITY}}</span></td><td>{{CRITERION}}</td><td>{{EVIDENCE}}</td><td>{{IMPACT}}</td></tr>
+        <!-- /repeat -->
+      </tbody>
+    </table>
+  </div>
+
+  <div class="block" id="target">
+    <h2><span class="n">2</span>Target architecture</h2>
+    <p class="lead">{{TARGET_INTRO}}</p>
+    <table>
+      <colgroup><col style="width:34%"><col style="width:66%"></colgroup>
+      <thead><tr><th>Folder</th><th>Responsibility</th></tr></thead>
+      <tbody>
+        <!-- repeat: one row per folder in the target tree -->
+        <tr><td class="path">{{FOLDER}}</td><td>{{RESPONSIBILITY}}</td></tr>
+        <!-- /repeat -->
+      </tbody>
+    </table>
+    <h3>Key decisions</h3>
+    <table>
+      <colgroup><col style="width:26%"><col style="width:40%"><col style="width:34%"></colgroup>
+      <thead><tr><th>Decision</th><th>Why</th><th>Simpler alternative rejected</th></tr></thead>
+      <tbody>
+        <!-- repeat: one row per major decision -->
+        <tr><td>{{DECISION}}</td><td>{{DECISION_WHY}}</td><td>{{ALTERNATIVE_REJECTED}}</td></tr>
+        <!-- /repeat -->
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ Migration phases ============ -->
+<section class="sheet" id="phases">
+  <h2><span class="n">3</span>Migration phases</h2>
+  <p class="lead">One phase at a time. The application works at the end of every phase; each one is tested, saved as a recovery checkpoint and then waits for your approval before the next begins.</p>
+  <table>
+    <colgroup><col style="width:6%"><col style="width:24%"><col style="width:44%"><col style="width:13%"><col style="width:13%"></colgroup>
+    <thead><tr><th class="num">#</th><th>Phase</th><th>Objective</th><th>Fixes</th><th>Risk</th></tr></thead>
+    <tbody>
+      <!-- repeat: one row per phase; risk class "low", "medium" or "high" -->
+      <tr><td class="num">{{PHASE_NUMBER}}</td><td>{{PHASE_TITLE}}</td><td>{{PHASE_OBJECTIVE}}</td><td>{{PHASE_FINDINGS}}</td><td><span class="badge {{RISK_CLASS}}">{{RISK}}</span></td></tr>
+      <!-- /repeat -->
+    </tbody>
+  </table>
+
+  <!-- repeat: one article per phase -->
+  <article class="phase">
+    <h3><span>Phase {{PHASE_NUMBER}} — {{PHASE_TITLE}}</span><span class="badge {{RISK_CLASS}}">{{RISK}} risk</span></h3>
+    <dl class="facts">
+      <dt>Objective</dt><dd>{{PHASE_OBJECTIVE}}</dd>
+      <dt>Fixes</dt><dd>{{PHASE_FINDINGS}}</dd>
+      <dt>Changes</dt><dd>
+        <table>
+          <colgroup><col style="width:42%"><col style="width:42%"><col style="width:16%"></colgroup>
+          <thead><tr><th>From</th><th>To</th><th>Kind</th></tr></thead>
+          <tbody>
+            <!-- repeat (change rows): one row per move, split or edit; kind: move, split, edit, new, remove -->
+            <tr><td class="path">{{FROM_PATH}}</td><td class="path">{{TO_PATH}}</td><td>{{CHANGE_KIND}}</td></tr>
+            <!-- /repeat (change rows) -->
+          </tbody>
+        </table>
+      </dd>
+      <dt>Files in scope</dt><dd>{{FILES_IN_SCOPE}}</dd>
+      <dt>Tree afterwards</dt><dd><pre class="tree">{{TREE_AFTER}}</pre></dd>
+      <dt>Verification</dt><dd>{{PHASE_VERIFICATION}}</dd>
+      <dt>Risks</dt><dd>{{PHASE_RISKS}}</dd>
+    </dl>
+  </article>
+  <!-- /repeat -->
+</section>
+
+<!-- ============ Verification, what stays the same, risks, approval ============ -->
+<section class="sheet">
+  <div class="block" id="verification">
+    <h2><span class="n">4</span>Verification and recovery</h2>
+    <p class="lead">These checks run once before anything changes (the baseline) and again after every phase.</p>
+    <table>
+      <colgroup><col style="width:20%"><col style="width:40%"><col style="width:40%"></colgroup>
+      <thead><tr><th>Check</th><th>Command</th><th>Pass means</th></tr></thead>
+      <tbody>
+        <!-- repeat: one row per check (build, type check, tests, smoke run) -->
+        <tr><td>{{CHECK_NAME}}</td><td class="path">{{CHECK_COMMAND}}</td><td>{{CHECK_PASS_MEANS}}</td></tr>
+        <!-- /repeat -->
+      </tbody>
+    </table>
+    <div class="two">
+      <div>
+        <h3>Backup and checkpoints</h3>
+        <p>Before Phase 1, the whole project — including work that is not committed yet — is saved as a recovery baseline and proven restorable by restoring it into a temporary folder. After every successful phase a new checkpoint is saved the same way. Checkpoints live in <span class="path">.vibe-to-engineering/checkpoints.git</span>, separate from the project's own history, which is never changed.</p>
+      </div>
+      <div>
+        <h3>If something breaks</h3>
+        <p>Work stops. The broken state is saved, compared with the last good checkpoint, and the cause is found before anything else happens. You then choose between the proposed fix, putting the project back to the last good checkpoint, or stopping. Nothing is ever rolled back without your approval.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="block" id="unchanged">
+    <h2><span class="n">5</span>What will not change</h2>
+    <div class="two">
+      <div>
+        <h3>Stays exactly as it is</h3>
+        <ul>
+          <!-- repeat: behavior, entry points, routes, commands, data and files that must keep working -->
+          <li>{{UNCHANGED_ITEM}}</li>
+          <!-- /repeat -->
+        </ul>
+      </div>
+      <div>
+        <h3>Out of scope</h3>
+        <ul>
+          <li>New features, and fixes for bugs noticed along the way (they are written down for you instead).</li>
+          <li>Adding, removing or upgrading dependencies.</li>
+          <li>Databases, user data, secrets and files git ignores.</li>
+          <!-- repeat: anything else specific to this project -->
+          <li>{{OUT_OF_SCOPE_ITEM}}</li>
+          <!-- /repeat -->
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="block" id="risks">
+    <h2><span class="n">6</span>Risks</h2>
+    <table>
+      <colgroup><col style="width:34%"><col style="width:12%"><col style="width:12%"><col style="width:42%"></colgroup>
+      <thead><tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <!-- repeat: one row per risk; classes "low", "medium" or "high" -->
+        <tr><td>{{RISK_TEXT}}</td><td><span class="badge {{LIKELIHOOD_CLASS}}">{{LIKELIHOOD}}</span></td><td><span class="badge {{IMPACT_CLASS}}">{{IMPACT_LEVEL}}</span></td><td>{{MITIGATION}}</td></tr>
+        <!-- /repeat -->
+      </tbody>
+    </table>
+  </div>
+
+  <div class="block" id="approval">
+    <h2><span class="n">7</span>Approval</h2>
+    <div class="approval">
+      <p class="eyebrow">Status: AWAITING HUMAN APPROVAL</p>
+      <p>To approve this plan, reply:</p>
+      <p class="reply">approve plan v{{PLAN_VERSION}}</p>
+      <p>Approval authorizes the recovery baseline and Phase 1 only. To change anything first, say what should be different; the plan is revised and comes back to you as a new version.</p>
+      <p class="lead">Plan file: <span class="path">.vibe-to-engineering/Engineering-Migration-Plan.html</span> · its fingerprint and your approval are recorded in <span class="path">.vibe-to-engineering/ledger.md</span></p>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

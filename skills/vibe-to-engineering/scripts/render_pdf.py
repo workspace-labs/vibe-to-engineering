@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Render Engineering-Migration-Plan.html to a PDF with a Chrome-family browser.
+
+    python3 render_pdf.py <plan.html> <plan.pdf>        (Windows: py -3 render_pdf.py …)
+
+Standard library only. It uses a Chrome, Chromium, Edge or Brave browser that is
+already installed, or one downloaded by Playwright; set V2E_BROWSER to a browser's
+full path to choose one. Where browsers are looked for is the only
+platform-specific part, in browser_candidates(). It refuses a plan with unfilled
+placeholders, scripts or external resources, and blocks every network lookup while
+printing.
+
+Exit codes: 0 written; 1 refused or failed; 2 usage; 3 no browser found.
+"""
+
+import glob
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+PLACEHOLDER = re.compile(r"\{\{[^{}]*\}\}|\{\{")
+REMOTE = (  # anything the browser would fetch from the network; the plan must be self-contained
+    re.compile(r"""\bsrc\s*=\s*["']?\s*(?:https?:)?//""", re.I),
+    re.compile(r"""<link\b[^>]*\bhref\s*=\s*["']?\s*(?:https?:)?//""", re.I),
+    re.compile(r"""url\(\s*["']?\s*(?:https?:)?//""", re.I),
+    re.compile(r"""@import\b""", re.I),
+)
+# A plan is static. (Turning scripts off in the browser also stops it printing, so they are refused here.)
+SCRIPT = re.compile(r"""<script\b|<[^>]*\son[a-z]+\s*=""", re.I)
+
+
+def browser_candidates():
+    """Where Chrome-family browsers usually live on this operating system."""
+    home = Path.home()
+    names = ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge",
+             "microsoft-edge-stable", "brave-browser", "chrome", "msedge", "chrome-headless-shell")
+    found = [shutil.which(name) for name in names]
+    if sys.platform == "darwin":
+        for root in (Path("/Applications"), home / "Applications"):
+            for app in ("Google Chrome", "Chromium", "Microsoft Edge", "Brave Browser", "Google Chrome for Testing"):
+                found.append(root / (app + ".app") / "Contents" / "MacOS" / app)
+        playwright = home / "Library" / "Caches" / "ms-playwright"
+    elif os.name == "nt":
+        for variable in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+            base = os.environ.get(variable)
+            if base:
+                found += [Path(base, "Google", "Chrome", "Application", "chrome.exe"),
+                          Path(base, "Microsoft", "Edge", "Application", "msedge.exe"),
+                          Path(base, "Chromium", "Application", "chrome.exe"),
+                          Path(base, "BraveSoftware", "Brave-Browser", "Application", "brave.exe")]
+        playwright = Path(os.environ.get("LOCALAPPDATA", str(home))) / "ms-playwright"
+    else:
+        found.append(Path("/snap/bin/chromium"))
+        playwright = home / ".cache" / "ms-playwright"
+    for pattern in ("chromium_headless_shell-*/*/chrome-headless-shell", "chromium_headless_shell-*/*/chrome-headless-shell.exe",
+                    "chromium-*/chrome-*/chrome", "chromium-*/chrome-*/chrome.exe",
+                    "chromium-*/chrome-*/*.app/Contents/MacOS/*"):
+        found += sorted(glob.glob(str(playwright / pattern)), reverse=True)
+    return [str(path) for path in found if path]
+
+
+def find_browser():
+    chosen = os.environ.get("V2E_BROWSER")
+    if chosen:
+        return chosen if Path(chosen).is_file() else None
+    for candidate in browser_candidates():
+        if Path(candidate).is_file() and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
+def page_count(pdf):
+    """Pages in the PDF, from pdfinfo when it is installed, else by counting page objects."""
+    if shutil.which("pdfinfo"):
+        info = subprocess.run(["pdfinfo", str(pdf)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        match = re.search(rb"^Pages:\s+(\d+)", info.stdout, re.M)
+        if match:
+            return int(match.group(1))
+    count = len(re.findall(rb"/Type\s*/Page(?![a-zA-Z])", pdf.read_bytes()))
+    return count or None
+
+
+def main(argv):
+    if len(argv) != 3:
+        print("usage: render_pdf.py <plan.html> <plan.pdf>", file=sys.stderr)
+        return 2
+    html, pdf = Path(argv[1]).expanduser().resolve(), Path(argv[2]).expanduser().resolve()
+    if not html.is_file():
+        print("render_pdf.py: error: plan not found: %s" % html, file=sys.stderr)
+        return 2
+    text = html.read_text(encoding="utf-8")
+    left = sorted(set(PLACEHOLDER.findall(text)))
+    if left:
+        print("render_pdf.py: error: the plan still has unfilled placeholders: %s. Fill them, or write text "
+              "that really contains two braces as &#123;&#123;." % ", ".join(left[:10]), file=sys.stderr)
+        return 1
+    if SCRIPT.search(text):
+        print("render_pdf.py: error: the plan contains a script or an event handler; a plan is static — "
+              "remove them.", file=sys.stderr)
+        return 1
+    if any(rule.search(text) for rule in REMOTE):
+        print("render_pdf.py: error: the plan loads something from the network; keep it self-contained "
+              "(no external scripts, stylesheets, fonts or images).", file=sys.stderr)
+        return 1
+    browser = find_browser()
+    if browser is None:
+        where = "V2E_BROWSER=%s does not exist" % os.environ["V2E_BROWSER"] if os.environ.get("V2E_BROWSER") \
+            else "no Chrome, Chromium, Edge or Brave browser was found"
+        print("render_pdf.py: error: %s. The plan is still readable in any browser: %s. To make the PDF, install "
+              "one of those browsers or set V2E_BROWSER to one's full path." % (where, html), file=sys.stderr)
+        return 3
+    if pdf.exists():
+        pdf.unlink()  # never let an old PDF pass for the new one
+    profile = tempfile.mkdtemp(prefix="v2e-browser-")
+    try:
+        command = [browser, "--headless", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                   "--disable-extensions", "--user-data-dir=" + profile, "--no-pdf-header-footer",
+                   "--print-to-pdf-no-header",
+                   "--host-resolver-rules=MAP * ~NOTFOUND",  # no host name resolves: nothing is fetched
+                   "--print-to-pdf=" + str(pdf), html.as_uri()]
+        done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
+    except subprocess.TimeoutExpired:
+        print("render_pdf.py: error: %s did not finish within 3 minutes" % browser, file=sys.stderr)
+        return 1
+    finally:
+        shutil.rmtree(profile, ignore_errors=True)
+    if not pdf.is_file() or not pdf.read_bytes().startswith(b"%PDF-"):
+        detail = done.stderr.decode("utf-8", "replace").strip().splitlines()[-3:]
+        print("render_pdf.py: error: %s did not produce a PDF. %s" % (browser, " ".join(detail)), file=sys.stderr)
+        return 1
+    pages = page_count(pdf)
+    print("wrote %s (%s pages, %d KB) with %s" % (pdf, pages if pages else "?", pdf.stat().st_size // 1024, browser))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

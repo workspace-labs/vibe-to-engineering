@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vibe to Engineering"
+  short_description: "Diagnose ad-hoc project structure and migrate it one approved phase at a time"
+  default_prompt: "Use $vibe-to-engineering to inspect this project and tell me whether its structure needs an engineering migration."
