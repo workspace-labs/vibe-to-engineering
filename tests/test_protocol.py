@@ -42,6 +42,11 @@ class Protocol(unittest.TestCase):
         self.assertIn("they show what the migration never touches", self.template)
         self.assertNotIn("Dependency and build-output folders are not shown", self.template)
 
+    def test_a_changed_ignored_file_is_a_break_like_a_gone_one(self):   # RA-03
+        for words in ("no ignored file `changed`", "A changed ignored file is a break like a gone one",
+                      "reports none `gone` or `changed`", "ignored files it reports `changed` included"):
+            self.assertIn(words, self.text)
+
 
 if __name__ == "__main__":
     unittest.main()

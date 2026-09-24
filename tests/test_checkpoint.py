@@ -1029,6 +1029,54 @@ class Contract(unittest.TestCase):
         self.assertEqual(out, "small (current files)\n├── data/\n│   └── notes.txt\n├── lib/\n│   └── calc.py\n"
                               "├── .gitignore\n└── main.py\n\n4 files\n")
 
+    # ------------------------------------------------------------ G10 an ignored file whose contents changed is noticed (RA-03)
+
+    def test_an_ignored_file_whose_contents_changed_is_reported_though_no_checkpoint_holds_it(self):
+        for p in (self.git_project(), self.plain_project()):
+            with self.subTest(project=p.name):
+                write(p / ".gitignore", (p / ".gitignore").read_bytes() + b"*.db\n")
+                write(p / "data.db", b"ROWS: 5\n")                     # the owner's database, ignored
+                self.tool(p, "create", "00-baseline")
+                for data, report in ((b"ROWS: 0  (wiped by a check)\n", r"changed\s+data\.db\s+\(28 bytes, was 8\)"),
+                                     (b"ROWS: 9\n", r"changed\s+data\.db\s+\(the same size\)")):
+                    write(p / "data.db", data)
+                    out, _ = self.tool(p, "diff", "00-baseline", expect=3)
+                    self.assertRegex(out, report)
+                    out, _ = self.tool(p, "restore", "00-baseline")    # reported before a restore changes anything
+                    self.assertRegex(out, report)
+                    self.assertEqual((p / "data.db").read_bytes(), data)
+                write(p / "data.db", b"ROWS: 5\n")                     # the same bytes again: nothing to report
+                write(next((p / "node_modules").rglob("index.js")), b"a dependency changed\n")   # not watched
+                out, _ = self.tool(p, "diff", "00-baseline")
+                self.assertIn("no changes", out)
+                watched = self.store_git(p, "cat-file", "commit", "refs/checkpoints/00-baseline").split(
+                    "ignored-contents: ")[1]
+                self.assertIn('"data.db": [8, "sha256:', watched)
+                self.assertNotIn("node_modules", watched)
+                if p.name == "project":                                 # a file with secrets is never read
+                    self.assertRegex(watched, r'"\.env": \[9, "mtime:\d+"\]')
+                    write(p / ".env", b"SECRET=2\n")
+                    os.utime(p / ".env", ns=(os.stat(p / ".env").st_mtime_ns + 10**9,) * 2)
+                    out, _ = self.tool(p, "diff", "00-baseline", expect=3)
+                    self.assertRegex(out, r"changed\s+\.env\s+\(the same size\)")
+        self.plant(p, "01-recorded-nothing", {"a.txt": b"a\n"})          # older checkpoints recorded no contents
+        out, _ = self.tool(p, "diff", "01-recorded-nothing", expect=3)
+        self.assertNotIn("contents changed", out)
+
+    @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+                     "needs POSIX file permissions and a normal user")
+    def test_create_refuses_when_a_watched_ignored_file_cannot_be_read(self):
+        p = self.git_project()
+        write(p / "local.db", b"data\n")
+        write(p / ".gitignore", b"node_modules/\n.env\n*.db\n")
+        os.chmod(p / "local.db", 0o000)
+        try:
+            _, err = self.tool(p, "create", "00-baseline", expect=1)
+        finally:
+            os.chmod(p / "local.db", 0o644)
+        self.assertIn("local.db", err)
+        self.assertIn("could not be noticed", err)
+
     # ------------------------------------------------------------ G1 a repository git will not open is not a plain folder (NEW-1)
 
     def test_a_repository_git_refuses_to_open_stops_every_command_instead_of_losing_tracked_files(self):

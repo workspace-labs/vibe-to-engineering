@@ -12,6 +12,7 @@ operating-system differences live in the "Platform helpers" section.
 """
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -55,6 +56,15 @@ LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 GITLINK, SYMLINK, EXECUTABLE = "160000", "120000", "100755"
 IGNORED_MARK = "ignored-by-git: "  # the line in a checkpoint's message that lists every ignored file it did not save
 NESTED_MARK = "nested-repositories: "  # ...and the one that lists the nested repositories, which it does not save either
+CONTENTS_MARK = "ignored-contents: "  # ...and the one that records each watched ignored file's size and fingerprint
+# Ignored files that change by themselves and are too many to fingerprint: dependency, build-output and cache folders,
+# and the default excluded files. Every other ignored file is watched for changes (G10).
+UNWATCHED_FOLDERS = frozenset([entry[:-1] for entry in DEFAULT_EXCLUDES if entry.endswith("/")]
+                              + ["dist", "build", "target", "coverage", ".cache"])
+UNWATCHED_FILES = tuple(entry for entry in DEFAULT_EXCLUDES if not entry.endswith("/"))
+# Files that hold secrets are never read: their fingerprint is their modification time, not a hash of their bytes.
+SECRET_FILES = (".env", ".env.*", "*.env", "*.pem", "*.key", "*.p12", "*.pfx", "*.keystore", "*.jks", "id_rsa*",
+                "id_ecdsa*", "id_ed25519*", "*credential*", "*secret*")
 INDEX_ENTRY = re.compile(  # one entry of `git ls-files -z -s -v --debug`: tag, mode, id, stage, path, recorded stat data
     rb"([A-Za-z]) (\d{6}) ([0-9a-f]{40}|[0-9a-f]{64}) ([0-3])\t([^\0]*)\0"
     rb"  ctime: (\d+):(\d+)\n  mtime: (\d+):(\d+)\n  dev: (\d+)\tino: (\d+)\n  uid: (\d+)\tgid: (\d+)\n"
@@ -686,25 +696,79 @@ def resolve(store, label):
     return found.stdout.strip().decode()
 
 
-def save_checkpoint(store, tree, label, found):
+def save_checkpoint(store, tree, label, found, contents):
     """Commit a tree under a new label with what it does not hold; a label that exists already is refused (G3)."""
     if label_exists(store, label):
         raise Fail("checkpoint %r already exists — labels are permanent; choose a new one" % label)
-    message = "vibe-to-engineering checkpoint: %s\n\n%s%s\n%s%s\n" % (
+    message = "vibe-to-engineering checkpoint: %s\n\n%s%s\n%s%s\n%s%s\n" % (
         label, IGNORED_MARK, json.dumps([os.fsdecode(rel) for rel in found.ignored]),
-        NESTED_MARK, json.dumps([os.fsdecode(rel) for rel in found.nested]))
+        NESTED_MARK, json.dumps([os.fsdecode(rel) for rel in found.nested]),
+        CONTENTS_MARK, json.dumps(contents, sort_keys=True))
     commit = git(["commit-tree", "--no-gpg-sign", "-m", message, tree], store=store).stdout.strip().decode()
     git(["update-ref", REF_PREFIX + label, commit, ""], store=store)  # "": only if the ref does not exist
     return commit
 
 
 def recorded(store, commit, mark):
-    """The entries a checkpoint recorded on its `mark` line, or None for a checkpoint that recorded none."""
+    """The entries a checkpoint recorded on its `mark` line — names, or for CONTENTS_MARK a name -> [size,
+    fingerprint] object — or None for a checkpoint that recorded none."""
     message = git(["cat-file", "commit", commit], store=store).stdout.decode("utf-8", "surrogateescape")
     for line in message.splitlines():
         if line.startswith(mark):
-            return [os.fsencode(name) for name in json.loads(line[len(mark):])]
+            found = json.loads(line[len(mark):])
+            return found if isinstance(found, dict) else [os.fsencode(name) for name in found]
     return None
+
+
+def watched_contents(project, ignored):
+    """name -> [size, fingerprint] for every ignored file outside dependency, build-output and cache folders, so that
+    diff and restore can tell when one changed, though no checkpoint holds it (G10). The fingerprint is the SHA-256 of
+    the bytes — for a file that holds secrets, which is never read, its modification time. A watched file that cannot
+    be read stops the command: a change to it could not be noticed."""
+    contents = {}
+    for rel in ignored:
+        parts = os.fsdecode(rel).split("/")
+        if rel.endswith(b"/") or UNWATCHED_FOLDERS.intersection(parts[:-1]) or any(
+                fnmatch.fnmatchcase(parts[-1], pattern) for pattern in UNWATCHED_FILES):
+            continue
+        path = local_path(project, rel)
+        try:
+            info = os.lstat(path)
+            if any(fnmatch.fnmatchcase(parts[-1].lower(), pattern) for pattern in SECRET_FILES):
+                fingerprint = "mtime:%d" % info.st_mtime_ns
+            elif stat.S_ISLNK(info.st_mode):
+                fingerprint = "sha256:" + hashlib.sha256(os.fsencode(os.readlink(path))).hexdigest()
+            else:
+                digest = hashlib.sha256()
+                with open(path, "rb") as handle:
+                    for piece in iter(lambda: handle.read(1 << 20), b""):
+                        digest.update(piece)
+                fingerprint = "sha256:" + digest.hexdigest()
+        except OSError as error:
+            raise Fail("cannot read %s, a file git ignores (%s) — without reading it, a change to it could not be "
+                       "noticed" % (show(rel), error.strerror or error))
+        contents[os.fsdecode(rel)] = [info.st_size, fingerprint]
+    return contents
+
+
+def changed_since(store, commit, contents):
+    """Watched ignored files still there whose size or fingerprint differs from what a checkpoint recorded (G10):
+    (name, [size, fingerprint] then, [size, fingerprint] now)."""
+    before = recorded(store, commit, CONTENTS_MARK)
+    if before is None or contents is None:
+        return []
+    return [(name, before[name], contents[name]) for name in sorted(before)
+            if name in contents and before[name] != contents[name]]
+
+
+def report_changed(changed, label):
+    print("files git ignores whose contents changed since %s — checkpoints do not hold them, so their earlier "
+          "contents cannot be restored from here:" % label)
+    for name, (old_size, _), (new_size, _) in changed[:40]:
+        print("  changed  %s  (%s)" % (name, "the same size" if old_size == new_size
+                                       else "%d bytes, was %d" % (new_size, old_size)))
+    if len(changed) > 40:
+        print("  … and %d more" % (len(changed) - 40))
 
 
 def missing(before, after):
@@ -738,7 +802,7 @@ def cmd_create(project, args):
     if label_exists(store, args.label):
         raise Fail("checkpoint %r already exists — labels are permanent; choose a new one" % args.label)
     tree, found = snapshot(project, store, git_project, allow_empty=False)
-    commit = save_checkpoint(store, tree, args.label, found)
+    commit = save_checkpoint(store, tree, args.label, found, watched_contents(project, found.ignored))
     for rel in found.nested:
         warn("nested repository %s is not saved in checkpoints — its own git keeps its committed work, and it holds "
              "no other work now" % show(rel))
@@ -780,14 +844,17 @@ def cmd_diff(project, args):
     if args.new:
         new, new_name = resolve(store, args.new), args.new
         now = (recorded(store, new, IGNORED_MARK), recorded(store, new, NESTED_MARK))
+        contents = recorded(store, new, CONTENTS_MARK)
     else:
         new, found = snapshot(project, store, is_git_project(project), allow_empty=True)
         new_name, now = "the current files", (found.ignored, found.nested)
+        contents = watched_contents(project, found.ignored)
     limit = ["--"] + args.path if args.path else []
     out = git(["diff-tree", "-r", "-z", "-M", "--name-status", "--no-ext-diff", old, new] + limit, store=store).stdout
     changes = parse_name_status(out)
     gone = [] if args.path else gone_since(store, old, *now)
-    if not changes and not gone:
+    changed = [] if args.path else changed_since(store, old, contents)
+    if not changes and not gone and not changed:
         print("no changes from %s to %s" % (args.old, new_name))
         return 0
     if changes:
@@ -804,6 +871,8 @@ def cmd_diff(project, args):
               "hold them, so they cannot be restored from here:" % args.old)
         for rel in gone:
             print("  gone  %s" % show(rel))
+    if changed:
+        report_changed(changed, args.old)
     if args.patch:
         patch = git(["diff-tree", "-r", "-M", "-p", "--no-ext-diff", "--no-textconv", old, new] + limit,
                     store=store).stdout
@@ -1003,6 +1072,11 @@ def cmd_restore(project, args):
         print("warning: files git ignores or nested repositories that were there at %s are gone, and a restore cannot "
               "bring them back:" % args.label)
         list_some("gone   ", gone)
+    contents = watched_contents(project, found.ignored)
+    changed = changed_since(store, commit, contents)
+    if changed:
+        print("warning: a restore cannot bring back what these ignored files held at %s either." % args.label)
+        report_changed(changed, args.label)
     if not to_delete and not to_write:
         print("the project already matches %s — nothing to restore" % args.label)
         return 0
@@ -1020,7 +1094,7 @@ def cmd_restore(project, args):
         return 0
     # 2. keep the current state, 3. prove it comes back, 4. prove the checkpoint to restore comes back
     saved = "pre-restore-" + time.strftime("%Y%m%dt%H%M%Sz", time.gmtime())
-    save_checkpoint(store, now_tree, saved, found)
+    save_checkpoint(store, now_tree, saved, found, contents)
     print("saved the current state as checkpoint %s" % saved)
     try:
         verify_commit(project, store, resolve(store, saved), saved)

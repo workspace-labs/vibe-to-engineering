@@ -145,7 +145,7 @@ Only after the human approves this plan version. Load `references/recovery.md`.
 1. `checkpoint.py create 00-baseline`, then `checkpoint.py verify 00-baseline`. If either fails, stop: no migration without a verified recovery point. `create` refuses, for example, while a folder cannot be read or a nested repository holds uncommitted work; report what it names — resolving it is the human's decision.
 2. Record the starting point in the ledger: the time, the checkpoint name and — if the project uses git — its branch, commit and number of uncommitted changes (`git --no-optional-locks status`).
 3. Run the plan's checks once; save their output in `.vibe-to-engineering/evidence/00-baseline/`; record the results with numbers (tests found, passed, failed, skipped).
-4. If running the checks changed project files (`checkpoint.py diff 00-baseline`), record which files and create `00-baseline-checked`. Files the checks rewrite by themselves are not unplanned changes in later phases.
+4. If running the checks changed project files (`checkpoint.py diff 00-baseline`, ignored files it reports `changed` included), record which files and create `00-baseline-checked`. Files the checks rewrite by themselves are not unplanned changes in later phases.
 5. Stop if any check failed. Also stop if the checks cannot prove the application works, unless the plan begins with a safety-net phase that adds exactly that proof. When you stop, report the baseline, ask whether to continue with "no new failures" as the bar or to fix it separately first, and end with `AWAITING HUMAN APPROVAL`. If the human approves continuing, record in the ledger every check that fails at the baseline, with its numbers: these are the approved baseline failures, and they stay visible to the end (sections 7 and 9).
 6. If everything passed, start Phase 1 — the plan approval covers it.
 
@@ -162,7 +162,7 @@ Add `PHASE n STARTED` to the ledger, then:
 1. State the phase's scope in a few lines.
 2. Make only this phase's planned changes, then update every reference to what it moved or renamed: imports, paths in configuration, scripts, build files, CI, documentation.
 3. Run the plan's checks and compare them with the baseline: everything that passed then passes now, the number of tests is not lower, and the smoke run behaves the same. A check that still fails under an approved "no new failures" bar is reported as `FAIL — no new failures (<numbers>; the same failures as the approved baseline)`, never as PASS.
-4. Architecture check: `checkpoint.py diff <last>` shows exactly the phase's planned changes and their reference updates — nothing else — it reports no ignored file or nested repository `gone`, and no reference to an old path remains anywhere.
+4. Architecture check: `checkpoint.py diff <last>` shows exactly the phase's planned changes and their reference updates — nothing else — it reports no ignored file or nested repository `gone` and no ignored file `changed` (apart from files the checks rewrite, recorded at the baseline), and no reference to an old path remains anywhere. A changed ignored file is a break like a gone one: no checkpoint can bring back what it held.
 5. Record in the ledger what changed (with the diff summary), every check with its numbers, and where the evidence is.
 6. `checkpoint.py create NN-phase-n`, then `checkpoint.py verify NN-phase-n`.
 7. Report and stop:
@@ -219,7 +219,7 @@ After the human approves it:
 
 1. **Re-inspect independently.** If your environment can start a fresh agent, give it only the approved plan and the project and have it make the comparison below; it reads and runs checks, and changes nothing. Otherwise redo INSPECT from scratch before you read your own phase notes.
 2. Compare the APPROVED TARGET TREE with the ACTUAL FINAL TREE (`checkpoint.py tree --current`), marked lines included — an ignored file or nested repository that moved or disappeared is a difference too. Every difference must be covered by an approved plan revision; anything else is a finding.
-3. Verify: responsibility boundaries and dependency direction as designed; no dependency added or removed unless planned (compare the manifests and lockfiles with `00-baseline`); the build; the tests (none fewer than at the baseline, no new failures); the smoke run behaves as at the baseline; no migration remnants (references to old paths, temporary shims not meant to stay, empty folders, backup or scratch files, migration notes left in code); documentation that describes the structure matches it.
+3. Verify: responsibility boundaries and dependency direction as designed; no dependency added or removed unless planned (compare the manifests and lockfiles with `00-baseline`); the build; the tests (none fewer than at the baseline, no new failures); the smoke run behaves as at the baseline; every ignored file and nested repository of `00-baseline` still there and unchanged, apart from files the checks rewrite (`checkpoint.py diff 00-baseline` reports none `gone` or `changed`); no migration remnants (references to old paths, temporary shims not meant to stay, empty folders, backup or scratch files, migration notes left in code); documentation that describes the structure matches it.
 4. Final architecture and code review: judge the final project with `references/engineering-standard.md`. A Material finding that the migration left or introduced blocks completion.
 5. Blocking findings: report them and propose a corrective phase as a plan revision — new version, new PDF, new fingerprint (`references/migration-plan.md`, section 6) — and end with `AWAITING HUMAN APPROVAL`.
 6. None: `checkpoint.py create NN-final` and `checkpoint.py verify NN-final`, then report exactly one outcome:
@@ -275,7 +275,7 @@ Ledger entries are appended, never edited. Each starts with a heading `## <UTC t
 | `create <label>` | save the project's current files as a checkpoint; a label can never be reused |
 | `verify <label>` | prove the checkpoint restores byte for byte |
 | `list` | list the checkpoints |
-| `diff <from> [<to>]` | changes between two checkpoints, or from a checkpoint to the current files, plus any ignored file that disappeared; `--patch` shows the lines |
+| `diff <from> [<to>]` | changes between two checkpoints, or from a checkpoint to the current files, plus any ignored file or nested repository that disappeared and any ignored file whose contents changed; `--patch` shows the lines |
 | `tree [<label>]`, `tree --current` | a tree of every file of a checkpoint or of the current files — ignored files, nested repositories and the skill's own folder marked where they sit; `--current` writes nothing; `--saved-only` shows only what checkpoints save |
 | `extract <label> <folder>` | copy a checkpoint into an empty folder outside the project, for investigation |
 | `restore <label> [--apply]` | show a restore; with `--apply` and the human's approval, do it |
