@@ -27,9 +27,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from checkpoint import (SECRET_FILES, STATE_DIR, UNWATCHED_FOLDERS, Fail,  # noqa: E402 — one list of secret files
-                        configure_output, is_link, resolve_project, write_lf)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the modules beside this file
+from checkpoint import STATE_DIR, resolve_project  # noqa: E402
+from gitrun import Fail, configure_output, is_link, write_lf  # noqa: E402
+from watched import SECRET_FILES, UNWATCHED_FOLDERS  # noqa: E402 — one list of secret files
 
 # A name given a value, anywhere on a line: NAME=VALUE, export NAME=VALUE, name: value, "name": "value", 'name' = …
 NAME = re.compile(r"""(?<![\w.-])(?:export\s+)?(["']?)([A-Za-z_][\w.-]*)\1\s*[=:]\s*""")
