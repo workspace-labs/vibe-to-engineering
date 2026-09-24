@@ -133,6 +133,45 @@ class Renderer(unittest.TestCase):
                 self.assertIn("static", output)
                 self.assertFalse(pdf.exists())
 
+    def test_refuses_a_meta_tag_that_other_markup_hides_from_the_checks(self):
+        local = self.tmp / "local-secret.txt"
+        local.write_text("LOCAL-FILE-CONTENT")
+        for extra in ('<!-- x --!><meta content="0; url=%s" x=">" http-equiv="refresh"> -->' % local.as_uri(),
+                      '<meta name="viewport" content="width=device-width" http-equiv="refresh">'):
+            with self.subTest(extra=extra):
+                code, output = self.checked(extra)
+                self.assertEqual(code, 1, output)
+                self.assertIn("<meta> other than the template's", output)
+
+    @unittest.skipIf(installed_browser() is None or not shutil.which("pdftotext"),
+                     "needs a Chrome-family browser and pdftotext")
+    def test_the_browser_runs_no_script_and_loads_no_local_file_whatever_markup_gets_past_the_checks(self):
+        svg = self.tmp / "local.svg"
+        svg.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="500" height="100">'
+                       '<text x="10" y="60" font-size="28">LOCAL-FILE-LOADED</text></svg>')
+        inline = ("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='100'%3E"
+                  "%3Ctext x='10' y='60' font-size='28'%3EINLINE-IMAGE-SHOWN%3C/text%3E%3C/svg%3E")
+        cases = {   # the independent review's inputs (2026-09-24): Python's parser and the browser read them apart
+            "an event handler behind a comment only the browser closes":
+                '<!-- hidden --!><img/src="data:,"/onerror="document.body.append(\'EVENT-SCRIPT-EXECUTED\')"> -->',
+            "a local image behind that comment": '<!-- hidden --!><img src="%s"> -->' % svg.as_uri(),
+            "a style only the browser keeps open":
+                '<style/>div{width:500px;height:100px;background-image:url(%s)}</style><div></div>' % svg.as_uri(),
+            "a local image in a style behind that comment":
+                '<!-- hidden --!><style>div{width:500px;height:100px;background-image:url(%s)}</style><div></div> -->'
+                % svg.as_uri(),
+        }
+        for name, extra in cases.items():
+            with self.subTest(name):
+                plan = filled_template().replace("</body>", '<p><img alt="" src="%s"></p>%s</body>' % (inline, extra))
+                code, output, pdf = self.render(plan)
+                self.assertEqual(code, 0, output)
+                text = subprocess.run(["pdftotext", str(pdf), "-"], stdout=subprocess.PIPE).stdout.decode()
+                self.assertIn("AWAITING HUMAN APPROVAL", text)        # the plan printed...
+                self.assertIn("INLINE-IMAGE-SHOWN", text)             # ...with the image written into it...
+                self.assertNotIn("EVENT-SCRIPT-EXECUTED", text)       # ...and no script ran
+                self.assertNotIn("LOCAL-FILE-LOADED", text)           # ...and no local file came in
+
     @unittest.skipIf(installed_browser() is None, "no Chrome-family browser installed")
     def test_nothing_is_fetched_while_rendering(self):
         requests = []

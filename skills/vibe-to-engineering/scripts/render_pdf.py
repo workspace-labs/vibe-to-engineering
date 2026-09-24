@@ -9,7 +9,9 @@ full path to choose one. Where browsers are looked for is the only
 platform-specific part, in browser_candidates(). It refuses a plan with unfilled
 placeholders, scripts, external resources, nested documents or local files — reading
 the markup decoded, as the browser does — and blocks every network lookup while
-printing.
+printing. It prints a temporary copy that starts with a content security policy, so
+the browser itself runs no script and loads nothing but images written into the plan,
+whatever markup got past the checks.
 
 Exit codes: 0 written; 1 refused or failed; 2 usage; 3 no browser found.
 """
@@ -49,6 +51,16 @@ NESTED = re.compile(r"""<\s*(script|iframe|frame|frameset|object|embed|applet|po
                     r"""|<[^>]*[\s"'/](srcdoc|http-equiv)\s*=""", re.I)
 CSS_LOADS = re.compile(r"""(?<![\w-])(?:image-set|-webkit-image-set|image|element|cross-fade|src)\s*\(|@import""", re.I)
 CSS_URL = re.compile(r"""(?<![\w-])url\s*\(\s*["']?\s*([^"')\s]*)""", re.I)
+# A <meta> can send the page to another address (a refresh), which no content policy stops. Every <meta> starts with
+# these five characters in the raw text, so only the template's two lines are allowed, whatever parser reads the rest.
+META = re.compile(r"<meta\b", re.I)
+META_ALLOWED = re.compile(r"""<meta\s+(?:charset\s*=\s*["']?utf-8["']?|name\s*=\s*["']?viewport["']?\s+"""
+                          r"""content\s*=\s*"[^"<>]*")\s*/?>""", re.I)
+# Put in front of the plan before it prints, so the browser enforces what the checks look for: no script or event
+# handler runs, and nothing loads — no local file, no network address — except images and fonts written into the plan.
+POLICY = ('<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
+          "style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'\">")
+DOCTYPE = re.compile(r"﻿?\s*<!doctype[^>]*>", re.I)
 
 
 def address_kind(address):
@@ -118,7 +130,15 @@ def static_problems(text):
     markup.feed(text)
     markup.close()
     problems += markup.problems + [problem for problem in map(css_problem, markup.css) if problem]
+    problems += ["<meta> other than the template's charset and viewport lines"
+                 for meta in META.finditer(text) if not META_ALLOWED.match(text, meta.start())]
     return list(dict.fromkeys(problems))
+
+
+def with_policy(text):
+    """The plan with POLICY in front of everything it holds — after a leading doctype, so the page keeps its layout."""
+    lead = DOCTYPE.match(text)
+    return text[:lead.end()] + POLICY + text[lead.end():] if lead else POLICY + text
 
 
 def browser_candidates():
@@ -209,19 +229,21 @@ def main(argv):
         return 3
     if pdf.exists():
         pdf.unlink()  # never let an old PDF pass for the new one
-    profile = tempfile.mkdtemp(prefix="v2e-browser-")
+    work = Path(tempfile.mkdtemp(prefix="v2e-browser-"))
     try:
+        page = work / "plan.html"
+        page.write_bytes(with_policy(text).encode("utf-8"))
         command = [browser, "--headless", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-                   "--disable-extensions", "--user-data-dir=" + profile, "--no-pdf-header-footer",
+                   "--disable-extensions", "--user-data-dir=" + str(work / "profile"), "--no-pdf-header-footer",
                    "--print-to-pdf-no-header",
                    "--host-resolver-rules=MAP * ~NOTFOUND",  # no host name resolves: nothing is fetched
-                   "--print-to-pdf=" + str(pdf), html.as_uri()]
+                   "--print-to-pdf=" + str(pdf), page.as_uri()]
         done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
     except subprocess.TimeoutExpired:
         print("render_pdf.py: error: %s did not finish within 3 minutes" % browser, file=sys.stderr)
         return 1
     finally:
-        shutil.rmtree(profile, ignore_errors=True)
+        shutil.rmtree(str(work), ignore_errors=True)
     if not pdf.is_file() or not pdf.read_bytes().startswith(b"%PDF-"):
         detail = done.stderr.decode("utf-8", "replace").strip().splitlines()[-3:]
         print("render_pdf.py: error: %s did not produce a PDF. %s" % (browser, " ".join(detail)), file=sys.stderr)
