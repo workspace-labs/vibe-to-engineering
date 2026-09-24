@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- F02: store commands could still change a file outside the store. The store check now stops at any store folder it cannot read, and refuses any store file that is also another file's name (a hard link), apart from the three files the tool replaces whole; git runs on the store with its reference log switched off. Tests cover both routes, with hard links in reference logs, deep references, `packed-refs` and objects.
+- F02: store commands could still change a file outside the store. The store check now stops at any store folder it cannot read, and refuses any store file that is also another file's name (a hard link), apart from the three files the tool replaces whole; git runs on the store with `core.logAllRefUpdates=false`, so it creates no missing reference log — a log that already exists still receives appends, and the hard-link refusal keeps them inside the store. Tests cover both routes, with hard links in reference logs, deep references, `packed-refs` and objects, and an existing reference log with one name and with two.
 
 ## [0.1.0] - 2026-09-23
 

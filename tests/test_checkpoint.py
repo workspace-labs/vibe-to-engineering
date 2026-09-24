@@ -76,6 +76,18 @@ def folder_digest(root):
     return digest.hexdigest()
 
 
+def identities(root):
+    """Every name under root, root included, with its inode, modification time and bytes — proves nothing under it was
+    written, replaced, created or removed, not even with the same bytes."""
+    found = {}
+    for folder, dirs, names in os.walk(root):
+        for path in [folder] + [os.path.join(folder, name) for name in names]:
+            info = os.lstat(path)
+            found[os.path.relpath(path, root)] = (info.st_ino, info.st_mtime_ns,
+                                                  Path(path).read_bytes() if stat.S_ISREG(info.st_mode) else None)
+    return found
+
+
 def case_insensitive_disk(folder):
     probe = Path(folder) / "CaseProbe"
     probe.write_text("x")
@@ -606,6 +618,28 @@ class Contract(unittest.TestCase):
         # Without a second name the reference log the store asks for is still never written.
         self.tool(p, "create", "01-next")
         self.assertFalse((store / "logs").exists() and any((store / "logs").rglob("01-next")))
+
+    def test_an_existing_reference_log_takes_an_append_with_one_name_and_is_refused_before_any_write_with_two(self):
+        # core.logAllRefUpdates=false only stops git creating a missing log: git still appends to one that exists (G7).
+        p = self.git_project()
+        self.tool(p, "create", "00-baseline")
+        store, outside = self.store(p), self.tmp / "outside.txt"
+        log = store / "logs" / "refs" / "checkpoints" / "01-next"
+        write(outside, b"KEEP THESE BYTES\n")
+        log.parent.mkdir(parents=True, exist_ok=True)
+        os.link(str(outside), str(log))                      # two names: the store's log and an outside file
+        before = (disk_state(p), identities(store))
+        _, err = self.tool(p, "create", "01-next", expect=1)
+        self.assertIn("hard link", err)
+        self.assertEqual(outside.read_bytes(), b"KEEP THESE BYTES\n")
+        self.assertEqual((disk_state(p), identities(store)), before)   # refused before any write, in the store too
+        log.unlink()
+        write(log, b"KEEP THESE BYTES\n")                    # one name: the store's own file
+        self.tool(p, "create", "01-next")
+        self.assertEqual(outside.read_bytes(), b"KEEP THESE BYTES\n")
+        appended = log.read_bytes()
+        self.assertTrue(appended.startswith(b"KEEP THESE BYTES\n") and len(appended) > 17,
+                        "git no longer appends to an existing log — recovery.md G7 can say so")
 
     @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
                      "needs POSIX file permissions and a normal user")

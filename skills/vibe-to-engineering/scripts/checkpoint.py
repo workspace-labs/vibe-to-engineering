@@ -108,7 +108,8 @@ def fidelity_settings():
     return () if os.name == "nt" else ("core.filemode=true", "core.symlinks=true")
 
 
-# Given to every command on the store: git keeps no reference log there, so it never appends to a file in place (G7).
+# Given to every command on the store: git creates no missing reference log there. It still appends to a log that
+# already exists; the link-count check in check_state_folder keeps that append from reaching another file (G7).
 STORE_SETTINGS = ("core.logAllRefUpdates=false",)
 # Store files the tool itself replaces whole (git config writes a lock file and renames it): a second name for one of
 # them is harmless, because the write never reaches it. Any other store file with a second name is refused.
