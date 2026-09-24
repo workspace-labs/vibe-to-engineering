@@ -108,6 +108,13 @@ def fidelity_settings():
     return () if os.name == "nt" else ("core.filemode=true", "core.symlinks=true")
 
 
+# Given to every command on the store: git keeps no reference log there, so it never appends to a file in place (G7).
+STORE_SETTINGS = ("core.logAllRefUpdates=false",)
+# Store files the tool itself replaces whole (git config writes a lock file and renames it): a second name for one of
+# them is harmless, because the write never reaches it. Any other store file with a second name is refused.
+REPLACED_WHOLE = ("config", os.path.join("info", "attributes"), os.path.join("info", "exclude"))
+
+
 def is_link(path):
     """Whether a path is a symbolic link — or, on Windows, any reparse point, junctions included."""
     try:
@@ -158,7 +165,7 @@ def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(
     """Run one git command; raise Fail on an unexpected exit code — and, with quiet=True, on any warning: for a
     listing that means git could not see everything (an unreadable folder, for example)."""
     command = ["git"]
-    for setting in SAFE_SETTINGS + (fidelity_settings() if store is not None else ()):
+    for setting in SAFE_SETTINGS + (STORE_SETTINGS + fidelity_settings() if store is not None else ()):
         command += ["-c", setting]
     if store is not None:
         command.append("--git-dir=" + str(store))
@@ -231,11 +238,17 @@ def check_state_folder(project):
         if os.path.lexists(str(store / redirect)):
             raise Fail("the store %s has a %s file, which makes git use another repository. Nothing was changed"
                        % (store, redirect))
-    for folder, dirs, names in os.walk(str(store)):
+    def unreadable(error):
+        raise Fail("cannot read the folder %s inside the store (%s) — a link or a second name for another file could "
+                   "hide there. Nothing was changed" % (error.filename, error.strerror or error))
+    for folder, dirs, names in os.walk(str(store), onerror=unreadable):
         for name in dirs + names:
             path = os.path.join(folder, name)
             if is_link(path) or not (os.path.isdir(path) or os.path.isfile(path)):
                 raise Fail("%s is a link or a special file inside the store. Nothing was changed" % path)
+            if name in names and os.stat(path).st_nlink > 1 and os.path.relpath(path, str(store)) not in REPLACED_WHOLE:
+                raise Fail("%s inside the store is also another file's name (a hard link), so a write to it would "
+                           "change that file too. Nothing was changed" % path)
 
 
 def prepare_store(project, git_project):

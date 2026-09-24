@@ -571,6 +571,72 @@ class Contract(unittest.TestCase):
         self.tool(p, "verify", "00-baseline")
         self.assertEqual(disk_state(p), before)
 
+    def test_a_store_file_with_a_second_name_outside_is_refused_and_git_appends_to_no_file(self):
+        p = self.git_project()
+        self.tool(p, "create", "00-baseline")
+        store, outside = self.store(p), self.tmp / "outside.txt"
+        with open(store / "config", "a") as config:
+            config.write("[core]\n\tlogAllRefUpdates = always\n")   # the store asks git for a reference log
+        oid = self.store_git(p, "rev-parse", "refs/checkpoints/00-baseline:unix.txt")
+        places = {   # where a second name for the outside file is made inside the store
+            "a reference log": store / "logs" / "refs" / "checkpoints" / "01-next",
+            "the reference log of HEAD": store / "logs" / "HEAD",
+            "a deep reference": store / "refs" / "checkpoints" / "deep" / "er" / "label",
+            "packed-refs": store / "packed-refs",
+            "an object": store / "objects" / oid[:2] / oid[2:],
+        }
+        for name, place in places.items():
+            with self.subTest(place=name):
+                write(outside, b"KEEP THESE BYTES\n")
+                kept = place.read_bytes() if place.exists() else None
+                if place.exists():
+                    os.chmod(place, stat.S_IWRITE | stat.S_IREAD)
+                    place.unlink()
+                place.parent.mkdir(parents=True, exist_ok=True)
+                os.link(str(outside), str(place))
+                for command in (("create", "01-next"), ("list",), ("verify", "00-baseline")):
+                    before = disk_state(p)
+                    _, err = self.tool(p, *command, expect=1)
+                    self.assertIn("hard link", err)
+                    self.assertEqual(outside.read_bytes(), b"KEEP THESE BYTES\n")
+                    self.assertEqual(disk_state(p), before)
+                place.unlink()
+                if kept is not None:
+                    write(place, kept)
+        # Without a second name the reference log the store asks for is still never written.
+        self.tool(p, "create", "01-next")
+        self.assertFalse((store / "logs").exists() and any((store / "logs").rglob("01-next")))
+
+    @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+                     "needs POSIX file permissions and a normal user")
+    def test_a_store_folder_that_cannot_be_read_stops_every_command_before_a_write(self):
+        p = self.git_project()
+        self.tool(p, "create", "00-baseline")
+        store, outside = self.store(p), self.tmp / "outside.gitconfig"
+        for locked, link in ((store, store / "config"),   # the config git config --file would write through
+                             (store / "refs" / "checkpoints", store / "refs" / "checkpoints" / "deep" / "hidden")):
+            with self.subTest(locked=locked.name):
+                write(outside, b"[core]\n\tautocrlf = true\n")
+                original = link.read_bytes() if link.exists() else None
+                link.parent.mkdir(parents=True, exist_ok=True)
+                if original is not None:
+                    link.unlink()
+                os.symlink(str(outside), str(link))   # hidden once its folder cannot be listed
+                os.chmod(locked, 0o300)
+                try:
+                    for command in (("list",), ("create", "01-next"), ("verify", "00-baseline"), ("diff", "00-baseline")):
+                        before = disk_state(p)
+                        _, err = self.tool(p, *command, expect=1)
+                        self.assertIn("cannot read the folder", err)
+                        self.assertEqual(outside.read_bytes(), b"[core]\n\tautocrlf = true\n")
+                        self.assertEqual(disk_state(p), before)
+                finally:
+                    os.chmod(locked, 0o755)
+                    link.unlink()
+                    if original is not None:
+                        write(link, original)
+        self.tool(p, "verify", "00-baseline")
+
     # ------------------------------------------------------------ G11 no hook runs, no git setting bends a checkpoint (F03)
 
     def hostile_git(self, p):
