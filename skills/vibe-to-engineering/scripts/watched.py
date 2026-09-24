@@ -88,33 +88,38 @@ def watched_contents(project, ignored, key_path):
     return contents
 
 
-def changed_since(project, before, contents):
-    """Watched ignored files still there whose size or fingerprint differs from what a checkpoint recorded (G10):
-    (name, [size, fingerprint] then, [size, fingerprint] now). A checkpoint from before keyed fingerprints recorded
-    a secret file's modification time; it is compared with the file's modification time now. `before` is what
-    the checkpoint recorded (its CONTENTS_MARK line), or None."""
-    if before is None or contents is None:
-        return []
+def changed_since(before, contents):
+    """Watched ignored files whose contents differ from what a checkpoint recorded, or cannot be compared with it
+    (G10): (name, then, now), each side its [size, fingerprint] record or None where that side recorded nothing. Two
+    fingerprints of the bytes are compared; a record of only a modification time (a checkpoint from before keyed
+    fingerprints) or no record at all says nothing about the bytes, so such a file is listed as one whose change
+    cannot be told — never called unchanged. `before` is what the checkpoint recorded (its CONTENTS_MARK line) and
+    `contents` what the other side holds, each None where nothing was recorded."""
     changed = []
-    for name in sorted(before):
-        if name not in contents:
-            continue  # gone: gone_since reports it
-        old, now = before[name], contents[name]
-        if old[1].startswith("mtime:") and not now[1].startswith("mtime:"):
-            try:
-                now = [now[0], "mtime:%d" % os.lstat(local_path(project, os.fsencode(name))).st_mtime_ns]
-            except OSError:
-                continue
-        if old != now:
-            changed.append((name, old, now))
+    for name in sorted(set(before or ()) | set(contents or ())):
+        then, now = (before or {}).get(name), (contents or {}).get(name)
+        if before is not None and contents is not None and (then is None or now is None):
+            continue  # gone since the checkpoint (gone_since reports it), or new since
+        comparable = (then is not None and now is not None
+                      and not then[1].startswith("mtime:") and not now[1].startswith("mtime:"))
+        if not comparable or then != now:
+            changed.append((name, then, now))
     return changed
 
 
-def report_changed(changed, label):
-    print("files git ignores whose contents changed since %s — checkpoints do not hold them, so their earlier "
-          "contents cannot be restored from here:" % label)
-    for name, (old_size, _), (new_size, _) in changed[:40]:
-        print("  changed  %s  (%s)" % (name, "the same size" if old_size == new_size
-                                       else "%d bytes, was %d" % (new_size, old_size)))
+def report_changed(changed, label, other="the current files"):
+    """The list changed_since found, one line each: `changed` with the sizes, or `unknown` with what is missing —
+    `label` names the checkpoint, `other` the side it is compared with."""
+    print("files git ignores whose contents changed since %s, or cannot be compared with it — checkpoints do not "
+          "hold them, so their earlier contents cannot be restored from here:" % label)
+    for name, then, now in changed[:40]:
+        if then is None or now is None:
+            print("  unknown  %s  (%s recorded nothing about its contents)" % (name, label if then is None else other))
+        elif then[1].startswith("mtime:") or now[1].startswith("mtime:"):
+            print("  unknown  %s  (%s recorded only its modification time, which says nothing about its contents)"
+                  % (name, label if then[1].startswith("mtime:") else other))
+        else:
+            print("  changed  %s  (%s)" % (name, "the same size" if then[0] == now[0]
+                                           else "%d bytes, was %d" % (now[0], then[0])))
     if len(changed) > 40:
         print("  … and %d more" % (len(changed) - 40))

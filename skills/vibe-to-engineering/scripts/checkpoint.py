@@ -547,7 +547,7 @@ def cmd_diff(project, args):
     out = git(["diff-tree", "-r", "-z", "-M", "--name-status", "--no-ext-diff", old, new] + limit, store=store).stdout
     changes = parse_name_status(out)
     gone = [] if args.path else gone_since(store, old, *now)
-    changed = [] if args.path else changed_since(project, recorded(store, old, CONTENTS_MARK), contents)
+    changed = [] if args.path else changed_since(recorded(store, old, CONTENTS_MARK), contents)
     if not changes and not gone and not changed:
         print("no changes from %s to %s" % (args.old, new_name))
         return 0
@@ -566,7 +566,7 @@ def cmd_diff(project, args):
         for rel in gone:
             print("  gone  %s" % show(rel))
     if changed:
-        report_changed(changed, args.old)
+        report_changed(changed, args.old, new_name)
     if args.patch:
         patch = git(["diff-tree", "-r", "-M", "-p", "--no-ext-diff", "--no-textconv", old, new] + limit,
                     store=store).stdout
@@ -693,7 +693,7 @@ def cmd_restore(project, args):
               "bring them back:" % args.label)
         list_some("gone   ", gone)
     contents = watched_contents(project, found.ignored, key_path(project))
-    changed = changed_since(project, recorded(store, commit, CONTENTS_MARK), contents)
+    changed = changed_since(recorded(store, commit, CONTENTS_MARK), contents)
     if changed:
         print("warning: a restore cannot bring back what these ignored files held at %s either." % args.label)
         report_changed(changed, args.label)

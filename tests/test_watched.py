@@ -122,9 +122,6 @@ class Watched(Fixture):
                     write(p / ".env", b"SECRET=2\n")
                     out, _ = self.tool(p, "diff", "00-baseline", expect=3)
                     self.assertRegex(out, r"changed\s+\.env\s+\(the same size\)")
-        self.plant(p, "01-recorded-nothing", {"a.txt": b"a\n"})          # older checkpoints recorded no contents
-        out, _ = self.tool(p, "diff", "01-recorded-nothing", expect=3)
-        self.assertNotIn("contents changed", out)
 
     def test_a_secret_file_replaced_with_the_same_size_and_time_is_reported_changed_and_never_hashed_plainly(self):
         p = self.git_project()                                   # .env is ignored
@@ -150,21 +147,46 @@ class Watched(Fixture):
         if os.name != "nt":
             self.assertEqual(stat.S_IMODE(os.stat(key).st_mode), 0o600)
         self.assertNotIn("fingerprint.key", self.store_git(p, "ls-tree", "-r", "--name-only", "refs/checkpoints/00-baseline"))
-        # a checkpoint from before keyed fingerprints recorded the modification time: it still compares
-        tree = self.store_git(p, "rev-parse", "refs/checkpoints/00-baseline^{tree}")
-        old = self.store_git(p, "commit-tree", tree, "-m", "vibe-to-engineering checkpoint: 01-older\n\n"
-                             'ignored-by-git: [".env", "node_modules/pkg/index.js"]\nnested-repositories: []\n'
-                             'ignored-contents: {".env": [31, "mtime:%d"]}' % info.st_mtime_ns)
-        self.store_git(p, "update-ref", "refs/checkpoints/01-older", old)
-        out, _ = self.tool(p, "diff", "01-older")
-        self.assertIn("no changes", out)
-        os.utime(p / ".env", ns=(info.st_atime_ns, info.st_mtime_ns + 10**9))
-        out, _ = self.tool(p, "diff", "01-older", expect=3)
-        self.assertRegex(out, r"changed\s+\.env")
         key.unlink()                                             # the key file is guarded like the store (G7)
         os.symlink(str(self.tmp / "elsewhere"), str(key))
         _, err = self.tool(p, "diff", "00-baseline", expect=1)
         self.assertIn("fingerprint.key is a link", err)
+
+    def test_an_older_checkpoint_that_cannot_vouch_for_a_secret_file_never_calls_it_unchanged(self):
+        p = self.git_project()                                   # .env is ignored and watched; node_modules is not watched
+        write(p / ".env", b"SECRET_KEY=fixture-first-value\n")
+        self.tool(p, "create", "00-baseline")
+        info = os.stat(p / ".env")
+        tree = self.store_git(p, "rev-parse", "refs/checkpoints/00-baseline^{tree}")
+        # two checkpoints an older tool wrote over the same files: one recorded the secret file's modification time
+        # (the store format before keyed fingerprints), one recorded nothing about any file's contents
+        for label, record in (("01-mtime", 'ignored-contents: {".env": [31, "mtime:%d"]}\n' % info.st_mtime_ns),
+                              ("02-nothing", "")):
+            commit = self.store_git(p, "commit-tree", tree, "-m", "vibe-to-engineering checkpoint: %s\n\n"
+                                    'ignored-by-git: [".env", "node_modules/pkg/index.js"]\nnested-repositories: []\n%s'
+                                    % (label, record))
+            self.store_git(p, "update-ref", "refs/checkpoints/" + label, commit)
+        outputs = []
+        for data in (b"SECRET_KEY=fixture-first-value\n", b"SECRET_KEY=fixture-other-value\n"):
+            write(p / ".env", data)                              # the same bytes, then other bytes of the same size...
+            os.utime(p / ".env", ns=(info.st_atime_ns, info.st_mtime_ns))   # ...under the recorded modification time
+            for label, why in (("01-mtime", "01-mtime recorded only its modification time"),
+                               ("02-nothing", "02-nothing recorded nothing about its contents")):
+                with self.subTest(label=label, bytes=data.decode()):
+                    out, _ = self.tool(p, "diff", label, expect=3)   # never "no changes": nothing vouches for .env
+                    self.assertRegex(out, r"unknown\s+\.env\s+\(%s" % why)
+                    self.assertNotIn("node_modules", out)            # an unwatched file is not in question
+                    outputs.append(out)
+                    for route in ((), ("--apply",)):
+                        out, _ = self.tool(p, "restore", label, *route)
+                        self.assertRegex(out, r"cannot bring back.*\n.*\n\s+unknown\s+\.env")
+                        outputs.append(out)
+                    self.assertEqual((p / ".env").read_bytes(), data)
+        out, _ = self.tool(p, "diff", "00-baseline", "02-nothing", expect=3)   # whichever side recorded nothing
+        self.assertRegex(out, r"unknown\s+\.env\s+\(02-nothing recorded nothing")
+        outputs.append(out)
+        for out in outputs + [self.store_git(p, "cat-file", "commit", "refs/checkpoints/00-baseline")]:
+            self.assertNotIn("fixture-", out)                       # no secret byte in any output or record
 
     @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
                      "needs POSIX file permissions and a normal user")
