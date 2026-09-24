@@ -988,6 +988,30 @@ class Contract(unittest.TestCase):
                     out, _ = self.tool(p, "diff", "00-clean", expect=3)
                     self.assertEqual(re.findall(r"^\s+gone\s+(\S+)$", out, re.M), [place + "/"])   # once, not twice
 
+    # ------------------------------------------------------------ G1 a repository git will not open is not a plain folder (NEW-1)
+
+    def test_a_repository_git_refuses_to_open_stops_every_command_instead_of_losing_tracked_files(self):
+        p = self.git_project()
+        write(p / "tracked.log", b"tracked, and matched by an ignore rule added later\n")
+        self.git(p, "add", "tracked.log")
+        self.git(p, "commit", "-qm", "log")
+        write(p / ".gitignore", b"node_modules/\n.env\n*.log\n")
+        other_owner = {"GIT_TEST_ASSUME_DIFFERENT_OWNER": "1"}   # git's own switch for "another user's folder"
+        before = disk_state(p, skip=())
+        for command in (("create", "00-baseline"), ("tree", "--current")):
+            with self.subTest(command=command[0]):
+                _, err = self.tool(p, *command, expect=1, env=other_owner)
+                self.assertIn("dubious ownership", err)
+                self.assertEqual(disk_state(p, skip=()), before)
+        self.tool(p, "create", "00-baseline")                 # opened normally, the tracked file is saved
+        out = self.tmp / "extracted"
+        self.tool(p, "extract", "00-baseline", str(out))
+        self.assertIn("tracked.log", disk_state(out))
+        for command in (("verify", "00-baseline"), ("list",), ("diff", "00-baseline"), ("restore", "00-baseline")):
+            with self.subTest(command=command[0]):
+                _, err = self.tool(p, *command, expect=1, env=other_owner)
+                self.assertIn("dubious ownership", err)
+
 
 if __name__ == "__main__":
     unittest.main()

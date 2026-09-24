@@ -166,9 +166,10 @@ def remove_temp(path):
 
 # ---------------------------------------------------------------- git
 
-def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(0,), quiet=False):
+def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(0,), quiet=False, english=False):
     """Run one git command; raise Fail on an unexpected exit code — and, with quiet=True, on any warning: for a
-    listing that means git could not see everything (an unreadable folder, for example)."""
+    listing that means git could not see everything (an unreadable folder, for example). english=True keeps git's
+    messages untranslated, for a message the tool has to recognize."""
     command = ["git"]
     for setting in SAFE_SETTINGS + (STORE_SETTINGS + fidelity_settings() if store is not None else ()):
         command += ["-c", setting]
@@ -184,6 +185,8 @@ def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(
     env["GIT_TERMINAL_PROMPT"] = "0"
     if index is not None:
         env["GIT_INDEX_FILE"] = str(index)
+    if english:
+        env["LC_ALL"] = "C"
     try:
         done = subprocess.run(command, cwd=None if cwd is None else str(cwd), input=stdin,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
@@ -221,9 +224,16 @@ def store_path(project):
 
 
 def is_git_project(project):
-    """True when the folder is inside a git work tree whose repository does not ignore it."""
-    inside = git(["rev-parse", "--is-inside-work-tree"], cwd=project, ok=(0, 128))
-    if inside.returncode != 0 or inside.stdout.strip() != b"true":
+    """True when the folder is inside a git work tree whose repository does not ignore it. Only a folder git calls
+    "not a git repository" follows the plain-folder rules: a repository git refuses to open (another user's folder,
+    for example) stops the command, because those rules would drop its tracked files that match an ignore rule."""
+    inside = git(["rev-parse", "--is-inside-work-tree"], cwd=project, ok=(0, 128), english=True)
+    if inside.returncode != 0:
+        message = inside.stderr.decode("utf-8", "replace").strip()
+        if re.search(r"^fatal: not a git repository", message, re.M):
+            return False
+        raise Fail("git cannot open the repository this folder belongs to — %s" % message)
+    if inside.stdout.strip() != b"true":
         return False
     return git(["check-ignore", "-q", "."], cwd=project, ok=(0, 1, 128)).returncode != 0
 
