@@ -40,7 +40,7 @@ Left out, with no mention: `.env`, `expenses.db`, `exports/expenses-2026-08.csv`
 - `skills/vibe-to-engineering/scripts/checkpoint.py:705` → `def current_files_read_only(project):`. It calls `survey(...)`, which already returns `Found(files, ignored, nested, disk)`, and then keeps only `.files`.
 - `checkpoint.py:720` → `def print_tree(title, paths, depth):`. It takes one flat list of paths.
 - `checkpoint.py:750` → `def cmd_tree(project, args):`. For `tree <label>` the ignored and nested lists are already recorded in the checkpoint message (`IGNORED_MARK`, line 56; `recorded(...)`, line 591).
-- `SKILL.md:83` → `- the current tree without dependency, build-output and vendored folders — \`checkpoint.py tree --current\` prints it and writes nothing;`
+- `SKILL.md:83` → `` - the current tree without dependency, build-output and vendored folders — `checkpoint.py tree --current` prints it and writes nothing; ``
 - `SKILL.md:240` → `Follow the outcome with the before and after trees, …`
 - `assets/plan-template.html`: the overview page's trees, and the fill-in rules in its header comment.
 
