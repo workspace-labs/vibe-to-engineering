@@ -55,6 +55,10 @@ LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 GITLINK, SYMLINK, EXECUTABLE = "160000", "120000", "100755"
 IGNORED_MARK = "ignored-by-git: "  # the line in a checkpoint's message that lists every ignored file it did not save
 NESTED_MARK = "nested-repositories: "  # ...and the one that lists the nested repositories, which it does not save either
+INDEX_ENTRY = re.compile(  # one entry of `git ls-files -z -s -v --debug`: tag, mode, id, stage, path, recorded stat data
+    rb"([A-Za-z]) (\d{6}) ([0-9a-f]{40}|[0-9a-f]{64}) ([0-3])\t([^\0]*)\0"
+    rb"  ctime: (\d+):(\d+)\n  mtime: (\d+):(\d+)\n  dev: (\d+)\tino: (\d+)\n  uid: (\d+)\tgid: (\d+)\n"
+    rb"  size: (\d+)\tflags: [0-9a-f]+\n")
 
 Found = namedtuple("Found", "files ignored nested disk")  # what a survey of the project found
 
@@ -421,7 +425,10 @@ def survey(project, store, git_project):
             nested.add(spelled + b"/")  # a nested repository the project's own git tracks
         # else a tracked file that is now a folder: git lists the folder's files themselves
     for rel in list_git(project, store, git_project, ignored=True):
-        ignored.add(disk.locate(rel.rstrip(b"/"))[0] + (b"/" if rel.endswith(b"/") else b""))
+        spelled = disk.locate(rel.rstrip(b"/"))[0] + (b"/" if rel.endswith(b"/") else b"")
+        ignored.add(spelled)
+        if spelled.endswith(b"/"):
+            nested.add(spelled)  # an ignored nested repository — git lists one as "x/", wherever it is — is checked too
     unsaved = {rel[:-1] for rel in nested | ignored if rel.endswith(b"/")}
     expected = {rel for rel in on_disk if not inside(rel, unsaved)}
     listed = files | {rel for rel in ignored if not rel.endswith(b"/")}
@@ -433,19 +440,98 @@ def survey(project, store, git_project):
     return Found(sorted(files), sorted(ignored), sorted(nested), disk)
 
 
+def index_stat(info):
+    """A file's stat data as git records it in an index entry: 32-bit fields, times as seconds and nanoseconds."""
+    size = info.st_size & 0xFFFFFFFF
+    return ((info.st_ctime_ns // 10**9) & 0xFFFFFFFF, info.st_ctime_ns % 10**9,
+            (info.st_mtime_ns // 10**9) & 0xFFFFFFFF, info.st_mtime_ns % 10**9,
+            info.st_dev & 0xFFFFFFFF, info.st_ino & 0xFFFFFFFF, info.st_uid & 0xFFFFFFFF, info.st_gid & 0xFFFFFFFF,
+            0x80000000 if info.st_size and not size else size)
+
+
+def nested_work(folder, name):
+    """Work the git repository in `folder` holds that its own commits do not — staged, changed, deleted or unmerged
+    files, untracked files, or such work in a repository nested inside it — as "<repository>: <what>", or None.
+
+    git is never asked to read a file here: re-reading one runs whatever filter program the git settings name for it
+    (G11). Each file is compared with its index entry instead: unchanged when its stat data is exactly what git
+    recorded and it was not changed in the same instant the index was written — the test git itself applies —
+    otherwise when its bytes hash to the recorded blob. So a file git converts on checkout (line endings, a filter)
+    whose stat data changed counts as changed: stricter than `git status`, never looser."""
+    where = git(["rev-parse", "--show-toplevel", "--absolute-git-dir"], cwd=folder).stdout.splitlines()
+    if len(where) != 2 or not os.path.samefile(os.fsdecode(where[0]), str(folder)):
+        raise Fail("git opens another repository there, not the one in %s" % name)
+    listed, entries, at = git(["ls-files", "-z", "-s", "-v", "--debug"], cwd=folder, quiet=True).stdout, [], 0
+    while at < len(listed):
+        entry = INDEX_ENTRY.match(listed, at)
+        if entry is None:
+            raise Fail("git printed the index of %s in a form this tool does not know" % name)
+        entries.append(entry.groups())
+        at = entry.end()
+    if git(["rev-parse", "-q", "--verify", "HEAD^{commit}"], cwd=folder, ok=(0, 1)).returncode:
+        if entries:
+            return "%s: files added but never committed" % name
+    elif git(["diff-index", "--cached", "--quiet", "--ignore-submodules=none", "HEAD", "--"], cwd=folder,
+             ok=(0, 1)).returncode:
+        return "%s: staged changes" % name
+    untracked = [rel for rel in git(["ls-files", "-z", "--others", "--exclude-standard"], cwd=folder,
+                                    quiet=True).stdout.split(b"\0") if rel]
+    if untracked:
+        return "%s: untracked %s" % (name, show(untracked[0]))
+    filemode = git(["config", "--bool", "core.filemode"], cwd=folder, ok=(0, 1)).stdout.strip() != b"false"
+    written = os.stat(os.path.join(os.fsdecode(where[1]), "index")).st_mtime_ns if entries else 0
+    written = ((written // 10**9) & 0xFFFFFFFF, written % 10**9)
+    inner = []
+    for tag, mode, oid, stage, rel, *recorded in entries:
+        path, mode, oid = local_path(folder, rel), mode.decode(), oid.decode()
+        if stage != b"0":
+            return "%s: unmerged %s" % (name, show(rel))
+        try:
+            info = os.lstat(path)
+        except (FileNotFoundError, NotADirectoryError):
+            if mode == GITLINK or tag in b"Ss":
+                continue  # a nested repository that is not checked out, or a file outside a sparse checkout
+            return "%s: deleted %s" % (name, show(rel))
+        if mode == GITLINK:
+            if os.path.lexists(os.path.join(path, ".git")):
+                head = git(["rev-parse", "-q", "--verify", "HEAD^{commit}"], cwd=path, ok=(0, 1)).stdout.strip()
+                if head.decode() != oid:
+                    return "%s: %s is not at the commit %s records" % (name, show(rel), name)
+                inner.append(rel)
+                continue
+            same = stat.S_ISDIR(info.st_mode) and not os.listdir(path)  # an empty folder: not checked out
+        elif mode == SYMLINK:
+            same = (stat.S_ISLNK(info.st_mode) and blob_id(os.fsencode(os.readlink(path)), len(oid)) == oid) or (
+                stat.S_ISREG(info.st_mode) and file_id(path, len(oid)) == oid)  # a link git keeps as a plain file
+        else:
+            fields = tuple(int(field) for field in recorded)
+            same = (stat.S_ISREG(info.st_mode)
+                    and (not filemode or executable_bit(path) in (None, mode == EXECUTABLE))
+                    and ((fields == index_stat(info) and fields[2:4] < written) or file_id(path, len(oid)) == oid))
+        if not same:
+            return "%s: changed %s" % (name, show(rel))
+    ignored = git(["ls-files", "-z", "--others", "--ignored", "--exclude-standard"], cwd=folder, quiet=True).stdout
+    for rel in inner + [rel[:-1] for rel in ignored.split(b"\0") if rel.endswith(b"/")]:  # ignored: git lists a
+        found = nested_work(Path(local_path(folder, rel)), "%s%s/" % (name, show(rel)))       # repository as "x/"
+        if found:
+            return found
+    return None
+
+
 def check_nested(project, nested):
-    """A nested repository is not saved in checkpoints: its own git keeps its committed work. Refuse while one holds
-    work its own git does not keep, because nothing could bring that work back (G1)."""
+    """A nested repository is not saved in checkpoints: its own git keeps its committed work. Refuse while one — or a
+    repository inside it — holds work its own git does not keep, because nothing could bring that work back (G1)."""
     for rel in nested:
         try:
-            unsaved = git(["status", "--porcelain", "-z", "--untracked-files=all"],
-                          cwd=local_path(project, rel[:-1])).stdout
-        except Fail as error:
+            work = nested_work(Path(local_path(project, rel[:-1])), show(rel))
+        except (Fail, OSError) as error:
             raise Fail("cannot tell whether the nested repository %s holds unsaved work (%s)" % (show(rel), error))
-        if unsaved:
-            raise Fail("the nested repository %s holds uncommitted changes or untracked files. Checkpoints do not save "
-                       "nested repositories, so that work would have no recovery point: it has to be committed in "
-                       "that repository first, which is the human's decision" % show(rel))
+        if work:
+            raise Fail("the nested repository %s holds uncommitted changes or untracked files (%s). Checkpoints do "
+                       "not save nested repositories, so that work would have no recovery point: it has to be "
+                       "committed in that repository first, which is the human's decision. If `git status` there "
+                       "shows nothing to commit, running it has refreshed git's record of the files: try again"
+                       % (show(rel), work))
 
 
 def snapshot(project, store, git_project, allow_empty):
@@ -629,7 +715,8 @@ def missing(before, after):
 
 def gone_since(store, commit, ignored, nested):
     """What a checkpoint recorded as there but not saved — ignored files, nested repositories — that is gone (G10)."""
-    return missing(recorded(store, commit, IGNORED_MARK), ignored) + missing(recorded(store, commit, NESTED_MARK), nested)
+    gone = missing(recorded(store, commit, IGNORED_MARK), ignored) + missing(recorded(store, commit, NESTED_MARK), nested)
+    return list(dict.fromkeys(gone))  # an ignored nested repository is on both lists: report it once
 
 
 # ---------------------------------------------------------------- commands
@@ -911,7 +998,7 @@ def cmd_restore(project, args):
     except Fail as error:
         stuck.append(str(error))
     disk = Disk(project)
-    lost = [rel for rel in found.ignored + found.nested if disk.locate(rel.rstrip(b"/"))[1] is None]
+    lost = [rel for rel in dict.fromkeys(found.ignored + found.nested) if disk.locate(rel.rstrip(b"/"))[1] is None]
     if stuck or different or lost:
         details = stuck + ["differs: " + show(rel) for rel in different[:20]] + ["lost: " + show(rel) for rel in lost[:20]]
         raise Fail("the restore did not complete — %s. Everything from before the restore is saved as "

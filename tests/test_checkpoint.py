@@ -182,6 +182,15 @@ class Contract(unittest.TestCase):
         else:
             obj.write_bytes(zlib.compress(b"blob %d\0" % len(data) + data))
 
+    def repository(self, folder, files):
+        """A git repository in `folder` whose one commit holds `files` (name -> bytes)."""
+        for name, data in files.items():
+            write(folder / name, data)
+        self.git(folder, "init", "-q")
+        self.git(folder, "add", *files)
+        self.git(folder, "commit", "-qm", "committed")
+        return folder
+
     def plant(self, project, label, files):
         """Save by hand a checkpoint holding `files` (name -> bytes), the way a store from another disk could hold it."""
         rows = ["100644 blob %s\t%s" % (self.store_git(project, "hash-object", "-w", "--stdin", data=data), name)
@@ -869,6 +878,115 @@ class Contract(unittest.TestCase):
                 out, _ = self.tool(p, "restore", "00-baseline")
                 self.assertIn("cannot bring them back", out)
                 self.assertIn("data/main.db", out)
+
+    # ------------------------------------------------------------ G11 checking a nested repository runs nothing (F03)
+
+    def test_checking_a_nested_repository_runs_no_filter_program_yet_finds_a_same_size_edit(self):
+        p = self.git_project()
+        module = self.repository(p / "module", {"code.txt": b"COMMITTED\n", ".gitattributes": b"*.txt filter=review\n"})
+        self.tool(p, "create", "00-clean")
+        marker, program = self.tmp / "filter-ran.txt", self.tmp / "review-filter.sh"
+        program.write_text("#!/bin/sh\necho ran >> '%s'\ncat\n" % marker)
+        os.chmod(program, 0o755)
+        with open(self.home / "gitconfig", "a") as config:   # the user's own settings name a filter program
+            config.write('[filter "review"]\n\tclean = %s\n' % program)
+        write(module / "code.txt", b"OTHERDATA\n")           # the same size as COMMITTED...
+        later = os.stat(module / "code.txt").st_mtime + 60
+        os.utime(module / "code.txt", (later, later))        # ...and a newer time: git would re-read the file
+        before = disk_state(p)
+        for command in (("create", "01-dirty"), ("diff", "00-clean"), ("restore", "00-clean"),
+                        ("restore", "00-clean", "--apply")):
+            with self.subTest(command=" ".join(command)):
+                _, err = self.tool(p, *command, expect=1)
+                self.assertFalse(marker.exists(), "a filter program from the git settings ran")
+                self.assertIn("module/: changed code.txt", err)
+                self.assertEqual(disk_state(p), before)
+
+    def test_a_nested_repository_is_compared_with_its_own_index_and_every_kind_of_unsaved_work_is_refused(self):
+        def converted(p):   # git writes code.txt back as one\r\ntwo\r\n: bytes that differ from git's copy, unchanged
+            module = self.repository(p / "module", {"code.txt": b"one\ntwo\n", "keep.txt": b"keep\n",
+                                                    ".gitattributes": b"code.txt text eol=crlf\n"})
+            (module / "code.txt").unlink()
+            self.git(module, "checkout", "--", "code.txt")
+            return module
+
+        def ignored_inside(m):   # a repository nested in the nested one, and ignored there
+            write(m / ".gitignore", b"deps/\n")
+            self.git(m, "add", ".gitignore")
+            self.git(m, "commit", "-qm", "ignore deps")
+            write(self.repository(m / "deps" / "lib", {"a.txt": b"a\n"}) / "a.txt", b"changed\n")
+
+        def submodule_moved(m):   # a submodule of the nested one, checked out at another commit than it records
+            sub = self.repository(m / "sub", {"s.txt": b"s\n"})
+            self.git(m, "add", "sub")
+            self.git(m, "commit", "-qm", "add sub")
+            write(sub / "s.txt", b"newer\n")
+            self.git(sub, "commit", "-qam", "newer")
+
+        def never_committed(m):
+            write(m.parent / "fresh" / "a.txt", b"a\n")
+            self.git(m.parent / "fresh", "init", "-q")
+            self.git(m.parent / "fresh", "add", "a.txt")
+
+        def not_its_own(m):   # the parent tracks it, but its .git is no repository: git would read the parent's
+            self.git(m.parent, "add", "module")
+            os.rename(m / ".git", self.tmp / ("moved-git-%d" % len(os.listdir(self.tmp))))
+            (m / ".git").mkdir()
+
+        p = self.git_project()
+        module = converted(p)
+        self.assertEqual((module / "code.txt").read_bytes(), b"one\r\ntwo\r\n")
+        self.tool(p, "create", "00-clean")                    # nothing changed there: not refused
+        cases = {
+            "module/: staged changes": lambda m: (write(m / "keep.txt", b"staged\n"), self.git(m, "add", "keep.txt")),
+            "module/: deleted keep.txt": lambda m: (m / "keep.txt").unlink(),
+            "module/: untracked new.txt": lambda m: write(m / "new.txt", b"new\n"),
+            "module/: changed code.txt": lambda m: write(m / "code.txt", b"one\r\ntwo\r\nthree\r\n"),
+            "module/deps/lib/: changed a.txt": ignored_inside,
+            "module/: sub is not at the commit module/ records": submodule_moved,
+            "fresh/: files added but never committed": never_committed,
+            "another repository": not_its_own,
+        }
+        if os.name != "nt":
+            cases["module/: changed keep.txt"] = lambda m: os.chmod(m / "keep.txt", 0o755)   # only its executable bit
+        for number, (words, unsaved) in enumerate(cases.items()):
+            with self.subTest(work=words):
+                p = self.git_project("work-%d" % number)
+                unsaved(converted(p))
+                before = disk_state(p)
+                _, err = self.tool(p, "create", "01-work", expect=1)
+                self.assertIn(words, err)
+                self.assertEqual(disk_state(p), before)
+
+    # ------------------------------------------------------------ G1 an ignored nested repository is checked (F06)
+
+    def test_an_ignored_nested_repository_is_named_recorded_checked_and_watched(self):
+        for kind in ("git", "plain"):
+            for place in ("module", "vendor/lib"):   # ignored itself, or inside an ignored folder
+                with self.subTest(project=kind, repository=place):
+                    p = (self.git_project if kind == "git" else self.plain_project)(
+                        "%s-%s" % (kind, place.replace("/", "-")))
+                    write(p / ".gitignore", (p / ".gitignore").read_bytes() + b"module/\nvendor/\n")
+                    module = self.repository(p / place, {"code.txt": b"committed\n"})
+                    _, err = self.tool(p, "create", "00-clean")
+                    self.assertIn("nested repository %s/" % place, err)
+                    message = self.store_git(p, "cat-file", "commit", "refs/checkpoints/00-clean")
+                    self.assertIn('nested-repositories: ["%s/"]' % place, message)
+                    for unsaved in ("code.txt", "new.txt"):
+                        write(module / unsaved, b"UNSAVED WORK\n")
+                        before, kept = disk_state(p), folder_digest(module / ".git")
+                        _, err = self.tool(p, "create", "01-unsaved", expect=1)
+                        self.assertIn("%s/: %s %s" % (place, "changed" if unsaved == "code.txt" else "untracked",
+                                                      unsaved), err)
+                        self.assertEqual(disk_state(p), before)
+                        self.assertEqual(folder_digest(module / ".git"), kept)
+                        if unsaved == "code.txt":
+                            write(module / unsaved, b"committed\n")
+                        else:
+                            (module / unsaved).unlink()
+                    shutil.rmtree(module)                    # a phase deleted it
+                    out, _ = self.tool(p, "diff", "00-clean", expect=3)
+                    self.assertEqual(re.findall(r"^\s+gone\s+(\S+)$", out, re.M), [place + "/"])   # once, not twice
 
 
 if __name__ == "__main__":
