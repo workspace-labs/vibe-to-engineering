@@ -989,7 +989,9 @@ class Contract(unittest.TestCase):
                     _, err = self.tool(p, "create", "00-clean")
                     self.assertIn("nested repository %s/" % place, err)
                     message = self.store_git(p, "cat-file", "commit", "refs/checkpoints/00-clean")
-                    self.assertIn('nested-repositories: ["%s/"]' % place, message)
+                    ignored_line = next(line for line in message.splitlines() if line.startswith("ignored-by-git: "))
+                    self.assertIn('"%s/"' % place, ignored_line)       # recorded, where the store format keeps it:
+                    self.assertIn("nested-repositories: []", message)  # so an older tool reads the same checkpoint
                     for unsaved in ("code.txt", "new.txt"):
                         write(module / unsaved, b"UNSAVED WORK\n")
                         before, kept = disk_state(p), folder_digest(module / ".git")
@@ -1166,6 +1168,17 @@ class Contract(unittest.TestCase):
             os.chmod(p / "local.db", 0o644)
         self.assertIn("local.db", err)
         self.assertIn("could not be noticed", err)
+
+    def test_a_nested_repository_that_an_ignore_rule_starts_or_stops_matching_is_not_called_gone(self):
+        p = self.git_project()
+        self.repository(p / "module", {"code.txt": b"committed\n"})
+        for number, rules in enumerate((b"node_modules/\n.env\nmodule/\n", b"node_modules/\n.env\n")):
+            with self.subTest(module="ignored" if number == 0 else "no longer ignored"):
+                self.tool(p, "create", "%02d-before" % number)
+                write(p / ".gitignore", rules)                     # a phase changed an ignore rule, nothing else
+                out, _ = self.tool(p, "diff", "%02d-before" % number, expect=3)
+                self.assertRegex(out, r"M\s+\.gitignore")
+                self.assertNotIn("gone", out)
 
     # ------------------------------------------------------------ G1 a repository git will not open is not a plain folder (NEW-1)
 

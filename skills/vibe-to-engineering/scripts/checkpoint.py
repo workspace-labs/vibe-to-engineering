@@ -445,10 +445,7 @@ def survey(project, store, git_project):
             nested.add(spelled + b"/")  # a nested repository the project's own git tracks
         # else a tracked file that is now a folder: git lists the folder's files themselves
     for rel in list_git(project, store, git_project, ignored=True):
-        spelled = disk.locate(rel.rstrip(b"/"))[0] + (b"/" if rel.endswith(b"/") else b"")
-        ignored.add(spelled)
-        if spelled.endswith(b"/"):
-            nested.add(spelled)  # an ignored nested repository — git lists one as "x/", wherever it is — is checked too
+        ignored.add(disk.locate(rel.rstrip(b"/"))[0] + (b"/" if rel.endswith(b"/") else b""))
     unsaved = {rel[:-1] for rel in nested | ignored if rel.endswith(b"/")}
     expected = {rel for rel in on_disk if not inside(rel, unsaved)}
     listed = files | {rel for rel in ignored if not rel.endswith(b"/")}
@@ -538,6 +535,13 @@ def nested_work(folder, name):
     return None
 
 
+def repositories(found):
+    """Every nested repository a survey found: tracked and untracked ones (its nested list) and ignored ones, which git
+    lists among the ignored entries as one "x/" entry wherever they are (F06). An ignored one stays on the ignored list
+    only, as the store format has always recorded it, so every implementation reads a checkpoint the same way."""
+    return sorted(set(found.nested) | {rel for rel in found.ignored if rel.endswith(b"/")})
+
+
 def check_nested(project, nested):
     """A nested repository is not saved in checkpoints: its own git keeps its committed work. Refuse while one — or a
     repository inside it — holds work its own git does not keep, because nothing could bring that work back (G1)."""
@@ -558,7 +562,7 @@ def snapshot(project, store, git_project, allow_empty):
     """Write the project's current files into the store and prove the tree holds exactly them: the same names,
     bytes, links and executable bits, checked here rather than trusted to git (G1). Returns (tree id, survey)."""
     found = survey(project, store, git_project)
-    check_nested(project, found.nested)
+    check_nested(project, repositories(found))
     if not found.files and not allow_empty:
         raise Fail("found no files to save in %s — check the folder and its ignore rules" % project)
     temp = tempfile.mkdtemp(prefix="v2e-")
@@ -791,9 +795,12 @@ def missing(before, after):
 
 
 def gone_since(store, commit, ignored, nested):
-    """What a checkpoint recorded as there but not saved — ignored files, nested repositories — that is gone (G10)."""
-    gone = missing(recorded(store, commit, IGNORED_MARK), ignored) + missing(recorded(store, commit, NESTED_MARK), nested)
-    return list(dict.fromkeys(gone))  # an ignored nested repository is on both lists: report it once
+    """What a checkpoint recorded as there but not saved — ignored files, nested repositories — that is gone (G10).
+    An entry is there while either list holds it now: a nested repository moves from one list to the other when an
+    ignore rule starts or stops matching it, and that is not a loss."""
+    now = list(ignored or ()) + list(nested or ())
+    return ((missing(recorded(store, commit, IGNORED_MARK), now) if ignored is not None else [])
+            + (missing(recorded(store, commit, NESTED_MARK), now) if nested is not None else []))
 
 
 # ---------------------------------------------------------------- commands
@@ -806,7 +813,7 @@ def cmd_create(project, args):
         raise Fail("checkpoint %r already exists — labels are permanent; choose a new one" % args.label)
     tree, found = snapshot(project, store, git_project, allow_empty=False)
     commit = save_checkpoint(store, tree, args.label, found, watched_contents(project, found.ignored))
-    for rel in found.nested:
+    for rel in repositories(found):
         warn("nested repository %s is not saved in checkpoints — its own git keeps its committed work, and it holds "
              "no other work now" % show(rel))
     print("created checkpoint %s: %d files (commit %s)" % (args.label, len(found.files), commit[:12]))
@@ -1133,7 +1140,7 @@ def cmd_restore(project, args):
     except Fail as error:
         stuck.append(str(error))
     disk = Disk(project)
-    lost = [rel for rel in dict.fromkeys(found.ignored + found.nested) if disk.locate(rel.rstrip(b"/"))[1] is None]
+    lost = [rel for rel in found.ignored + found.nested if disk.locate(rel.rstrip(b"/"))[1] is None]
     if stuck or different or lost:
         details = stuck + ["differs: " + show(rel) for rel in different[:20]] + ["lost: " + show(rel) for rel in lost[:20]]
         raise Fail("the restore did not complete — %s. Everything from before the restore is saved as "
