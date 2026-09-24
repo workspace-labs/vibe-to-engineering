@@ -112,7 +112,7 @@ Load `references/migration-plan.md`. Design the target for this project only:
 - add no layer, abstraction, framework, dependency or empty folder that the findings do not require;
 - prefer moving and splitting existing code over rewriting it.
 
-Produce the CURRENT TREE, the TARGET TREE and the reason for each major decision, including the simpler alternative you rejected.
+Produce the CURRENT TREE, the TARGET TREE and the reason for each major decision, including the simpler alternative you rejected. Then account for every file: one before → after row per file of the project — what happens to it, what it holds today and afterwards — including every file the migration never touches, and who owns each job (database access, settings, routes, UI, tests…) before and after. Together the rows must cover every file `checkpoint.py tree --current` counts (a folder row counts its files).
 
 ## 4. CREATE MIGRATION PLAN
 
@@ -237,7 +237,7 @@ Still failing (approved at the baseline): <check> — <numbers now> (baseline: <
 
 with one `Still failing` line per such check. Never shorten it to ALL GREEN, and never present those checks as passing.
 
-Follow the outcome with the before and after trees, the checks compared with the baseline, and the checkpoint list. Tell the human that `.vibe-to-engineering/` holds the plan, ledger, evidence and checkpoints, and that keeping or deleting it is their decision. No commits were made unless they asked for them.
+Follow the outcome with the before and after trees (every file, as `tree` prints them), the plan's two tables — every file before → after, and who owns each job — as they actually came out, so the human can compare them with the approved plan line by line, the checks compared with the baseline, and the checkpoint list. Tell the human that `.vibe-to-engineering/` holds the plan, ledger, evidence and checkpoints, and that keeping or deleting it is their decision. No commits were made unless they asked for them.
 
 ## Always
 

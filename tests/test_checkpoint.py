@@ -447,7 +447,7 @@ class Contract(unittest.TestCase):
                 if before_git:
                     self.assertEqual(folder_digest(p / ".git"), before_git)
                 self.assertFalse((p / STATE).exists(), "tree --current created the state folder")
-                self.assertRegex(out, r"── node_modules/\s+\[ignored folder — 1 file")   # one line, not opened (RA-01)
+                self.assertRegex(out, r"── node_modules/\s+\[ignored — 1 file\]")   # one line, not opened (RA-01)
                 self.assertNotIn("index.js", out)
 
     # ------------------------------------------------------------ refusals
@@ -996,11 +996,10 @@ class Contract(unittest.TestCase):
         write(p / ".gitignore", b"node_modules/\n.env\nexports/\n")
         write(p / "exports" / "expenses-2026-08.csv", b"an ignored export\n")
         self.repository(p / "tools", {"t.txt": b"t\n"})                  # an untracked nested repository
-        marks = {".env": "[ignored — never touched]", "exports/": "[ignored folder — 1 file, never touched]",
-                 "node_modules/": "[ignored folder — 1 file, never touched]",
-                 "tools/": "[nested repository — never touched]"}
-        closing = ("11 files saved · 3 ignored (2 folders) · 1 nested repository — ignored files and nested "
-                   "repositories are never touched and not in checkpoints")
+        marks = {".env": "[ignored]", "exports/": "[ignored — 1 file]", "node_modules/": "[ignored — 1 file]",
+                 "tools/": "[nested repository]"}
+        closing = ["11 files saved · 3 ignored (2 folders) · 1 nested repository",
+                   "[ignored], [nested repository]: never touched, not in checkpoints"]
         for command in (("tree", "--current"), ("create", "00-baseline"), ("tree", "--current"), ("tree", "00-baseline")):
             with self.subTest(command=" ".join(command)):
                 out, _ = self.tool(p, *command)
@@ -1010,7 +1009,7 @@ class Contract(unittest.TestCase):
                 self.assertEqual(dict(re.findall(r"── (\S+)\s+(\[[^\]]+\])$", out, re.M)), marks)
                 self.assertRegex(out, r"── docs/\n│   └── Read Me ü\.md\n")     # saved files as before, unmarked
                 self.assertNotIn("expenses-2026-08.csv", out)                   # inside a folder shown as one line
-                self.assertEqual(out.splitlines()[-1], closing)
+                self.assertEqual(out.splitlines()[-2:], closing)
         out, _ = self.tool(p, "tree", "--current", "--depth", "1")
         self.assertIn("── src/ (2 files)\n", out)
         write(p / "src" / "local.env", b"ignored inside a folder that holds saved files\n")

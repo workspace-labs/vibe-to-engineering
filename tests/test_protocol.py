@@ -42,6 +42,18 @@ class Protocol(unittest.TestCase):
         self.assertIn("they show what the migration never touches", self.template)
         self.assertNotIn("Dependency and build-output folders are not shown", self.template)
 
+    def test_the_plan_and_the_final_report_account_for_every_file_and_every_job(self):   # RA-08
+        for words in ('id="files"', "Every file: before → after", "{{FILE_TOTALS}}", "{{FILE_HOLDS_NOW}}",
+                      "{{FILE_HOLDS_AFTER}}", "ignored — never touched", "nested repository — never touched",
+                      'id="owners"', "Who owns each job", "{{JOB_OWNER_NOW}}", "{{JOB_OWNER_AFTER}}"):
+            self.assertIn(words, self.template)
+        for words in ("**Every file: before → after**", "the ones the migration never touches included",
+                      "**who owns each job**", "closing line of `checkpoint.py tree --current`"):
+            self.assertIn(words, self.plan)
+        for words in ("account for every file", "who owns each job (database access",
+                      "every file before → after, and who owns each job — as they actually came out"):
+            self.assertIn(words, self.text)
+
     def test_a_changed_ignored_file_is_a_break_like_a_gone_one(self):   # RA-03
         for words in ("no ignored file `changed`", "A changed ignored file is a break like a gone one",
                       "reports none `gone` or `changed`", "ignored files it reports `changed` included"):

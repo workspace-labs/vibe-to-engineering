@@ -64,16 +64,17 @@ List the exact commands that run at the baseline and after every phase:
 The plan is written for the project's owner, who may not be a developer: plain language first, technical detail after. Its sections, in this order (the template has them all):
 
 1. **Summary for the owner** — where the project is now; what is wrong (the Material findings in plain words); the proposed architecture in one paragraph; how it gets there (one line per phase); what approving authorizes (the backup and Phase 1, nothing else).
-2. **CURRENT → MIGRATION → TARGET** — one landscape page: the current tree (trimmed), the phases as numbered steps, the target tree.
+2. **CURRENT → MIGRATION → TARGET** — one landscape page: the current tree, the phases as numbered steps, the target tree.
 3. **Findings** — ID, severity, criterion, evidence, impact. Minor findings too, marked as not acted on.
 4. **Target architecture** — the target tree with a one-line responsibility for each folder, and every major decision with its reason and the simpler alternative rejected.
-5. **Migration phases** — a summary table, then for each phase: objective, findings fixed, changes (old path → new path; what is split into what), files in scope, expected tree afterwards, verification, risks.
-6. **Verification and recovery** — the checks and what a pass means; how the backup and checkpoints work; what happens on a failure; that a restore needs approval.
-7. **What will not change** — the behavior and external contracts that stay as they are; what is out of scope (features, bug fixes, dependencies, data).
-8. **Risks** — each with likelihood, impact and mitigation.
-9. **Approval** — plan version and date, what approval authorizes, how to approve.
+5. **Every file: before → after** — one row per file of the project, the ones the migration never touches included: its path; what happens to it (same · edited · moved → new path · split → parts · removed · new · ignored — never touched · nested repository — never touched); what it holds today and what it will hold afterwards, one line each. Rows are grouped by folder; a dependency or build-output folder is one row, and in a large project a folder whose files all stay the same may be one row (`src/ui/ — 42 files, unchanged`). The totals from the closing line of `checkpoint.py tree --current` stand above it, so the owner can see that no file was left out. Then **who owns each job**: every responsibility — database access, settings, routes, UI, domain rules, tests… — with the file or files that own it today and afterwards. Two owners before and one after is the point of a migration, in one glance.
+6. **Migration phases** — a summary table, then for each phase: objective, findings fixed, changes (old path → new path; what is split into what), files in scope, expected tree afterwards, verification, risks.
+7. **Verification and recovery** — the checks and what a pass means; how the backup and checkpoints work; what happens on a failure; that a restore needs approval.
+8. **What will not change** — the behavior and external contracts that stay as they are; what is out of scope (features, bug fixes, dependencies, data).
+9. **Risks** — each with likelihood, impact and mitigation.
+10. **Approval** — plan version and date, what approval authorizes, how to approve.
 
-Trees are plain text in the checkpoint tool's tree format, trimmed to the depth that shows the change — at most about 30 lines per tree on the overview page (`checkpoint.py tree --depth 2` shortens one). The page never hides a line that does not fit; it spills visibly, which is one more reason to look at the PDF. In the current tree, mark what moves or disappears (`→ moves`, `✗ removed`); in the target tree, mark what is new (`+ new`).
+Trees are plain text in the checkpoint tool's tree format, without its title line and closing count lines, trimmed to the depth that shows the change — at most about 30 lines per tree on the overview page (`checkpoint.py tree --depth 2` shortens one). They keep the lines `tree` marks — files git ignores, nested repositories and the skill's own folder — so the plan itself shows what the migration never touches; when there are many, one marked line per folder is enough, because section 5 lists every file. The page never hides a line that does not fit; it spills visibly, which is one more reason to look at the PDF. In the current tree, mark what moves or disappears (`→ moves`, `✗ removed`); in the target tree, mark what is new (`+ new`).
 
 ## 5. Filling the template and rendering the PDF
 

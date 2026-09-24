@@ -902,8 +902,7 @@ def plural(count, one, many):
     return "%d %s" % (count, one if count == 1 else many)
 
 
-MARKS = {"ignored": "[ignored — never touched]", "nested": "[nested repository — never touched]",
-         "state": "[the skill's own folder]"}
+MARKS = {"ignored": "[ignored]", "nested": "[nested repository]", "state": "[the skill's own folder]"}
 
 
 def print_tree(title, saved, depth, full=False, ignored=(), nested=(), state=False):
@@ -944,7 +943,7 @@ def print_tree(title, saved, depth, full=False, ignored=(), nested=(), state=Fal
             found = count(child)
             if found["ignored"] and not (found["saved"] or found["nested"]):
                 folded.append(name)
-                lines.append((line, "[ignored folder — %s, never touched]" % plural(found["ignored"], "file", "files")))
+                lines.append((line, "[ignored — %s]" % plural(found["ignored"], "file", "files")))
             elif level >= depth:
                 counts = [plural(found["saved"], "file", "files")] + (
                     ["%d ignored" % found["ignored"]] if found["ignored"] else []) + (
@@ -966,10 +965,10 @@ def print_tree(title, saved, depth, full=False, ignored=(), nested=(), state=Fal
               "were" % plural(len(saved), "file", "files"))
     else:
         others = [rel for rel in ignored if not rel.endswith(b"/")]
-        print("\n%s saved · %d ignored%s · %s — ignored files and nested repositories are never touched and not in "
-              "checkpoints" % (plural(len(saved), "file", "files"), len(others),
-                               " (%s)" % plural(len(folded), "folder", "folders") if folded else "",
-                               plural(len(repos), "nested repository", "nested repositories")))
+        print("\n%s saved · %d ignored%s · %s\n[ignored], [nested repository]: never touched, not in checkpoints" % (
+            plural(len(saved), "file", "files"), len(others),
+            " (%s)" % plural(len(folded), "folder", "folders") if folded else "",
+            plural(len(repos), "nested repository", "nested repositories")))
 
 
 def cmd_tree(project, args):

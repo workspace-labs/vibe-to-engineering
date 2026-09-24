@@ -9,10 +9,11 @@
   - Escape &, < and > in text you insert (trees and code included). Two literal braces are written &#123;&#123;.
   - Keep the file static and self-contained: no scripts or event handlers, no external stylesheets, fonts or images,
     and no meta lines besides the two in the head.
-  - Trees: plain text from `checkpoint.py tree`. On the overview page each tree holds about 30 lines at most
+  - Trees: plain text from `checkpoint.py tree`, without its title line and its closing count lines (the page's
+    legend and section 3 say the same). On the overview page each tree holds about 30 lines at most
     (`tree --depth 2` shortens one); a longer tree is not hidden, it spills visibly, so look at the page.
     Mark the current tree with "→ moves" and "✗ removed", the target tree with "+ new". Keep the lines `tree` marks
-    [ignored …], [nested repository …] and [the skill's own folder]: they show what the migration never touches.
+    [ignored], [nested repository] and [the skill's own folder]: they show what the migration never touches.
   - Severity and risk badges: class "material" or "minor"; "high", "medium" or "low".
 -->
 <html lang="en">
@@ -94,7 +95,7 @@ code, .path { font-family: var(--mono); font-size: .9em; }
 .journey-title h2 { border: 0; padding: 0; margin: 0; font-size: 15pt; letter-spacing: .08em; }
 .journey-title .to { color: var(--faint); margin: 0 2.5mm; }
 .journey { display: grid; grid-template-columns: 1fr 7mm .92fr 7mm 1fr; height: 156mm; }
-.stage { border: .8pt solid var(--soft); border-radius: 2mm; display: flex; flex-direction: column; min-height: 0; }
+.stage { border: .8pt solid var(--soft); border-radius: 2mm; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .stage > header { padding: 2.4mm 3.6mm; color: #fff; border-radius: 1.7mm 1.7mm 0 0; }
 .stage > header b { font-size: 11pt; letter-spacing: .14em; }
 .stage > header span { display: block; font-size: 8pt; opacity: .92; }
@@ -264,9 +265,36 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
   </div>
 </section>
 
+<!-- ============ Every file: before → after, and who owns each job ============ -->
+<section class="sheet" id="files">
+  <h2><span class="n">3</span>Every file: before → after</h2>
+  <p class="lead">Every file in the project, including the ones the migration never touches. Totals, from <span class="path">checkpoint.py tree --current</span>: {{FILE_TOTALS}}</p>
+  <table>
+    <colgroup><col style="width:26%"><col style="width:18%"><col style="width:28%"><col style="width:28%"></colgroup>
+    <thead><tr><th>File</th><th>Change</th><th>Holds today</th><th>Holds after</th></tr></thead>
+    <tbody>
+      <!-- repeat: one row per file, grouped by folder. Change: same, edited, moved → new path, split → parts, removed,
+           new, ignored — never touched, nested repository — never touched. A dependency or build-output folder is
+           one row; in a large project a folder whose files all stay the same may be one row ("src/ui/ — 42 files"). -->
+      <tr><td class="path">{{FILE_PATH}}</td><td>{{FILE_CHANGE}}</td><td>{{FILE_HOLDS_NOW}}</td><td>{{FILE_HOLDS_AFTER}}</td></tr>
+      <!-- /repeat -->
+    </tbody>
+  </table>
+  <h3 id="owners">Who owns each job</h3>
+  <table>
+    <colgroup><col style="width:28%"><col style="width:36%"><col style="width:36%"></colgroup>
+    <thead><tr><th>Job</th><th>Owned by today</th><th>Owned by after</th></tr></thead>
+    <tbody>
+      <!-- repeat: one row per responsibility: database access, settings, routes, UI, domain rules, tests… -->
+      <tr><td>{{JOB}}</td><td class="path">{{JOB_OWNER_NOW}}</td><td class="path">{{JOB_OWNER_AFTER}}</td></tr>
+      <!-- /repeat -->
+    </tbody>
+  </table>
+</section>
+
 <!-- ============ Migration phases ============ -->
 <section class="sheet" id="phases">
-  <h2><span class="n">3</span>Migration phases</h2>
+  <h2><span class="n">4</span>Migration phases</h2>
   <p class="lead">One phase at a time. The application works at the end of every phase; each one is tested, saved as a recovery checkpoint and then waits for your approval before the next begins.</p>
   <table>
     <colgroup><col style="width:6%"><col style="width:24%"><col style="width:44%"><col style="width:13%"><col style="width:13%"></colgroup>
@@ -307,7 +335,7 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 <!-- ============ Verification, what stays the same, risks, approval ============ -->
 <section class="sheet">
   <div class="block" id="verification">
-    <h2><span class="n">4</span>Verification and recovery</h2>
+    <h2><span class="n">5</span>Verification and recovery</h2>
     <p class="lead">These checks run once before anything changes (the baseline) and again after every phase.</p>
     <table>
       <colgroup><col style="width:20%"><col style="width:40%"><col style="width:40%"></colgroup>
@@ -331,7 +359,7 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
   </div>
 
   <div class="block" id="unchanged">
-    <h2><span class="n">5</span>What will not change</h2>
+    <h2><span class="n">6</span>What will not change</h2>
     <div class="two">
       <div>
         <h3>Stays exactly as it is</h3>
@@ -356,7 +384,7 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
   </div>
 
   <div class="block" id="risks">
-    <h2><span class="n">6</span>Risks</h2>
+    <h2><span class="n">7</span>Risks</h2>
     <table>
       <colgroup><col style="width:34%"><col style="width:12%"><col style="width:12%"><col style="width:42%"></colgroup>
       <thead><tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th></tr></thead>
@@ -369,7 +397,7 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
   </div>
 
   <div class="block" id="approval">
-    <h2><span class="n">7</span>Approval</h2>
+    <h2><span class="n">8</span>Approval</h2>
     <div class="approval">
       <p class="eyebrow">Status: AWAITING HUMAN APPROVAL</p>
       <p>To approve this plan, reply:</p>
