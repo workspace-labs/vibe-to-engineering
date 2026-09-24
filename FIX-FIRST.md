@@ -4,7 +4,7 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 
 ## Before you start
 
-- **Run the tests** on the machine you are using, from the repository root: `python3 -m unittest discover -s tests -v` (`py -3` on Windows). Needs Python 3.8+ and git; the two PDF render tests also need a Chrome-family browser and are skipped without one. On macOS all 45 pass.
+- **Run the tests** on the machine you are using, from the repository root: `python3 -m unittest discover -s tests -v` (`py -3` on Windows). Needs Python 3.8+ and git; the three tests that print a PDF also need a Chrome-family browser and are skipped without one, and the one that reads the printed text also needs `pdftotext`. On macOS all 73 pass (branch `fix/f03-f06-f08-new1`, 2026-09-24).
 - **Never point the skill at a real project.** Copy the project to a scratch folder and use the copy.
 - **Where things stand:** the independent re-review (2026-09-24) of the corrections in `502d3c5` closed F01, F04, F05, F07, F09 and F10, and reopened four: F02, F03, F06 and F08 — items 1 to 4 below. It also confirmed NEW-1 (item 5). Line numbers below are for `502d3c5`; the quoted text of each line is the anchor if the numbers move.
 - **Ideas** under an item are suggestions that have not been tried.
@@ -87,6 +87,8 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 
 ## 6. Try it on copies of real projects
 
+> **Status (2026-09-24): TRIED on macOS** with the tool on branch `fix/f03-f06-f08-new1`, on copy-on-write clones (`cp -cR`) of four real projects — the originals were only read: an Electron app (7.3 GB), a desktop app with an ignored nested repository (32 GB), and two more (1.9 GB, 955 MB). The first try found **NEW-2**: `create` failed with "Argument list too long" on any project with many ignored files — fixed, see the CHANGELOG, test `test_a_project_whose_ignored_file_names_run_to_megabytes_is_saved`. After the fix, `create`, `verify`, `diff` and a `restore` dry run succeed on all four, with no refusal; the ignored nested repository is named and checked (F06). The old `tree` left out 31,645, 124,320, 24,652 and 18,953 ignored files, and that nested repository, without a word (RA-01). Not tried: a restore with `--apply` on a real project, and Linux and Windows.
+
 The corrections refuse more than before, on purpose: `create` stops for an unreadable folder anywhere in the project (ignored folders too), any warning git prints while listing files, a nested repository with uncommitted work, and two names the tool cannot tell apart. Run `create`, `verify`, `diff` and `restore` on copies of two or three real projects and write down every refusal with its exact message. A refusal that protects nothing real is a candidate fix.
 
 ## 7. Linux and Windows
@@ -99,6 +101,8 @@ If a phase changed `.gitignore`, restoring an earlier checkpoint can turn a file
 
 ## 9. Tests for four safety checks
 
+> **Status (2026-09-24): DONE / DELIVERED FOR RE-REVIEW** on branch `fix/f03-f06-f08-new1`. Tests `test_a_file_that_changes_while_it_is_being_saved_refuses_the_snapshot`, `test_a_file_edited_after_a_restore_was_verified_stops_it_before_anything_changes`, `test_an_ignored_file_lost_during_a_restore_is_reported` (the tool run in the test's own process, one step wrapped to change the project at the wrong moment) and `test_refuses_an_element_that_is_not_on_the_list_even_a_harmless_one`. Each fails when its check is removed from a copy of the tool.
+
 Removing any of these four checks fails no test today: in `checkpoint.py`, the snapshot compared with the disk, the re-check just before a restore changes files, and the "nothing lost" check after a restore; in `render_pdf.py`, the element list. The re-review showed each can be tested directly, with no special hook: change a file between the snapshot and its comparison, edit a file between verification and the re-check, remove an ignored file after the restore writes, and use a harmless element that is not on the list (such as `<a>`). Turn those into tests.
 
 ## 10. Walk through the protocol once
@@ -106,6 +110,8 @@ Removing any of these four checks fails no test today: in `checkpoint.py`, the s
 The tests for STOP, RESTORE, CORRECT and RETRY MIGRATION, and for the ending with approved baseline failures, check the wording in `SKILL.md`, not what an agent does. Run the whole skill once with an agent on a small throwaway project, with one failing phase, one restore and a baseline that has a failing test, and check that the agent follows the text.
 
 ## 11. Speed on a large project
+
+> **Measured (2026-09-24)** on the four clones of item 6 (macOS 27, Apple silicon, SSD): `create` 7.0 s, 16.2 s, 2.0 s, 1.3 s; `verify` 1.0 s, 2.4 s, 0.3 s, 0.2 s; `diff` 4.5 s, 8.4 s, 1.5 s, 1.0 s. Most of the time is spent fingerprinting the watched ignored files (RA-03): 6.6 GB on the 7.3 GB project, nearly all of it a backups folder. Not done yet: skip re-hashing a file whose size, times and inode match what the last checkpoint recorded.
 
 Timed only with 20,000 synthetic ignored files (about 0.3 seconds for `create`). Time `create` and `restore` on a copy of a large real project.
 

@@ -9,7 +9,10 @@ Run from the repository root:  python3 -m unittest discover -s tests -v
 To test another implementation of the contract, point V2E_CHECKPOINT at it.
 """
 
+import contextlib
 import hashlib
+import importlib.util
+import io
 import os
 import re
 import shutil
@@ -21,6 +24,7 @@ import unicodedata
 import unittest
 import zlib
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = Path(os.environ.get("V2E_CHECKPOINT", ROOT / "skills" / "vibe-to-engineering" / "scripts" / "checkpoint.py"))
@@ -181,6 +185,19 @@ class Contract(unittest.TestCase):
             obj.unlink()
         else:
             obj.write_bytes(zlib.compress(b"blob %d\0" % len(data) + data))
+
+    def in_process(self, project, argv, inject):
+        """Run the tool inside this process after `inject(tool)` has wrapped one of its steps — to change the project
+        at the one moment a safety check exists for — and return the exit code and the error output."""
+        spec = importlib.util.spec_from_file_location("checkpoint_under_test", str(TOOL))
+        tool = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tool)
+        inject(tool)
+        err = io.StringIO()
+        with mock.patch.dict(os.environ, self.env, clear=True), contextlib.redirect_stderr(err), \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = tool.main(["--project", str(project)] + list(argv))
+        return code, err.getvalue()
 
     def repository(self, folder, files):
         """A git repository in `folder` whose one commit holds `files` (name -> bytes)."""
@@ -988,6 +1005,80 @@ class Contract(unittest.TestCase):
                     shutil.rmtree(module)                    # a phase deleted it
                     out, _ = self.tool(p, "diff", "00-clean", expect=3)
                     self.assertEqual(re.findall(r"^\s+gone\s+(\S+)$", out, re.M), [place + "/"])   # once, not twice
+
+    # ------------------------------------------------------------ G10 a real-sized ignored folder (found trying a real project)
+
+    def test_a_project_whose_ignored_file_names_run_to_megabytes_is_saved(self):
+        p = self.git_project()
+        folder = p / "build" / ("d" * 200)   # build/ is ignored below; 4,200 names of about 300 bytes: over 1.2 MB
+        folder.mkdir(parents=True)
+        for number in range(4200):
+            (folder / ("%05d-%s.txt" % (number, "n" * 80))).touch()
+        write(p / ".gitignore", b"node_modules/\n.env\nbuild/\n")
+        self.tool(p, "create", "00-baseline")      # the list of ignored files is far past one command-line argument
+        message = self.store_git(p, "cat-file", "commit", "refs/checkpoints/00-baseline")
+        self.assertEqual(message.count("/%s/" % ("d" * 200)), 4200)
+        out, _ = self.tool(p, "diff", "00-baseline")
+        self.assertIn("no changes", out)
+
+    # ------------------------------------------------------------ the safety checks a change at the wrong moment trips (item 9)
+
+    def test_a_file_that_changes_while_it_is_being_saved_refuses_the_snapshot(self):
+        p = self.git_project()
+
+        def inject(tool):
+            real = tool.git
+
+            def git(args, **kwargs):
+                done = real(args, **kwargs)
+                if args[0] == "write-tree":   # saved, not yet compared with the disk
+                    write(p / "unix.txt", b"changed while it was being saved\n")
+                return done
+            tool.git = git
+        code, err = self.in_process(p, ["create", "00-baseline"], inject)
+        self.assertEqual(code, 1, err)
+        self.assertIn("the snapshot does not match the files on disk (unix.txt)", err)
+        out, _ = self.tool(p, "list")
+        self.assertIn("no checkpoints yet", out)
+
+    def test_a_file_edited_after_a_restore_was_verified_stops_it_before_anything_changes(self):
+        p = self.git_project()
+        self.tool(p, "create", "00-baseline")
+        write(p / "unix.txt", b"work since the checkpoint\n")
+
+        def inject(tool):
+            real, calls = tool.verify_commit, []
+
+            def verify_commit(*args):
+                count = real(*args)
+                calls.append(args)
+                if len(calls) == 2:           # both recovery points proven, the project not yet re-checked
+                    write(p / "late.txt", b"written after the restore was verified\n")
+                return count
+            tool.verify_commit = verify_commit
+        code, err = self.in_process(p, ["restore", "00-baseline", "--apply"], inject)
+        self.assertEqual(code, 1, err)
+        self.assertIn("the project changed while the restore was being prepared", err)
+        self.assertEqual((p / "late.txt").read_bytes(), b"written after the restore was verified\n")
+        self.assertEqual((p / "unix.txt").read_bytes(), b"work since the checkpoint\n")
+
+    def test_an_ignored_file_lost_during_a_restore_is_reported(self):
+        p = self.git_project()
+        self.tool(p, "create", "00-baseline")
+        write(p / "unix.txt", b"work since the checkpoint\n")
+
+        def inject(tool):
+            real = tool.write_files
+
+            def write_files(store, commit, target, paths=None):
+                real(store, commit, target, paths)
+                if Path(target) == p:         # the restore wrote the project's files
+                    (p / ".env").unlink()
+            tool.write_files = write_files
+        code, err = self.in_process(p, ["restore", "00-baseline", "--apply"], inject)
+        self.assertEqual(code, 1, err)
+        self.assertIn("the restore did not complete", err)
+        self.assertIn("lost: .env", err)
 
     # ------------------------------------------------------------ G9 the tree shows every file (RA-01)
 

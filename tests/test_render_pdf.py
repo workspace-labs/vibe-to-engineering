@@ -133,6 +133,11 @@ class Renderer(unittest.TestCase):
                 self.assertIn("static", output)
                 self.assertFalse(pdf.exists())
 
+    def test_refuses_an_element_that_is_not_on_the_list_even_a_harmless_one(self):   # FIX-FIRST item 9
+        code, output = self.checked("<p><a>no attribute, so only the element list can refuse it</a></p>")
+        self.assertEqual(code, 1, output)
+        self.assertIn("while it prints: <a>.", output)
+
     def test_refuses_a_meta_tag_that_other_markup_hides_from_the_checks(self):
         local = self.tmp / "local-secret.txt"
         local.write_text("LOCAL-FILE-CONTENT")

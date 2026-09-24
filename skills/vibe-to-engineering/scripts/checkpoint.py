@@ -704,7 +704,10 @@ def save_checkpoint(store, tree, label, found, contents):
         label, IGNORED_MARK, json.dumps([os.fsdecode(rel) for rel in found.ignored]),
         NESTED_MARK, json.dumps([os.fsdecode(rel) for rel in found.nested]),
         CONTENTS_MARK, json.dumps(contents, sort_keys=True))
-    commit = git(["commit-tree", "--no-gpg-sign", "-m", message, tree], store=store).stdout.strip().decode()
+    # The message goes in on stdin: listing every ignored file, it can be megabytes, far past what one command-line
+    # argument may hold (1 MB in all on macOS, 128 KB for one argument on Linux).
+    commit = git(["commit-tree", "--no-gpg-sign", "-F", "-", tree], store=store,
+                 stdin=message.encode("utf-8")).stdout.strip().decode()
     git(["update-ref", REF_PREFIX + label, commit, ""], store=store)  # "": only if the ref does not exist
     return commit
 
