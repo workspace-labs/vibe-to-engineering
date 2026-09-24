@@ -346,11 +346,12 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
     <h2><span class="n">5</span>Verification and recovery</h2>
     <p class="lead">These checks run once before anything changes (the baseline) and again after every phase.</p>
     <table>
-      <colgroup><col style="width:20%"><col style="width:40%"><col style="width:40%"></colgroup>
-      <thead><tr><th>Check</th><th>Command</th><th>Pass means</th></tr></thead>
+      <colgroup><col style="width:16%"><col style="width:32%"><col style="width:24%"><col style="width:28%"></colgroup>
+      <thead><tr><th>Check</th><th>Command</th><th>Data it uses</th><th>Pass means</th></tr></thead>
       <tbody>
-        <!-- repeat: one row per check (build, type check, tests, smoke run) -->
-        <tr><td>{{CHECK_NAME}}</td><td class="path">{{CHECK_COMMAND}}</td><td>{{CHECK_PASS_MEANS}}</td></tr>
+        <!-- repeat: one row per check (build, type check, tests, smoke run). Data it uses: throwaway data and how the
+             check is pointed at it (for example DB_PATH set to a temporary file) — never the owner's data. -->
+        <tr><td>{{CHECK_NAME}}</td><td class="path">{{CHECK_COMMAND}}</td><td>{{CHECK_DATA}}</td><td>{{CHECK_PASS_MEANS}}</td></tr>
         <!-- /repeat -->
       </tbody>
     </table>

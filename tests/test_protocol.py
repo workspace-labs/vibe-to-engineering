@@ -66,6 +66,26 @@ class Protocol(unittest.TestCase):
         for words in ('id="record"', "{{RECORD_WHERE}}", "{{RECORD_TEXT}}", 'reply "no docs"'):
             self.assertIn(words, self.template)
 
+    def test_checks_use_throwaway_data_and_prove_which_server_answered(self):   # RA-04, RA-05
+        for words in ("**Checks use throwaway data:**", "a check that cannot be redirected is not run",
+                      "where the application reads and writes data"):
+            self.assertIn(words, self.text)
+        for words in ("**Checks use throwaway data, never the owner's.**",
+                      "A check that would touch the owner's data is refused at the plan stage",
+                      "**A check that starts a server**", "bind to port 0", "answering instead is a failure, never a pass",
+                      "stops its process and confirms it is gone", "records the port, the process id and the start-up log"):
+            self.assertIn(words, self.plan)
+        for words in ("<th>Data it uses</th>", "{{CHECK_DATA}}"):
+            self.assertIn(words, self.template)
+
+    def test_secret_values_are_never_read_or_written(self):   # RA-06
+        standard = (SKILL_DIR / "references" / "engineering-standard.md").read_text(encoding="utf-8")
+        for words in ("are read for their key names only, never their values", "**Secrets:** no secret value goes into",
+                      "Every check runs through `<skill>/scripts/evidence.py`, never on its own"):
+            self.assertIn(words, self.text)
+        for words in ("for their key names only, never their values", "by file, line and key name, never its value"):
+            self.assertIn(words, standard)
+
     def test_a_changed_ignored_file_is_a_break_like_a_gone_one(self):   # RA-03
         for words in ("no ignored file `changed`", "A changed ignored file is a break like a gone one",
                       "reports none `gone` or `changed`", "ignored files it reports `changed` included"):

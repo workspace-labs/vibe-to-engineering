@@ -60,7 +60,7 @@ Nothing during inspection and diagnosis, and nothing at all when no migration is
 ├── Engineering-Migration-Plan.html    the plan
 ├── Engineering-Migration-Plan.pdf     what the human approves
 ├── ledger.md                          approvals, baseline, phases, failures, restores
-├── evidence/                          raw check output, trees and diffs
+├── evidence/                          check output (secret values masked), trees and diffs
 └── checkpoints.git/                   the recovery store; the project's own repository is only read
 ```
 
@@ -92,7 +92,7 @@ To validate a platform, run the tests on it.
 python3 -m unittest discover -s tests -v
 ```
 
-`tests/test_checkpoint.py` checks every guarantee of the recovery contract on throwaway projects, under deliberately hostile git settings. Point `V2E_CHECKPOINT` at another implementation to test it against the same contract. `tests/test_render_pdf.py` checks the template and the PDF renderer; its render test is skipped when no browser is installed. `tests/test_protocol.py` guards the wording of the protocol's gate transitions and completion outcomes in `SKILL.md`.
+`tests/test_checkpoint.py` checks every guarantee of the recovery contract on throwaway projects, under deliberately hostile git settings. Point `V2E_CHECKPOINT` at another implementation to test it against the same contract. `tests/test_render_pdf.py` checks the template and the PDF renderer; its render test is skipped when no browser is installed. `tests/test_evidence.py` checks that a check's output is kept with every secret value masked, and only inside the evidence folder. `tests/test_protocol.py` guards the wording the protocol depends on in `SKILL.md`, its references and the plan template: gate transitions, completion outcomes, the full trees, the every-file table, the documentation phase, throwaway data and secrets.
 
 ## Repository layout
 
@@ -106,6 +106,7 @@ skills/vibe-to-engineering/
 │   └── recovery.md                  the recovery contract, store format and platforms
 ├── scripts/
 │   ├── checkpoint.py                the recovery tool
+│   ├── evidence.py                  runs a check and keeps its output, secrets masked
 │   └── render_pdf.py                HTML plan → PDF
 └── assets/plan-template.html        the plan's layout
 tests/                               conformance, renderer and protocol tests

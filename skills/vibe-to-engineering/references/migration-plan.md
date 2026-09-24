@@ -54,6 +54,16 @@ List the exact commands that run at the baseline and after every phase:
 
   Stop anything the smoke run starts.
 
+**A check that starts a server** or another long-running process proves it is talking to the process it started:
+
+- it takes a free port the system hands out (bind to port 0) and passes it in, never a default or fixed port — or, when the application cannot be given one, it confirms the port is free before starting;
+- it keeps the process handle, waits for the application's own start-up signal (a log line or a health route), and fails at once if the process exits;
+- before and after the calls, it confirms that its own process is still running and is the one listening on that port — another program, or a copy left running by an earlier check, answering instead is a failure, never a pass;
+- it starts only when no earlier check's process is still running, and afterwards stops its process and confirms it is gone;
+- it records the port, the process id and the start-up log in `evidence/`.
+
+**Checks use throwaway data, never the owner's.** Before the baseline, the plan names for each check where the application reads and writes data — database files, upload and export folders — and how the check redirects it: an environment variable pointing at a temporary file, a temporary copy, or a test fixture. A check that would touch the owner's data is refused at the plan stage; a check that cannot be redirected is not run, and the human decides. Where the stack allows it, checks write no caches into the project (for example `PYTHONDONTWRITEBYTECODE=1`); otherwise the plan names the caches they write.
+
 **Checks stay local.** A check never installs or updates dependencies, deploys, publishes, migrates or seeds a database, or sends anything anywhere. If the project's own build or test command does any of that (an `npm ci` inside `build`, for example), say so in the plan and propose a local alternative; if dependencies are missing, the baseline stops and the human decides.
 
 **Pass means:** every check that passed at the baseline passes; the number of tests found is not lower (moved tests can silently fall outside the runner's file pattern); the smoke results match the baseline.

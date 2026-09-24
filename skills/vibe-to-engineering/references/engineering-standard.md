@@ -102,8 +102,8 @@ Each criterion gives what good looks like, the evidence of a problem, what is no
 - **Good:** environment-specific values are read in one place and passed in; secrets never live in the source.
 - **Problem evidence:** the same URL, key, port or path hard-coded in several files (give the count); environment variables read ad hoc throughout the code; secrets committed to the repository.
 - **Not a problem:** true constants; configuration files at the location a tool requires.
-- **Check:** search for literals such as URLs, ports and keys, and for every place the environment is read.
-- A committed secret is a security finding: report it at once, in plain words. Moving it is not a silent migration step — the secret needs rotating, and that is the human's decision.
+- **Check:** search for literals such as URLs, ports and keys, and for every place the environment is read. Read files that hold secrets (`.env` and its variants, key and credential files) for their key names only, never their values.
+- A committed secret is a security finding: report it at once, in plain words — by file, line and key name, never its value (at most its first 4 characters, when the human needs to recognize the key). Moving it is not a silent migration step — the secret needs rotating, and that is the human's decision.
 
 ### C10 Test organization
 

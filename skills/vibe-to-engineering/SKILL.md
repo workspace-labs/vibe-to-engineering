@@ -76,6 +76,8 @@ Never write PASS for a check that did not run: write `N/A — <reason>` or `FAIL
 
 Read-only means: read files, list folders, search, and run git commands that only read — `git --no-optional-locks -c core.fsmonitor=false` before `status`, `log`, `ls-files`, `diff` or `show` (plain `status` may rewrite git's index), and `--no-ext-diff --no-textconv` on anything that shows file contents or changes, so no diff program configured on the machine starts. Do not run builds, tests, installers, formatters, auto-fixing linters, project scripts, or anything that writes files or uses the network — they create caches and outputs. Write nothing anywhere in the project.
 
+Files that hold secrets — `.env` and its variants, key and credential files, anything the project's own rules call secret — are read for their key names only, never their values (`sed 's/=.*//' .env` lists the names). A committed secret is reported by file, line and key name, and at most by the first 4 characters of its value when the human needs to recognize which key it is.
+
 Establish, with paths as evidence:
 
 - the project type, stack and frameworks, and the layout conventions they impose; the runtime and deployment model;
@@ -85,6 +87,7 @@ Establish, with paths as evidence:
 - the main data and control flows — trace one or two real features end to end;
 - how the project is built, tested and run, from its manifests and CI files, without running them;
 - its size: source files, lines, the largest files, the most-imported modules and, with git history, which files change together;
+- where the application reads and writes data — database files, upload and export folders — and the environment variables or settings that choose them: checks must be pointed away from all of it;
 - **external contracts** that must keep working: entry points, public API or package exports, command names, routes and URLs, configuration and environment-variable names, data and database files, and paths used by CI, containers, deploy scripts or other projects;
 - the project's own rules and decisions (README, CONTRIBUTING, architecture notes, ADRs, AGENTS.md, CLAUDE.md). They outrank this skill's standard.
 
@@ -144,7 +147,7 @@ Only after the human approves this plan version. Load `references/recovery.md`.
 
 1. `checkpoint.py create 00-baseline`, then `checkpoint.py verify 00-baseline`. If either fails, stop: no migration without a verified recovery point. `create` refuses, for example, while a folder cannot be read or a nested repository holds uncommitted work; report what it names — resolving it is the human's decision.
 2. Record the starting point in the ledger: the time, the checkpoint name and — if the project uses git — its branch, commit and number of uncommitted changes (`git --no-optional-locks status`).
-3. Run the plan's checks once; save their output in `.vibe-to-engineering/evidence/00-baseline/`; record the results with numbers (tests found, passed, failed, skipped).
+3. Run the plan's checks once, each through `evidence.py` (section "The checkpoint tool"), which saves its output in `.vibe-to-engineering/evidence/00-baseline/` with secret values masked; record the results with numbers (tests found, passed, failed, skipped).
 4. If running the checks changed project files (`checkpoint.py diff 00-baseline`, ignored files it reports `changed` included), record which files and create `00-baseline-checked`. Files the checks rewrite by themselves are not unplanned changes in later phases.
 5. Stop if any check failed. Also stop if the checks cannot prove the application works, unless the plan begins with a safety-net phase that adds exactly that proof. When you stop, report the baseline, ask whether to continue with "no new failures" as the bar or to fix it separately first, and end with `AWAITING HUMAN APPROVAL`. If the human approves continuing, record in the ledger every check that fails at the baseline, with its numbers: these are the approved baseline failures, and they stay visible to the end (sections 7 and 9).
 6. If everything passed, start Phase 1 — the plan approval covers it.
@@ -161,7 +164,7 @@ Add `PHASE n STARTED` to the ledger, then:
 
 1. State the phase's scope in a few lines.
 2. Make only this phase's planned changes, then update every reference to what it moved or renamed: imports, paths in configuration, scripts, build files, CI, documentation.
-3. Run the plan's checks and compare them with the baseline: everything that passed then passes now, the number of tests is not lower, and the smoke run behaves the same. A check that still fails under an approved "no new failures" bar is reported as `FAIL — no new failures (<numbers>; the same failures as the approved baseline)`, never as PASS.
+3. Run the plan's checks through `evidence.py` (into `evidence/NN-phase-n/`) and compare them with the baseline: everything that passed then passes now, the number of tests is not lower, and the smoke run behaves the same. A check that still fails under an approved "no new failures" bar is reported as `FAIL — no new failures (<numbers>; the same failures as the approved baseline)`, never as PASS.
 4. Architecture check: `checkpoint.py diff <last>` shows exactly the phase's planned changes and their reference updates — nothing else — it reports no ignored file or nested repository `gone` and no ignored file `changed` (apart from files the checks rewrite, recorded at the baseline), and no reference to an old path remains anywhere. A changed ignored file is a break like a gone one: no checkpoint can bring back what it held.
 5. Record in the ledger what changed (with the diff summary), every check with its numbers, and where the evidence is.
 6. `checkpoint.py create NN-phase-n`, then `checkpoint.py verify NN-phase-n`.
@@ -245,10 +248,12 @@ Follow the outcome with the before and after trees (every file, as `tree` prints
 - **Scope:** only planned changes. Files git ignores, secrets, databases, user data and nested repositories (folders with their own git, which checkpoints do not save) are never moved, edited or deleted — so move files by name, never with wildcards or whole-folder moves that could carry them along. External contracts keep working.
 - **The skill's own folder:** no phase moves, edits or deletes the plan, ledger, evidence or checkpoints in `.vibe-to-engineering/`; the only files a phase adds there are a safety net's checks, in `checks/`.
 - **Checks stay local:** a check never installs or updates dependencies, deploys, publishes, migrates a database or sends anything anywhere. If running a check changes a dependency manifest or lockfile, stop and ask: that is a dependency change.
+- **Checks use throwaway data:** a check never reads or writes the owner's data. The plan names, for each check, the data it uses and how it is redirected (an environment variable pointing at a temporary file, a temporary copy, a test fixture); a check that cannot be redirected is not run — the human decides. A check that starts a server takes a free port and proves the answers come from the process it started (`references/migration-plan.md`, section 3).
 - **Git:** never push. Never commit, branch, reset, clean, stash or rewrite history in the project's repository unless the human asks; if they ask for commits, commit one completed phase at a time.
 - **Tests:** never edit expected values or snapshots, skip, delete or silence tests, or loosen type, lint or build settings to reach green.
 - **Deletions:** only files the plan names, and only when a checkpoint holds them.
 - **Evidence:** every PASS rests on a command and its numbers; every claim can be checked in the ledger or in `evidence/`.
+- **Secrets:** no secret value goes into the plan, the PDF, the ledger, `evidence/` or your own messages. Every check runs through `evidence.py`, which prints and saves its output with secret values masked; secret files are read for their key names only.
 - **Plan changes:** when reality contradicts the plan — a framework constraint, a hidden dependency, a contract the plan missed — stop and propose a revised plan (new version, new PDF, new fingerprint). Never deviate silently. Record the human's own instructions given during the migration in the ledger; a change to the target needs a revised plan.
 - **No network and no installs** for this skill's own work.
 
@@ -260,7 +265,7 @@ Follow the outcome with the before and after trees (every file, as `tree` prints
 ├── Engineering-Migration-Plan.html      the plan: its one source of truth
 ├── Engineering-Migration-Plan.pdf       what the human reads and approves
 ├── ledger.md                            append-only record: approvals (quoted), baseline, phases, failures, restores
-├── evidence/                            raw check output, trees and diffs, one folder per step
+├── evidence/                            check output (secret values masked), trees and diffs, one folder per step
 └── checkpoints.git/                     the recovery store (a separate git store; the project's own repository is only read)
 ```
 
@@ -281,6 +286,14 @@ Ledger entries are appended, never edited. Each starts with a heading `## <UTC t
 | `restore <label> [--apply]` | show a restore; with `--apply` and the human's approval, do it |
 
 If Python 3 or git is unavailable, stop before changing anything and tell the human what is missing. Never improvise a backup.
+
+Every check runs through `<skill>/scripts/evidence.py`, never on its own:
+
+```
+python3 <skill>/scripts/evidence.py --project <project> --out <project>/.vibe-to-engineering/evidence/<step>/<check>.txt [--env NAME=VALUE]… -- <command> [<argument>…]
+```
+
+It runs the command in the project folder — `--env` points it at throwaway data — then prints and saves its output with every secret value masked (the values in the project's secret files, which it reads and never shows, and anything shaped like a key, token, password or private key), and exits with the command's own exit code. It writes only inside `.vibe-to-engineering/evidence/`.
 
 ## References
 
