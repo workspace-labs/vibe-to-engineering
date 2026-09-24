@@ -127,6 +127,68 @@ class Evidence(unittest.TestCase):
                     self.assertNotIn(word, out.read_text(encoding="utf-8").split("\n\n", 1)[1])
                     self.assertNotIn(word, report)
 
+    def test_a_value_in_any_written_form_is_masked_and_a_secret_file_that_is_not_text_stops_the_run(self):
+        token = "roundtwo-synthetic-value-93715"
+        cases = {   # the independent round-2 review's leaks (2026-09-24, night), and their neighbours
+            "a JSON value written with escapes": (
+                "credentials.json", '{"password": "roundtwo-synthetic-value-\\u0039\\u0033\\u0037\\u0031\\u0035"}',
+                "import json; print(json.load(open('credentials.json'))['password'])", (token,)),
+            "a JSON list of values": (
+                "credentials.json", '{"passwords": ["%s", "other-synthetic-value-4471"]}' % token,
+                "import json; print(*json.load(open('credentials.json'))['passwords'])",
+                (token, "other-synthetic-value-4471")),
+            "a YAML block value": (
+                "secrets.yaml", "password: |-\n  %s\n" % token,
+                "print(open('secrets.yaml').read().splitlines()[1].strip())", (token,)),
+            "a YAML folded value over two lines": (
+                "secrets.yaml", "password: >\n  %s\n  second-synthetic-line-8802\n" % token,
+                "print(open('secrets.yaml').read().splitlines()[2].strip())", (token, "second-synthetic-line-8802")),
+            "a quoted .env value over two lines": (
+                ".env", 'PASSWORD="first-line\n%s"\n' % token,
+                "print(open('.env').read().splitlines()[1].rstrip(chr(34)))", (token,)),
+            "one line of a private key's body": (
+                "id_rsa", "-----BEGIN PRIVATE KEY-----\n%s\n-----END PRIVATE KEY-----\n" % token,
+                "print(open('id_rsa').read().splitlines()[1])", (token,)),
+            "a key file holding one bare value": (
+                "api.key", "%s\n" % token, "print(open('api.key').read().strip())", (token,)),
+            "a UTF-16 credentials file with a byte order mark": (
+                "credentials.json", ('{"password": "%s"}' % token).encode("utf-16"),
+                "import json; print(json.loads(open('credentials.json', 'rb').read().decode('utf-16'))['password'])",
+                (token,)),
+        }
+        for name, (file, content, check, secrets) in cases.items():
+            with self.subTest(name):
+                project = self.tmp / re.sub(r"\W+", "-", name)
+                (project / ".vibe-to-engineering").mkdir(parents=True)
+                (project / file).write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
+                self.project = project
+                out = project / ".vibe-to-engineering" / "evidence" / "check.txt"
+                code, printed, report = self.run_tool(out, sys.executable, "-c", check)
+                self.assertEqual(code, 0, report)
+                for secret in secrets:
+                    self.assertNotIn(secret, printed.split("\n\n", 1)[1])   # (the header repeats the check's code)
+                    self.assertNotIn(secret, out.read_text(encoding="utf-8").split("\n\n", 1)[1])
+                    self.assertNotIn(secret, report)
+                self.assertIn("<masked", printed)
+        refused = {   # not text this tool can read: the run stops before the check, naming the file
+            "a UTF-16 file without a byte order mark": (".env", ("PASSWORD=%s\n" % token).encode("utf-16-le")),
+            "a binary key container": ("release.p12", b"\x30\x82\x01\x0a\x02\x01\x03" + bytes(range(256))),
+        }
+        for name, (file, content) in refused.items():
+            with self.subTest(name):
+                project = self.tmp / re.sub(r"\W+", "-", name)
+                (project / ".vibe-to-engineering").mkdir(parents=True)
+                (project / file).write_bytes(content)
+                self.project = project
+                out = project / ".vibe-to-engineering" / "evidence" / "check.txt"
+                code, printed, report = self.run_tool(out, sys.executable, "-c", "print('ran')")
+                self.assertEqual(code, 2, report)
+                self.assertNotIn("ran", printed)
+                self.assertIn(file, report)
+                self.assertIn("not text this tool can read", report)
+                self.assertNotIn(token, report)
+                self.assertFalse(out.exists())
+
     def test_a_number_or_a_yes_no_word_under_an_ordinary_name_stays_readable_and_is_named(self):
         (self.project / ".env").write_text("PORT=8000\nDEBUG=true\nSECRET_KEY=abcd1234efgh5678\nPIN=1234\n")
         code, printed, report = self.run_tool(self.folder / "check.txt", sys.executable, "-c",

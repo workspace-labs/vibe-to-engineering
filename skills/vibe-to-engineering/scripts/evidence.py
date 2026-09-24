@@ -7,20 +7,25 @@
 Standard library only. The command runs in the project folder, with each --env setting added to its environment —
 how a check is pointed at throwaway data. Its output, standard output and error together, is printed and saved with
 secret values masked. The values come from the project's secret files (.env and its variants, key, credential and
-certificate files — read here for masking, never shown): every NAME=VALUE, NAME: VALUE or "name": "value" they hold,
-with and without an inline comment, quoted and unquoted. A value under a name that says secret (key, token,
-password…) is always masked; under any other name, a number or a yes/no word is a setting, left readable and named
-in the summary. Anything shaped like a private key, an access token or a password is masked wherever it appears. A
-secret file that is a link is read through the link; a folder that cannot be listed, or a linked folder, stops the
-run before the check, because secret files inside it would not be found. The evidence file is replaced whole, and it
-must lie inside the project's .vibe-to-engineering/evidence/ folder.
+certificate files — read here for masking, never shown): every value they give a name — NAME=VALUE, NAME: VALUE,
+"name": "value", quoted or not, with and without an inline comment, quoted over several lines, a YAML block value, a
+JSON value with its escapes decoded, a JSON list's members — and, where a line gives no name a value, the line itself:
+a key file's own lines, a bare token. A value under a name that says secret (key, token, password…) is always masked;
+under any other name, a number or a yes/no word is a setting, left readable and named in the summary. Anything shaped
+like a private key, an access token or a password is masked wherever it appears. A secret file that is a link is read
+through the link; a folder that cannot be listed, or a linked folder, stops the run before the check, because secret
+files inside it would not be found — and so does a secret file that is not text this tool can read (binary, or an
+encoding without a byte order mark), because its values could not be masked. The evidence file is replaced whole, and
+it must lie inside the project's .vibe-to-engineering/evidence/ folder.
 
 Exit codes: the command's own; 1 when it could not run; 2 usage, a refused evidence path, or secret files that
 could not be gathered.
 """
 
 import argparse
+import codecs
 import fnmatch
+import json
 import os
 import re
 import subprocess
@@ -35,6 +40,10 @@ from watched import SECRET_FILES, UNWATCHED_FOLDERS  # noqa: E402 — one list o
 # A name given a value, anywhere on a line: NAME=VALUE, export NAME=VALUE, name: value, "name": "value", 'name' = …
 NAME = re.compile(r"""(?<![\w.-])(?:export\s+)?(["']?)([A-Za-z_][\w.-]*)\1\s*[=:]\s*""")
 QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"|\'([^\']*)\'')
+BLOCK = re.compile(r"[|>][+\-1-9]{0,2}")  # a YAML block value: the more indented lines that follow hold it
+ARMOR = re.compile(r"-----(?:BEGIN|END) [A-Z ]+-----")  # the lines around a key or a certificate: not values
+BOMS = ((codecs.BOM_UTF8, "utf-8-sig"), (codecs.BOM_UTF32_LE, "utf-32"), (codecs.BOM_UTF32_BE, "utf-32"),
+        (codecs.BOM_UTF16_LE, "utf-16"), (codecs.BOM_UTF16_BE, "utf-16"))  # UTF-32 first: its mark begins like UTF-16's
 SECRET_NAME = re.compile(r"(?i)key|secret|token|passw(?:or)?d|pwd|credential|private|salt|(?<![a-z])pin(?![a-z])")
 SETTING = re.compile(r"(?i)[0-9][0-9._-]*|true|false|yes|no|on|off|null|none")  # a number or a yes/no word
 LARGEST_SECRET_FILE = 1 << 20  # a secret file bigger than this is not a secret file
@@ -53,22 +62,96 @@ NAMED = re.compile(r"""(?i)\b([A-Za-z0-9_.-]*(?:key|secret|token|passw(?:or)?d|p
                    r"""[A-Za-z0-9_.-]*)(["']?\s*[:=]\s*["']?)(?!<masked)([^\s"',;]+)""")
 
 
-def values_on(line):
-    """(name, value) for every value the line gives a name — each unquoted value in every form it may be printed
-    in: whole, without an inline comment, up to a separator, its first word."""
-    found = []
-    for match in NAME.finditer(line):
-        rest = line[match.end():]
-        quoted = QUOTED.match(rest)
-        if quoted:
-            raw = quoted.group(1) if quoted.group(1) is not None else quoted.group(2)
-            candidates = [raw, re.sub(r"\\(.)", r"\1", raw)]
-        else:
-            rest = rest.strip()
-            candidates = [rest, re.split(r"\s+#", rest)[0].strip(), re.split(r"[,;}]", rest)[0].strip(),
-                          rest.split()[0] if rest.split() else ""]
-        found += [(match.group(2), value) for value in dict.fromkeys(candidates) if value]
+def decoded(raw):
+    """A quoted value as a JSON reader decodes it (\\uXXXX, \\n, \\"), or "" when it is not JSON."""
+    try:
+        return json.loads('"%s"' % raw)
+    except ValueError:
+        return ""
+
+
+def indent(line):
+    return len(line) - len(line.lstrip())
+
+
+def values_in(text, label):
+    """(name, value) for every value the text gives a name — each in every form it may be printed: a quoted value
+    whole, decoded and line by line; an unquoted value whole, without an inline comment, up to a separator, its
+    first word; a YAML block value (`|`, `>`) whole and line by line — and, named after the file (`label`), every
+    line that gives no name a value: a key file's own lines, a bare token. Comment lines and the lines around a key
+    are not values."""
+    found, lines, i = [], text.splitlines(), 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        if not re.search(r"\w", line) or line.lstrip().startswith("#") or ARMOR.fullmatch(line.strip()):
+            continue
+        matches = list(NAME.finditer(line))
+        if not matches:
+            bare = line.strip()
+            found += [(label, value) for value in dict.fromkeys([bare, bare.lstrip("-").strip()]) if value]
+            continue
+        for match in matches:
+            rest = line[match.end():]
+            quoted = QUOTED.match(rest)
+            if rest[:1] in "\"'" and not quoted:  # a quoted value that goes on over the following lines
+                joined, j = rest, i
+                while j < len(lines) and not quoted:
+                    joined += "\n" + lines[j]
+                    j += 1
+                    quoted = QUOTED.match(joined)
+                if quoted:
+                    i = j
+            if quoted:
+                raw = quoted.group(1) if quoted.group(1) is not None else quoted.group(2)
+                candidates = [raw, re.sub(r"\\(.)", r"\1", raw), decoded(raw)] + raw.split("\n")
+            elif BLOCK.fullmatch(rest.strip()):
+                block = []
+                while i < len(lines) and (not lines[i].strip() or indent(lines[i]) > indent(line)):
+                    block.append(lines[i].strip())
+                    i += 1
+                candidates = block + ["\n".join(block).strip(), " ".join(part for part in block if part)]
+            else:
+                rest = rest.strip()
+                candidates = [rest, re.split(r"\s+#", rest)[0].strip(), re.split(r"[,;}]", rest)[0].strip(),
+                              rest.split()[0] if rest.split() else ""]
+            found += [(match.group(2), value) for value in dict.fromkeys(candidates) if value]
     return found
+
+
+def json_values(text, label):
+    """(name, value) for every value in a file that is one JSON document, as a JSON reader decodes it — a list's
+    members under the list's name, a number or a yes/no word as JSON writes it — or nothing for any other text."""
+    try:
+        document = json.loads(text)
+    except ValueError:
+        return []
+    found, pending = [], [(label, document)]
+    while pending:
+        name, value = pending.pop()
+        if isinstance(value, dict):
+            pending += [(key, member) for key, member in value.items()]
+        elif isinstance(value, list):
+            pending += [(name, member) for member in value]
+        elif value is not None:
+            found.append((name, value if isinstance(value, str) else json.dumps(value)))
+    return found
+
+
+def secret_text(path):
+    """A secret file's text: decoded by its byte order mark (UTF-8, UTF-16, UTF-32), otherwise as UTF-8. A file that
+    is not text this tool can read — bytes that are not UTF-8, or a NUL character, as in UTF-16 without a mark or a
+    binary key container — stops the run: its values could not be masked."""
+    data = Path(path).read_bytes()
+    encoding = next((encoding for mark, encoding in BOMS if data.startswith(mark)), "utf-8")
+    try:
+        text = data.decode(encoding)
+    except UnicodeDecodeError:
+        text = "\0"
+    if "\0" in text:
+        raise Fail("%s is not text this tool can read (binary, or an encoding without a byte order mark), so its "
+                   "values cannot be masked — keep it outside the project for the migration" % path)
+    return text
 
 
 def secret_files(project):
@@ -96,8 +179,8 @@ def secret_files(project):
 
 
 def secret_values(project):
-    """(name, value) for every value the project's secret files give a name. A secret file that cannot be read stops
-    the run: its values could not be masked."""
+    """(name, value) for every value the project's secret files hold (values_in, json_values). A secret file that
+    cannot be read, or is not text this tool can read, stops the run: its values could not be masked."""
     found = []
     for path in secret_files(project):
         try:
@@ -105,12 +188,10 @@ def secret_values(project):
                 continue
             if os.path.getsize(path) > LARGEST_SECRET_FILE:
                 raise Fail("%s is larger than a secret file (%d bytes) — its values cannot be masked" % (path, os.path.getsize(path)))
-            text = Path(path).read_text(encoding="utf-8", errors="replace")
+            text = secret_text(path)
         except OSError as error:
             raise Fail("cannot read %s to mask its values (%s)" % (path, error.strerror or error))
-        for line in text.splitlines():
-            if not line.lstrip().startswith("#"):
-                found += values_on(line)
+        found += values_in(text, os.path.basename(path)) + json_values(text, os.path.basename(path))
     return found
 
 
