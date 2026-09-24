@@ -91,7 +91,7 @@ Trees are plain text in the checkpoint tool's tree format, without its title lin
 
 1. Copy `<skill>/assets/plan-template.html` to `<project>/.vibe-to-engineering/Engineering-Migration-Plan.html`.
 2. Replace every `{{PLACEHOLDER}}`. Repeat the rows and blocks marked "repeat" as often as needed and delete unused ones. Escape `&`, `<` and `>` in inserted text. Text that really contains two braces is written `&#123;&#123;`.
-3. Keep the file static and self-contained: no scripts or event handlers, and no external stylesheets, fonts or images. The renderer refuses leftover placeholders, scripts and external resources, and blocks every network lookup while it prints.
+3. Keep the file static and self-contained: no scripts or event handlers, and no external stylesheets, fonts or images. The file begins with the template's `<!DOCTYPE html>` line, with nothing but ordinary spaces before it. The renderer refuses leftover placeholders, scripts, external resources and anything before the doctype, blocks every network lookup while it prints, and prints nothing when the browser reports the plan against its content security policy.
 4. Render: `python3 <skill>/scripts/render_pdf.py <html> <pdf>`. It looks for Chrome, Chromium, Edge or Brave, including browsers downloaded by Playwright; set `V2E_BROWSER` to a browser's path to choose one. It prints under a content security policy — the browser runs no script and loads nothing but images written into the plan — and refuses any `<meta>` line besides the template's two.
 5. Look at the PDF before reporting it.
 

@@ -92,7 +92,7 @@ To validate a platform, run the tests on it.
 python3 -m unittest discover -s tests -v
 ```
 
-`tests/test_checkpoint.py` checks every guarantee of the recovery contract on throwaway projects, under deliberately hostile git settings. Point `V2E_CHECKPOINT` at another implementation to test it against the same contract. `tests/test_render_pdf.py` checks the template and the PDF renderer; its render test is skipped when no browser is installed. `tests/test_evidence.py` checks that a check's output is kept with every secret value masked, and only inside the evidence folder. `tests/test_protocol.py` guards the wording the protocol depends on in `SKILL.md`, its references and the plan template: gate transitions, completion outcomes, the full trees, the every-file table, the documentation phase, throwaway data and secrets.
+`tests/test_checkpoint.py`, `tests/test_nested.py`, `tests/test_watched.py` and `tests/test_tree.py` check every guarantee of the recovery contract on throwaway projects, under deliberately hostile git settings (`tests/support.py` holds the fixtures they share; to run one file, `python3 -m unittest discover -s tests -p test_nested.py -v` — discovery is what puts the shared fixtures on the path). Point `V2E_CHECKPOINT` at another implementation to test it against the same contract. `tests/test_render_pdf.py` checks the template and the PDF renderer; its render test is skipped when no browser is installed. `tests/test_evidence.py` checks that a check's output is kept with every secret value masked, and only inside the evidence folder. `tests/test_protocol.py` guards the wording the protocol depends on in `SKILL.md`, its references and the plan template: gate transitions, completion outcomes, the full trees, the every-file table, the documentation phase, throwaway data and secrets.
 
 ## Repository layout
 
@@ -105,7 +105,11 @@ skills/vibe-to-engineering/
 │   ├── migration-plan.md            target design, phases, verification, the plan document
 │   └── recovery.md                  the recovery contract, store format and platforms
 ├── scripts/
-│   ├── checkpoint.py                the recovery tool
+│   ├── checkpoint.py                the recovery tool (the command)
+│   ├── gitrun.py                    runs git safely; the platform helpers
+│   ├── nested.py                    nested repositories
+│   ├── watched.py                   ignored files: watched, not saved
+│   ├── treeview.py                  the tree view
 │   ├── evidence.py                  runs a check and keeps its output, secrets masked
 │   └── render_pdf.py                HTML plan → PDF
 └── assets/plan-template.html        the plan's layout

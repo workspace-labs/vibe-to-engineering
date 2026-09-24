@@ -293,7 +293,7 @@ Every check runs through `<skill>/scripts/evidence.py`, never on its own:
 python3 <skill>/scripts/evidence.py --project <project> --out <project>/.vibe-to-engineering/evidence/<step>/<check>.txt [--env NAME=VALUE]… -- <command> [<argument>…]
 ```
 
-It runs the command in the project folder — `--env` points it at throwaway data — then prints and saves its output with every secret value masked (the values in the project's secret files, which it reads and never shows, and anything shaped like a key, token, password or private key), and exits with the command's own exit code. It writes only inside `.vibe-to-engineering/evidence/`.
+It runs the command in the project folder — `--env` points it at throwaway data — then prints and saves its output with secret values masked, and exits with the command's own exit code. Masked: every value the project's secret files give a name (`.env` and its variants, key, credential and certificate files — read for masking, never shown), in every form it may be printed — `NAME=VALUE`, `name: value`, `"name": "value"`, quoted or not, with or without an inline comment — and anything shaped like a private key, an access token or a password, wherever it appears. Left readable, and named in the summary line: a number or a yes/no word under a name that does not say secret (`PORT=8000`, `DEBUG=true`) — a setting, not a secret. A secret file that is a link is read through the link. The run stops before the check when a folder cannot be listed or is a link: a secret file inside it would not be found. It writes only inside `.vibe-to-engineering/evidence/`.
 
 ## References
 

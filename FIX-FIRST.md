@@ -4,7 +4,7 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 
 ## Before you start
 
-- **Run the tests** on the machine you are using, from the repository root: `python3 -m unittest discover -s tests -v` (`py -3` on Windows). Needs Python 3.8+ and git; the three tests that print a PDF also need a Chrome-family browser and are skipped without one, and the one that reads the printed text also needs `pdftotext`. On macOS all 73 pass (branch `fix/f03-f06-f08-new1`, 2026-09-24).
+- **Run the tests** on the machine you are using, from the repository root: `python3 -m unittest discover -s tests -v` (`py -3` on Windows). Needs Python 3.8+ and git; the three tests that print a PDF also need a Chrome-family browser and are skipped without one, and the one that reads the printed text also needs `pdftotext`. On macOS all 85 pass (branch `fix/f03-f06-f08-new1`, round 2, 2026-09-24).
 - **Never point the skill at a real project.** Copy the project to a scratch folder and use the copy.
 - **Where things stand:** the independent re-review (2026-09-24) of the corrections in `502d3c5` closed F01, F04, F05, F07, F09 and F10, and reopened four: F02, F03, F06 and F08 — items 1 to 4 below. It also confirmed NEW-1 (item 5). Line numbers below are for `502d3c5`; the quoted text of each line is the anchor if the numbers move.
 - **Ideas** under an item are suggestions that have not been tried.
@@ -29,6 +29,8 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 ## 2. F03 (High) — checking a nested repository can run a program named in the git settings
 
 > **Status (2026-09-24): CORRECTED / DELIVERED FOR RE-REVIEW** on branch `fix/f03-f06-f08-new1` — not closed until the independent re-review decides. See the CHANGELOG entry; tests `test_checking_a_nested_repository_runs_no_filter_program_yet_finds_a_same_size_edit` and `test_a_nested_repository_is_compared_with_its_own_index_and_every_kind_of_unsaved_work_is_refused`. Suite run on macOS only.
+>
+> **Round 2 (2026-09-24, evening): REOPENED by the re-review — a nested repository set up as a partial clone made git fetch a missing object through a remote helper before the refusal — CORRECTED / DELIVERED FOR RE-REVIEW.** Every git call runs with `GIT_NO_LAZY_FETCH=1`; a partial clone is refused outright on a git older than 2.46, and a store configured as one always. Tests `test_a_nested_partial_clone_missing_an_object_is_refused_before_git_fetches_it` (tests/test_nested.py) and `test_a_store_configured_as_a_partial_clone_is_refused` (tests/test_checkpoint.py).
 
 - **What:** the check that a nested repository holds no unsaved work runs `git status` inside it. When git has to re-read a file, `git status` runs any "filter" program the git settings name for it (`filter.<name>.clean`). So a program from the user's or the repository's settings can run during a checkpoint, before the refusal. This check was added by the corrections.
 - **See it:** a nested repository with tracked `code.txt` holding `COMMITTED`; in the global git config, `filter.review.clean` set to a small script that writes a marker file and echoes its input; `.gitattributes` in the nested repository holding `*.txt filter=review`; change `code.txt` to `OTHERDATA` (same length) and move its modified time forward; run `create base` in the parent project. The marker file appears, then `create` refuses because the nested repository is dirty.
@@ -41,6 +43,8 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 ## 3. F06 (High) — an ignored nested repository with unsaved work still gets a checkpoint
 
 > **Status (2026-09-24): CORRECTED / DELIVERED FOR RE-REVIEW** on branch `fix/f03-f06-f08-new1` — not closed until the independent re-review decides. See the CHANGELOG entry; test `test_an_ignored_nested_repository_is_named_recorded_checked_and_watched`, and the ignored repository inside a nested one in the F03 test above. Suite run on macOS only.
+>
+> **Round 2 (2026-09-24, evening): REOPENED by the re-review — a committed link replaced by a plain file holding the link's target was called clean — CORRECTED / DELIVERED FOR RE-REVIEW.** A change now, unless the repository's `core.symlinks` is off. Test `test_a_link_replaced_by_a_plain_file_is_unsaved_work_unless_the_repository_keeps_links_as_files` (tests/test_nested.py).
 
 - **What:** a nested repository that git ignores is recorded as ignored and never checked for unsaved work, so `create` succeeds while that repository's uncommitted work is held nowhere.
 - **See it:** the parent's `.gitignore` holds `module/`; `module` is a nested repository with committed `code.txt`; edit `code.txt` and add an untracked `new.txt`; run `create base` in the parent. It exits 0 with no warning, and the checkpoint records `ignored-by-git: ["module/"]` but `nested-repositories: []`.
@@ -53,6 +57,8 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 ## 4. F08 (Medium) — broken HTML can still run a script or pull a local file into the PDF
 
 > **Status (2026-09-24): CORRECTED / DELIVERED FOR RE-REVIEW** on branch `fix/f03-f06-f08-new1` — not closed until the independent re-review decides. See the CHANGELOG entry; tests `test_the_browser_runs_no_script_and_loads_no_local_file_whatever_markup_gets_past_the_checks` (real prints) and `test_refuses_a_meta_tag_that_other_markup_hides_from_the_checks`. Printed with Playwright's chrome-headless-shell only; the full Chrome build on this Mac hangs on every page, a hidden refresh included.
+>
+> **Round 2 (2026-09-24, evening): REOPENED by the re-review — a non-breaking space, a vertical tab or an em space before the doctype put the policy in the body, where the browser ignored it — CORRECTED / DELIVERED FOR RE-REVIEW.** Only a byte order mark and ordinary spaces may come before `<!DOCTYPE html>` (refused before the browser starts otherwise), and any content-security-policy line the browser logs refuses the print and deletes the PDF. Tests `test_refuses_a_plan_with_anything_but_spaces_before_the_doctype`, `test_refuses_the_print_when_the_browser_reports_the_policy_ignored`, and the real-print test, which now expects the refusal with the browser's sentence.
 
 - **What:** Python's HTML reader and Chrome read some malformed markup differently, so the checks see nothing while Chrome runs code or loads a local file. Two inputs, each placed before `</body>` of a filled plan, print with exit 0:
 
@@ -77,6 +83,8 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 ## 5. NEW-1 (Medium) — a repository git refuses to open is treated as a plain folder
 
 > **Status (2026-09-24): CORRECTED / DELIVERED FOR RE-REVIEW** on branch `fix/f03-f06-f08-new1`, on the owner's instruction to fix what the list says needs fixing — not closed until the independent re-review decides. See the CHANGELOG entry; test `test_a_repository_git_refuses_to_open_stops_every_command_instead_of_losing_tracked_files`. Apple's git prints no translated messages, so reading git's message untranslated (`LC_ALL=C`) is untested here: try it on Linux with a translated locale.
+>
+> **Round 2 (2026-09-24, evening): REOPENED by the re-review — a `.git` file whose pointer is broken made git say `not a git repository: (null)`, read as a plain folder — CORRECTED / DELIVERED FOR RE-REVIEW.** A folder is plain only when no `.git` entry exists in it or above it and git's message says `(or any of the parent directories)`. Tests `test_a_broken_git_pointer_is_refused_not_read_as_a_plain_folder` and `test_a_failure_to_open_that_is_not_a_missing_repository_stops_a_plain_folder_too` (tests/test_checkpoint.py); the walk stops at a file-system boundary, as git does.
 
 - **What:** when git refuses a repository — for example "detected dubious ownership", when the folder belongs to another user — `is_git_project()` reads that as "not a git project" and silently switches to the plain-folder rules. A tracked file that matches an ignore rule is then left out of every checkpoint, and `verify` still passes. Confirmed by the re-review; it was outside F01–F10, so it needs its own go-ahead.
 - **See it:** commit `tracked.log`, then add `*.log` to `.gitignore`; run `GIT_TEST_ASSUME_DIFFERENT_OWNER=1 python3 skills/vibe-to-engineering/scripts/checkpoint.py --project <that repository> create base`. It exits 0 and the checkpoint has no `tracked.log`.
@@ -84,6 +92,12 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
   - `checkpoint.py:213` → `    inside = git(["rev-parse", "--is-inside-work-tree"], cwd=project, ok=(0, 128))`
   - `checkpoint.py:214` → `    if inside.returncode != 0 or inside.stdout.strip() != b"true":`
 - **Fixed means:** a genuine non-repository still uses the plain-folder rules, but any other failure to open the repository stops the command with git's own message. A test reproduces the ownership refusal and shows the tracked file is not silently dropped.
+
+## Corrected in round 2 (2026-09-24, evening) — the re-review's new findings
+
+- **NEW-5 (High) — `evidence.py` leaked values from files it recognized as secret** (an inline comment, a JSON `"password"` key, a `.env` that is a link, a folder that cannot be listed, a value under four characters). **CORRECTED / DELIVERED FOR RE-REVIEW** — see the CHANGELOG entry; tests `test_every_value_a_secret_file_holds_is_masked_however_it_is_written`, `test_a_number_or_a_yes_no_word_under_an_ordinary_name_stays_readable_and_is_named`, `test_a_folder_that_cannot_be_listed_or_is_a_link_stops_the_run_before_the_check` (tests/test_evidence.py). Left readable on purpose, and named in the summary line: a number or a yes/no word under a name that does not say secret.
+- **NEW-6 (Medium) — a secret file replaced with the same size and modification time was called unchanged.** **CORRECTED / DELIVERED FOR RE-REVIEW** — a keyed fingerprint now (`.vibe-to-engineering/fingerprint.key`); test `test_a_secret_file_replaced_with_the_same_size_and_time_is_reported_changed_and_never_hashed_plainly` (tests/test_watched.py).
+- **ENG-01 (Medium) — two files over the 1,000-line limit.** **DONE / DELIVERED FOR RE-REVIEW** — `checkpoint.py` split into `gitrun.py`, `nested.py`, `watched.py`, `treeview.py` and itself (810 lines); `tests/test_checkpoint.py` into `support.py`, `test_nested.py`, `test_watched.py`, `test_tree.py` and itself (688 lines); every moved definition and test method the same byte for byte (checked by parsing both sides).
 
 ## 6. Try it on copies of real projects
 
