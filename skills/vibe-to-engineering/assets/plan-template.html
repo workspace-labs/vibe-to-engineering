@@ -11,7 +11,8 @@
     and no meta lines besides the two in the head.
   - Trees: plain text from `checkpoint.py tree`. On the overview page each tree holds about 30 lines at most
     (`tree --depth 2` shortens one); a longer tree is not hidden, it spills visibly, so look at the page.
-    Mark the current tree with "→ moves" and "✗ removed", the target tree with "+ new".
+    Mark the current tree with "→ moves" and "✗ removed", the target tree with "+ new". Keep the lines `tree` marks
+    [ignored …], [nested repository …] and [the skill's own folder]: they show what the migration never touches.
   - Severity and risk badges: class "material" or "minor"; "high", "medium" or "low".
 -->
 <html lang="en">
@@ -219,7 +220,7 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
       </div>
     </div>
   </div>
-  <p class="legend"><span>→ moves</span><span>✗ removed</span><span>+ new</span><span>Dependency and build-output folders are not shown.</span></p>
+  <p class="legend"><span>→ moves</span><span>✗ removed</span><span>+ new</span><span>[ignored] and [nested repository] lines are never touched and are not in checkpoints.</span></p>
 </section>
 
 <!-- ============ Findings and target architecture ============ -->

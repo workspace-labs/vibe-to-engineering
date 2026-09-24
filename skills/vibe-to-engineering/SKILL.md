@@ -80,7 +80,7 @@ Establish, with paths as evidence:
 
 - the project type, stack and frameworks, and the layout conventions they impose; the runtime and deployment model;
 - the entry points and how the application is composed;
-- the current tree without dependency, build-output and vendored folders — `checkpoint.py tree --current` prints it and writes nothing;
+- the current tree — `checkpoint.py tree --current` prints every file and writes nothing: files git ignores, nested repositories and the skill's own folder are marked where they sit, and a folder holding only ignored files (dependencies, build output) is one line with its count. Show the human this full tree, never a shortened one;
 - where each responsibility lives: UI and frontend, backend, API, domain rules, services, persistence and data, configuration, tests, build and packaging;
 - the main data and control flows — trace one or two real features end to end;
 - how the project is built, tested and run, from its manifests and CI files, without running them;
@@ -218,7 +218,7 @@ AWAITING HUMAN APPROVAL
 After the human approves it:
 
 1. **Re-inspect independently.** If your environment can start a fresh agent, give it only the approved plan and the project and have it make the comparison below; it reads and runs checks, and changes nothing. Otherwise redo INSPECT from scratch before you read your own phase notes.
-2. Compare the APPROVED TARGET TREE with the ACTUAL FINAL TREE (`checkpoint.py tree --current`). Every difference must be covered by an approved plan revision; anything else is a finding.
+2. Compare the APPROVED TARGET TREE with the ACTUAL FINAL TREE (`checkpoint.py tree --current`), marked lines included — an ignored file or nested repository that moved or disappeared is a difference too. Every difference must be covered by an approved plan revision; anything else is a finding.
 3. Verify: responsibility boundaries and dependency direction as designed; no dependency added or removed unless planned (compare the manifests and lockfiles with `00-baseline`); the build; the tests (none fewer than at the baseline, no new failures); the smoke run behaves as at the baseline; no migration remnants (references to old paths, temporary shims not meant to stay, empty folders, backup or scratch files, migration notes left in code); documentation that describes the structure matches it.
 4. Final architecture and code review: judge the final project with `references/engineering-standard.md`. A Material finding that the migration left or introduced blocks completion.
 5. Blocking findings: report them and propose a corrective phase as a plan revision — new version, new PDF, new fingerprint (`references/migration-plan.md`, section 6) — and end with `AWAITING HUMAN APPROVAL`.
@@ -276,7 +276,7 @@ Ledger entries are appended, never edited. Each starts with a heading `## <UTC t
 | `verify <label>` | prove the checkpoint restores byte for byte |
 | `list` | list the checkpoints |
 | `diff <from> [<to>]` | changes between two checkpoints, or from a checkpoint to the current files, plus any ignored file that disappeared; `--patch` shows the lines |
-| `tree [<label>]`, `tree --current` | a tree view of a checkpoint or of the current files; `--current` writes nothing |
+| `tree [<label>]`, `tree --current` | a tree of every file of a checkpoint or of the current files — ignored files, nested repositories and the skill's own folder marked where they sit; `--current` writes nothing; `--saved-only` shows only what checkpoints save |
 | `extract <label> <folder>` | copy a checkpoint into an empty folder outside the project, for investigation |
 | `restore <label> [--apply]` | show a restore; with `--apply` and the human's approval, do it |
 

@@ -813,49 +813,94 @@ def cmd_diff(project, args):
     return 3
 
 
-def current_files_read_only(project):
-    """The files a checkpoint would hold now, found without writing anything in the project (G9)."""
+def current_survey_read_only(project):
+    """What a checkpoint would hold now — the files, and the ignored files and nested repositories it would leave
+    out — found without writing anything in the project (G9)."""
     if is_git_project(project):
-        return survey(project, None, True).files
+        return survey(project, None, True)
     temp = tempfile.mkdtemp(prefix="v2e-tree-")
     try:
         store = os.path.join(temp, "store.git")
         git(["init", "--bare", "--quiet", "--template=", store])
         write_lf(os.path.join(store, "info", "exclude"),
                  "\n".join(["/" + STATE_DIR + "/"] + list(DEFAULT_EXCLUDES)) + "\n")
-        return survey(project, store, False).files
+        return survey(project, store, False)
     finally:
         remove_temp(temp)
 
 
-def print_tree(title, paths, depth):
+def plural(count, one, many):
+    return "%d %s" % (count, one if count == 1 else many)
+
+
+MARKS = {"ignored": "[ignored — never touched]", "nested": "[nested repository — never touched]",
+         "state": "[the skill's own folder]"}
+
+
+def print_tree(title, saved, depth, full=False, ignored=(), nested=(), state=False):
+    """The saved files as a tree, folders opened `depth` levels deep. With full=True, also every file git ignores and
+    every nested repository, each marked where it sits — a folder holding nothing but ignored files as one line —
+    and the skill's own folder, then the count of each kind. ignored or nested None: the checkpoint did not record
+    them."""
     root = {}
-    for rel in paths:
-        node, parts = root, show(rel).split("/")
+    repos = sorted(set(nested or ()) | {rel for rel in ignored or () if rel.endswith(b"/")})
+    leaves = [(rel, "saved") for rel in saved]
+    if full:
+        leaves += [(rel, "ignored") for rel in ignored or () if not rel.endswith(b"/")]
+        leaves += [(rel, "nested") for rel in repos] + ([(STATE_DIR.encode() + b"/", "state")] if state else [])
+    for rel, kind in leaves:
+        node, parts = root, show(rel).rstrip("/").split("/")
         for part in parts[:-1]:
             node = node.setdefault(part + "/", {})
-        node[parts[-1]] = None
+        node[parts[-1] + ("/" if rel.endswith(b"/") else "")] = kind
 
     def count(node):
-        return sum(1 if child is None else count(child) for child in node.values())
+        found = {"saved": 0, "ignored": 0, "nested": 0, "state": 0}
+        for child in node.values():
+            for kind, number in (count(child).items() if isinstance(child, dict) else [(child, 1)]):
+                found[kind] += number
+        return found
+
+    lines, folded = [], []
 
     def walk(node, prefix, level):
-        names = sorted(node, key=lambda name: (node[name] is None, name.lower()))
+        names = sorted(node, key=lambda name: (not name.endswith("/"), name.lower()))
         for position, name in enumerate(names):
             last = position == len(names) - 1
             child = node[name]
             line = prefix + ("└── " if last else "├── ") + name
-            if child is not None and level >= depth:
-                files = count(child)
-                print("%s (%d %s)" % (line, files, "file" if files == 1 else "files"))
+            if not isinstance(child, dict):
+                lines.append((line, MARKS.get(child)))
                 continue
-            print(line)
-            if child is not None:
+            found = count(child)
+            if found["ignored"] and not (found["saved"] or found["nested"]):
+                folded.append(name)
+                lines.append((line, "[ignored folder — %s, never touched]" % plural(found["ignored"], "file", "files")))
+            elif level >= depth:
+                counts = [plural(found["saved"], "file", "files")] + (
+                    ["%d ignored" % found["ignored"]] if found["ignored"] else []) + (
+                    [plural(found["nested"], "nested repository", "nested repositories")] if found["nested"] else [])
+                lines.append(("%s (%s)" % (line, " · ".join(counts)), None))
+            else:
+                lines.append((line, None))
                 walk(child, prefix + ("    " if last else "│   "), level + 1)
 
-    print(title)
     walk(root, "", 1)
-    print("\n%d files" % len(paths))
+    print(title)
+    column = min(max([len(line) for line, mark in lines if mark] or [0]), 40) + 2
+    for line, mark in lines:
+        print((line + "  ").ljust(column) + mark if mark else line)
+    if not full:
+        print("\n%d files" % len(saved))
+    elif ignored is None or nested is None:
+        print("\n%s saved — this checkpoint did not record which files git ignored or which nested repositories there "
+              "were" % plural(len(saved), "file", "files"))
+    else:
+        others = [rel for rel in ignored if not rel.endswith(b"/")]
+        print("\n%s saved · %d ignored%s · %s — ignored files and nested repositories are never touched and not in "
+              "checkpoints" % (plural(len(saved), "file", "files"), len(others),
+                               " (%s)" % plural(len(folded), "folder", "folders") if folded else "",
+                               plural(len(repos), "nested repository", "nested repositories")))
 
 
 def cmd_tree(project, args):
@@ -865,12 +910,16 @@ def cmd_tree(project, args):
         raise Fail("--depth must be 1 or more")
     if args.label:
         store = open_store(project)
-        paths = list(tree_files(store, resolve(store, args.label)))
+        commit = resolve(store, args.label)
+        saved, state = list(tree_files(store, commit)), True
+        ignored, nested = recorded(store, commit, IGNORED_MARK), recorded(store, commit, NESTED_MARK)
         title = "%s @ %s" % (project.name, args.label)
     else:
-        paths = current_files_read_only(project)
+        found = current_survey_read_only(project)
+        saved, ignored, nested = found.files, found.ignored, found.nested
+        state = os.path.lexists(str(project / STATE_DIR))
         title = "%s (current files)" % project.name
-    print_tree(title, paths, args.depth)
+    print_tree(title, saved, args.depth, not args.saved_only, ignored, nested, state)
     return 0
 
 
@@ -1044,10 +1093,12 @@ def build_parser():
     diff.add_argument("new", metavar="to", nargs="?")
     diff.add_argument("--patch", action="store_true", help="also show the changed lines")
     diff.add_argument("--path", action="append", default=[], help="limit to this path (repeatable)")
-    tree = add("tree", "tree view of a checkpoint, or of the current files (writes nothing)")
+    tree = add("tree", "tree view of a checkpoint, or of the current files, with every file git ignores and every "
+                       "nested repository marked where it sits (writes nothing)")
     tree.add_argument("label", nargs="?")
     tree.add_argument("--current", action="store_true", help="the current files (the default)")
     tree.add_argument("--depth", type=int, default=3, help="folder levels to open (default 3)")
+    tree.add_argument("--saved-only", action="store_true", help="only the files checkpoints save, unmarked")
     extract = add("extract", "write a checkpoint's files into a new or empty folder outside the project")
     extract.add_argument("label")
     extract.add_argument("folder")

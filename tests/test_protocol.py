@@ -1,5 +1,6 @@
-"""Checks on the protocol text in SKILL.md that an agent follows word for word: the transitions at a gate and the
-completion outcomes. They guard the wording, not an agent's behavior.
+"""Checks on the protocol text that an agent follows word for word — SKILL.md, its references and the plan template:
+the transitions at a gate, the completion outcomes, and what the owner is shown. They guard the wording, not an
+agent's behavior.
 
 Run from the repository root:  python3 -m unittest discover -s tests -v
 """
@@ -9,12 +10,15 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILL = Path(os.environ.get("V2E_SKILL_MD", ROOT / "skills" / "vibe-to-engineering" / "SKILL.md"))  # seam: another copy
+SKILL_DIR = Path(os.environ.get("V2E_SKILL_DIR", ROOT / "skills" / "vibe-to-engineering"))  # seam: another copy
+SKILL = Path(os.environ.get("V2E_SKILL_MD", SKILL_DIR / "SKILL.md"))
 
 
 class Protocol(unittest.TestCase):
     def setUp(self):
         self.text = SKILL.read_text(encoding="utf-8")
+        self.plan = (SKILL_DIR / "references" / "migration-plan.md").read_text(encoding="utf-8")
+        self.template = (SKILL_DIR / "assets" / "plan-template.html").read_text(encoding="utf-8")
 
     def test_stop_restore_correct_and_retry_are_separate_transitions(self):
         for transition in ("STOP", "RESTORE `<label>`", "CORRECT", "RETRY MIGRATION"):
@@ -30,6 +34,13 @@ class Protocol(unittest.TestCase):
                       "Still failing (approved at the baseline)",
                       "Never write PASS for a check that fails"):
             self.assertIn(words, self.text)
+
+    def test_the_owner_is_shown_every_file_in_the_trees(self):   # RA-01
+        for words in ("prints every file and writes nothing", "Show the human this full tree, never a shortened one",
+                      "marked lines included"):
+            self.assertIn(words, self.text)
+        self.assertIn("they show what the migration never touches", self.template)
+        self.assertNotIn("Dependency and build-output folders are not shown", self.template)
 
 
 if __name__ == "__main__":
