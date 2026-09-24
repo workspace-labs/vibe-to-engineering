@@ -11,7 +11,7 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 
 ## 1. F02 (High) — the backup store can still change files outside it
 
-> **Status (2026-09-24): CORRECTED / DELIVERED FOR RE-REVIEW** on branch `fix/f02-store-writes-outside` — not closed until the independent re-review decides. See the CHANGELOG entry; tests `test_a_store_file_with_a_second_name_outside_is_refused_and_git_appends_to_no_file` and `test_a_store_folder_that_cannot_be_read_stops_every_command_before_a_write`. Suite run on Linux only, not yet on macOS.
+> **Status (2026-09-24): CORRECTED / DELIVERED FOR RE-REVIEW** on branch `fix/f02-store-writes-outside` — not closed until the independent re-review decides. See the CHANGELOG entry; tests `test_a_store_file_with_a_second_name_outside_is_refused_and_git_appends_to_no_file` and `test_a_store_folder_that_cannot_be_read_stops_every_command_before_a_write`. Suite run on Linux, then on macOS (2026-09-24, at `99e1a6a`: 48 run, 48 passed, 0 skipped — macOS 27.0 arm64, Python 3.9.6, git 2.54.0; the four letter-case tests ran).
 
 - **What:** two ways are left for a store command to write outside the store:
   - **A hard-linked log file.** If the store's settings turn on git's reference log and a file in its `logs/` folder is another name for an outside file, git appends to that outside file. In the re-review an outside file grew from 17 to 177 bytes during `create`.
@@ -28,6 +28,8 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 
 ## 2. F03 (High) — checking a nested repository can run a program named in the git settings
 
+> **Status (2026-09-24): CORRECTED / DELIVERED FOR RE-REVIEW** on branch `fix/f03-f06-f08-new1` — not closed until the independent re-review decides. See the CHANGELOG entry; tests `test_checking_a_nested_repository_runs_no_filter_program_yet_finds_a_same_size_edit` and `test_a_nested_repository_is_compared_with_its_own_index_and_every_kind_of_unsaved_work_is_refused`. Suite run on macOS only.
+
 - **What:** the check that a nested repository holds no unsaved work runs `git status` inside it. When git has to re-read a file, `git status` runs any "filter" program the git settings name for it (`filter.<name>.clean`). So a program from the user's or the repository's settings can run during a checkpoint, before the refusal. This check was added by the corrections.
 - **See it:** a nested repository with tracked `code.txt` holding `COMMITTED`; in the global git config, `filter.review.clean` set to a small script that writes a marker file and echoes its input; `.gitattributes` in the nested repository holding `*.txt filter=review`; change `code.txt` to `OTHERDATA` (same length) and move its modified time forward; run `create base` in the parent project. The marker file appears, then `create` refuses because the nested repository is dirty.
 - **Where:**
@@ -38,6 +40,8 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 
 ## 3. F06 (High) — an ignored nested repository with unsaved work still gets a checkpoint
 
+> **Status (2026-09-24): CORRECTED / DELIVERED FOR RE-REVIEW** on branch `fix/f03-f06-f08-new1` — not closed until the independent re-review decides. See the CHANGELOG entry; test `test_an_ignored_nested_repository_is_named_recorded_checked_and_watched`, and the ignored repository inside a nested one in the F03 test above. Suite run on macOS only.
+
 - **What:** a nested repository that git ignores is recorded as ignored and never checked for unsaved work, so `create` succeeds while that repository's uncommitted work is held nowhere.
 - **See it:** the parent's `.gitignore` holds `module/`; `module` is a nested repository with committed `code.txt`; edit `code.txt` and add an untracked `new.txt`; run `create base` in the parent. It exits 0 with no warning, and the checkpoint records `ignored-by-git: ["module/"]` but `nested-repositories: []`.
 - **Where:**
@@ -47,6 +51,8 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 - **Fixed means:** ignored nested repositories are found, recorded and refused while they hold unsaved work, exactly like tracked and untracked ones — without starting to save ignored files such as secrets or dependencies. Do item 2 first: this repair uses its safe check. Tests: an ignored clean and an ignored dirty nested repository, a dirty tracked file and an untracked file inside one, its disappearance reported as `gone`, and a refusal that leaves the project and the nested repository unchanged.
 
 ## 4. F08 (Medium) — broken HTML can still run a script or pull a local file into the PDF
+
+> **Status (2026-09-24): CORRECTED / DELIVERED FOR RE-REVIEW** on branch `fix/f03-f06-f08-new1` — not closed until the independent re-review decides. See the CHANGELOG entry; tests `test_the_browser_runs_no_script_and_loads_no_local_file_whatever_markup_gets_past_the_checks` (real prints) and `test_refuses_a_meta_tag_that_other_markup_hides_from_the_checks`. Printed with Playwright's chrome-headless-shell only; the full Chrome build on this Mac hangs on every page, a hidden refresh included.
 
 - **What:** Python's HTML reader and Chrome read some malformed markup differently, so the checks see nothing while Chrome runs code or loads a local file. Two inputs, each placed before `</body>` of a filled plan, print with exit 0:
 
@@ -69,6 +75,8 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 - **Idea:** print a temporary copy of the plan that begins with a Content-Security-Policy `<meta>` tag allowing no scripts, inline styles only and `data:` images only (for example `default-src 'none'; style-src 'unsafe-inline'; img-src data:`), keeping the text checks as a first layer. Test first that the plan still prints: switching scripts off another way made the printer produce no PDF at all.
 
 ## 5. NEW-1 (Medium) — a repository git refuses to open is treated as a plain folder
+
+> **Status (2026-09-24): CORRECTED / DELIVERED FOR RE-REVIEW** on branch `fix/f03-f06-f08-new1`, on the owner's instruction to fix what the list says needs fixing — not closed until the independent re-review decides. See the CHANGELOG entry; test `test_a_repository_git_refuses_to_open_stops_every_command_instead_of_losing_tracked_files`. Apple's git prints no translated messages, so reading git's message untranslated (`LC_ALL=C`) is untested here: try it on Linux with a translated locale.
 
 - **What:** when git refuses a repository — for example "detected dubious ownership", when the folder belongs to another user — `is_git_project()` reads that as "not a git project" and silently switches to the plain-folder rules. A tracked file that matches an ignore rule is then left out of every checkpoint, and `verify` still passes. Confirmed by the re-review; it was outside F01–F10, so it needs its own go-ahead.
 - **See it:** commit `tracked.log`, then add `*.log` to `.gitignore`; run `GIT_TEST_ASSUME_DIFFERENT_OWNER=1 python3 skills/vibe-to-engineering/scripts/checkpoint.py --project <that repository> create base`. It exits 0 and the checkpoint has no `tracked.log`.
