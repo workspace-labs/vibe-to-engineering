@@ -1,6 +1,6 @@
 # Request to add
 
-Things vibe-to-engineering does not do yet and should. These are additions, not bugs: nothing here breaks a safety rule, but each one left the owner unable to confirm from the skill's own output that the skill had handled the whole project. Each request says what is missing, how it showed up, where in the skill it belongs, and what "added" means.
+Things vibe-to-engineering does not do yet and should. Most are additions, not bugs; RA-03 is closer to a safety gap. Each one left the owner unable to confirm, from the skill's own output, that the skill had handled the whole project safely. Each request says what is missing, how it showed up, where in the skill it belongs, and what "added" means.
 
 Found on 2026-09-24 while testing the skill on Linux, on the fake vibe-coded app `~/vibe-test/spendly` (installed skill = `fix/f02-store-writes-outside` @ 99e1a6a). The owner tested it by putting the project's tree **without** the skill next to its tree **with** the skill. In that comparison, files were missing from the skill's tree and there was no project-side record of the decisions. RA-03 to RA-08 came from a follow-up check of the skill's text and tools against the same run.
 
