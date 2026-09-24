@@ -613,9 +613,16 @@ class Contract(unittest.TestCase):
         p = self.git_project()
         self.tool(p, "create", "00-baseline")
         store, outside = self.store(p), self.tmp / "outside.gitconfig"
-        for locked, link in ((store, store / "config"),   # the config git config --file would write through
-                             (store / "refs" / "checkpoints", store / "refs" / "checkpoints" / "deep" / "hidden")):
-            with self.subTest(locked=locked.name):
+        objects = store / "objects" / self.store_git(p, "rev-parse", "refs/checkpoints/00-baseline:unix.txt")[:2]
+        cases = {   # the folder that cannot be read: the link it hides
+            "the store": store / "config",   # the config git config --file would write through
+            "a deep reference folder": store / "refs" / "checkpoints" / "deep" / "hidden",
+            "an object folder": objects / "hidden",
+            "a reference log folder": store / "logs" / "refs" / "checkpoints" / "hidden",
+        }
+        for name, link in cases.items():
+            locked = store if name == "the store" else link.parent
+            with self.subTest(locked=name):
                 write(outside, b"[core]\n\tautocrlf = true\n")
                 original = link.read_bytes() if link.exists() else None
                 link.parent.mkdir(parents=True, exist_ok=True)

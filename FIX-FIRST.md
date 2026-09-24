@@ -11,7 +11,7 @@ What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Eac
 
 ## 1. F02 (High) — the backup store can still change files outside it
 
-> **Status (2026-09-24): fixed, waiting for independent review.** See the CHANGELOG entry; tests `test_a_store_file_with_a_second_name_outside_is_refused_and_git_appends_to_no_file` and `test_a_store_folder_that_cannot_be_read_stops_every_command_before_a_write`. Suite run on Linux, not yet on macOS.
+> **Status (2026-09-24): CORRECTED / DELIVERED FOR RE-REVIEW** on branch `fix/f02-store-writes-outside` — not closed until the independent re-review decides. See the CHANGELOG entry; tests `test_a_store_file_with_a_second_name_outside_is_refused_and_git_appends_to_no_file` and `test_a_store_folder_that_cannot_be_read_stops_every_command_before_a_write`. Suite run on Linux only, not yet on macOS.
 
 - **What:** two ways are left for a store command to write outside the store:
   - **A hard-linked log file.** If the store's settings turn on git's reference log and a file in its `logs/` folder is another name for an outside file, git appends to that outside file. In the re-review an outside file grew from 17 to 177 bytes during `create`.
