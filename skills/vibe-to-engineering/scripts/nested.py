@@ -27,6 +27,16 @@ def index_stat(info):
             0x80000000 if info.st_size and not size else size)
 
 
+def refuse_partial_clone(folder, name):
+    """On a git older than 2.46, which has no GIT_NO_LAZY_FETCH switch, a partial clone fetches a missing object
+    from its remote the moment a command reads it — through a remote helper, which may run a configured program
+    (G11). Such a repository is refused before git reads anything in it: the one checked, and a repository it
+    records (a gitlink) before its commit is read."""
+    if git_version() < (2, 46) and promisor_configured(folder):
+        raise Fail("%s is a partial clone, and a git older than 2.46 fetches its missing objects from a remote the "
+                   "moment they are read — which may run a configured program" % name)
+
+
 def nested_work(folder, name):
     """Work the git repository in `folder` holds that its own commits do not — staged, changed, deleted or unmerged
     files, untracked files, or such work in a repository nested inside it — as "<repository>: <what>", or None.
@@ -46,9 +56,7 @@ def nested_work(folder, name):
             raise Fail("git printed the index of %s in a form this tool does not know" % name)
         entries.append(entry.groups())
         at = entry.end()
-    if git_version() < (2, 46) and promisor_configured(folder):
-        raise Fail("%s is a partial clone, and a git older than 2.46 fetches its missing objects from a remote the "
-                   "moment they are read — which may run a configured program" % name)
+    refuse_partial_clone(folder, name)
     if git(["rev-parse", "-q", "--verify", "HEAD^{commit}"], cwd=folder, ok=(0, 1)).returncode:
         if entries:
             return "%s: files added but never committed" % name
@@ -76,6 +84,7 @@ def nested_work(folder, name):
             return "%s: deleted %s" % (name, show(rel))
         if mode == GITLINK:
             if os.path.lexists(os.path.join(path, ".git")):
+                refuse_partial_clone(path, "%s%s/" % (name, show(rel)))  # before its commit is read
                 head = git(["rev-parse", "-q", "--verify", "HEAD^{commit}"], cwd=path, ok=(0, 1)).stdout.strip()
                 if head.decode() != oid:
                     return "%s: %s is not at the commit %s records" % (name, show(rel), name)

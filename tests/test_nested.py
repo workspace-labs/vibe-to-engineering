@@ -7,6 +7,7 @@ Run from the repository root:  python3 -m unittest discover -s tests -v
 import os
 import re
 import shutil
+import sys
 from support import Fixture, disk_state, folder_digest, write
 
 
@@ -186,6 +187,44 @@ class Nested(Fixture):
                 self.assertFalse(marker.exists(), "git fetched through the remote helper")
                 self.assertIn("cannot tell whether the nested repository module/", err)
                 self.assertEqual(disk_state(p), before, "the nested repository or the project changed")
+
+    def test_a_partial_clone_nested_in_a_nested_repository_is_refused_before_its_commit_is_read_on_an_older_git(self):
+        p = self.git_project()
+        module = self.repository(p / "module", {"code.txt": b"committed\n"})
+        child = self.repository(module / "child", {"c.txt": b"c\n"})
+        self.git(module, "add", "child")                   # module records child's commit (a gitlink)
+        self.git(module, "commit", "-qm", "add child")
+        self.tool(p, "create", "00-clean")
+        marker, helper, older = self.tmp / "helper-ran", self.tmp / "helper", self.tmp / "older-git"
+        helper.mkdir()
+        older.mkdir()
+        (helper / "git-remote-fixture").write_text("#!/bin/sh\nprintf ran > '%s'\nexit 1\n" % marker)
+        real = shutil.which("git", path=self.env["PATH"])
+        (older / "git").write_text(   # a git older than 2.46: says so, and has no GIT_NO_LAZY_FETCH switch to obey
+            "#!%s\nimport os, sys\nif sys.argv[-1:] == ['version']:\n    print('git version 2.43.0')\n"
+            "    raise SystemExit\nos.environ.pop('GIT_NO_LAZY_FETCH', None)\nos.execv(%r, [%r] + sys.argv[1:])\n"
+            % (sys.executable, real, real))
+        for program in (helper / "git-remote-fixture", older / "git"):
+            os.chmod(program, 0o755)
+        commit = self.git(child, "rev-parse", "HEAD").strip()
+        os.rename(child / ".git" / "objects" / commit[:2] / commit[2:], self.tmp / "missing-commit")
+        for key, value in (("extensions.partialClone", "origin"), ("remote.origin.promisor", "true"),
+                           ("remote.origin.url", "fixture::local-only"), ("protocol.fixture.allow", "always")):
+            self.git(child, "config", key, value)          # child is a partial clone: git fetches what it lacks when it reads it
+        before = disk_state(p)                              # both nested .git folders included
+        for git in ("installed", "older"):                  # the installed git first: it leaves the fixture as it is
+            path = ([str(older)] if git == "older" else []) + [str(helper), self.env["PATH"]]
+            for command in (("create", "01-changed"), ("diff", "00-clean"), ("restore", "00-clean"),
+                            ("restore", "00-clean", "--apply")):
+                with self.subTest(git=git, command=" ".join(command)):
+                    if marker.exists():
+                        marker.unlink()                         # each command is judged on its own
+                    _, err = self.tool(p, *command, expect=1, env={"PATH": os.pathsep.join(path)})
+                    self.assertFalse(marker.exists(), "git fetched through the remote helper")
+                    self.assertIn("nested repository module/", err)
+                    if git == "older":
+                        self.assertIn("module/child/ is a partial clone", err)
+                    self.assertEqual(disk_state(p), before, "a nested repository or the project changed")
 
     # ------------------------------------------------------------ G1 a link that became a plain file is unsaved work (F06)
 
