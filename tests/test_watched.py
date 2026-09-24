@@ -161,7 +161,8 @@ class Watched(Fixture):
         # two checkpoints an older tool wrote over the same files: one recorded the secret file's modification time
         # (the store format before keyed fingerprints), one recorded nothing about any file's contents
         for label, record in (("01-mtime", 'ignored-contents: {".env": [31, "mtime:%d"]}\n' % info.st_mtime_ns),
-                              ("02-nothing", "")):
+                              ("02-nothing", ""),
+                              ("03-mtime-too", 'ignored-contents: {".env": [31, "mtime:%d"]}\n' % info.st_mtime_ns)):
             commit = self.store_git(p, "commit-tree", tree, "-m", "vibe-to-engineering checkpoint: %s\n\n"
                                     'ignored-by-git: [".env", "node_modules/pkg/index.js"]\nnested-repositories: []\n%s'
                                     % (label, record))
@@ -184,6 +185,9 @@ class Watched(Fixture):
                     self.assertEqual((p / ".env").read_bytes(), data)
         out, _ = self.tool(p, "diff", "00-baseline", "02-nothing", expect=3)   # whichever side recorded nothing
         self.assertRegex(out, r"unknown\s+\.env\s+\(02-nothing recorded nothing")
+        outputs.append(out)
+        out, _ = self.tool(p, "diff", "01-mtime", "03-mtime-too", expect=3)   # two equal times prove nothing either
+        self.assertRegex(out, r"unknown\s+\.env\s+\(01-mtime recorded only its modification time")
         outputs.append(out)
         for out in outputs + [self.store_git(p, "cat-file", "commit", "refs/checkpoints/00-baseline")]:
             self.assertNotIn("fixture-", out)                       # no secret byte in any output or record

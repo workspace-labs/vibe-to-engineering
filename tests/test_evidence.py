@@ -137,9 +137,15 @@ class Evidence(unittest.TestCase):
                 "credentials.json", '{"passwords": ["%s", "other-synthetic-value-4471"]}' % token,
                 "import json; print(*json.load(open('credentials.json'))['passwords'])",
                 (token, "other-synthetic-value-4471")),
+            "a YAML value written with escapes": (   # decoded by the reader, in a file that is not JSON
+                "secrets.yaml", 'token: "roundtwo-synthetic-value-\\u0039\\u0033\\u0037\\u0031\\u0035"\n',
+                "import json; print(json.loads(open('secrets.yaml').read().split(': ', 1)[1]))", (token,)),
             "a YAML block value": (
                 "secrets.yaml", "password: |-\n  %s\n" % token,
                 "print(open('secrets.yaml').read().splitlines()[1].strip())", (token,)),
+            "a YAML block line that looks like a comment": (
+                "secrets.yaml", "password: |-\n  #not-a-comment-98213\n",
+                "print(open('secrets.yaml').read().splitlines()[1].strip())", ("#not-a-comment-98213",)),
             "a YAML folded value over two lines": (
                 "secrets.yaml", "password: >\n  %s\n  second-synthetic-line-8802\n" % token,
                 "print(open('secrets.yaml').read().splitlines()[2].strip())", (token, "second-synthetic-line-8802")),
