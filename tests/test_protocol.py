@@ -54,6 +54,18 @@ class Protocol(unittest.TestCase):
                       "every file before → after, and who owns each job — as they actually came out"):
             self.assertIn(words, self.text)
 
+    def test_every_plan_ends_with_a_record_of_the_structure_left_in_the_project(self):   # RA-02
+        for words in ("the documentation phase ends every plan", 'Leave it out only when the human declines it ("no docs")',
+                      "every folder and file it names exists and holds what it says", "say that the project holds none",
+                      "the record in the project stays either way"):
+            self.assertIn(words, self.text)
+        for words in ("**The documentation phase comes last,**", "never the migration's history",
+                      "The plan shows its exact text", 'at the plan gate ("no docs")', "the ledger records the decision",
+                      'otherwise a "Project layout" section in the README'):
+            self.assertIn(words, self.plan)
+        for words in ('id="record"', "{{RECORD_WHERE}}", "{{RECORD_TEXT}}", 'reply "no docs"'):
+            self.assertIn(words, self.template)
+
     def test_a_changed_ignored_file_is_a_break_like_a_gone_one(self):   # RA-03
         for words in ("no ignored file `changed`", "A changed ignored file is a break like a gone one",
                       "reports none `gone` or `changed`", "ignored files it reports `changed` included"):

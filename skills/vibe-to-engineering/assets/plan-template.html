@@ -140,6 +140,8 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .facts dt { font-size: 7.3pt; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: .5mm; }
 .facts dd { margin: 0; min-width: 0; }
 .facts pre.tree { font-size: 7.3pt; background: var(--wash); border: .8pt solid var(--soft); border-radius: 1.4mm; padding: 2mm 2.6mm; }
+pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white-space: pre-wrap; margin: 0 0 5mm; background: var(--wash);
+             border: .8pt solid var(--soft); border-radius: 1.4mm; padding: 2.6mm 3.2mm; }
 .facts table { margin: 0 0 1mm; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
 .approval { border: 1.4pt solid var(--banner); border-radius: 2mm; padding: 5mm; break-inside: avoid; }
@@ -330,6 +332,12 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
     </dl>
   </article>
   <!-- /repeat -->
+
+  <div class="block" id="record">
+    <h3>The record this migration leaves in the project</h3>
+    <p class="lead">The last phase writes it into {{RECORD_WHERE}}: the structure as it will be and why — never the migration's own history. Approving the plan approves these exact words; to go without it, reply "no docs" and the plan comes back without that phase.</p>
+    <pre class="record">{{RECORD_TEXT}}</pre>
+  </div>
 </section>
 
 <!-- ============ Verification, what stays the same, risks, approval ============ -->
