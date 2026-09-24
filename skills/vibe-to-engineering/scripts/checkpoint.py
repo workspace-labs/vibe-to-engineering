@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections import namedtuple
 from pathlib import Path
 
 STATE_DIR = ".vibe-to-engineering"
@@ -39,15 +40,23 @@ IDENTITY = {
     "GIT_COMMITTER_NAME": "vibe-to-engineering",
     "GIT_COMMITTER_EMAIL": "checkpoint@vibe-to-engineering.invalid",
 }
-# Inherited variables that would point git at another repository, index or date.
+# Inherited variables that would point git at another repository, index or date, or at other files to read or
+# write: settings given for one command, the file `git config` writes, templates, an outside diff program.
 GIT_ENV_TO_DROP = (
     "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_NAMESPACE",
     "GIT_AUTHOR_DATE", "GIT_COMMITTER_DATE",
+    "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT", "GIT_TEMPLATE_DIR", "GIT_EXTERNAL_DIFF",
 )
+GIT_ENV_PREFIXES_TO_DROP = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_", "GIT_TRACE")  # ...and the trace files git writes
+# Given to every git call, above every configuration file: no hook and no file-system monitor program ever runs.
+SAFE_SETTINGS = ("core.quotePath=false", "core.fsmonitor=false", "core.hooksPath=" + os.devnull)
 LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 GITLINK, SYMLINK, EXECUTABLE = "160000", "120000", "100755"
-IGNORED_MARK = "ignored-by-git: "  # the line in a checkpoint's message that lists the ignored files it did not save
+IGNORED_MARK = "ignored-by-git: "  # the line in a checkpoint's message that lists every ignored file it did not save
+NESTED_MARK = "nested-repositories: "  # ...and the one that lists the nested repositories, which it does not save either
+
+Found = namedtuple("Found", "files ignored nested disk")  # what a survey of the project found
 
 
 class Fail(Exception):
@@ -93,11 +102,40 @@ def executable_bit(path):
     return bool(os.stat(path).st_mode & 0o111)
 
 
+def fidelity_settings():
+    """git settings that keep executable bits and links exact in the store. Windows keeps what git found when it
+    created the store: it has no executable bit, and links need Developer Mode."""
+    return () if os.name == "nt" else ("core.filemode=true", "core.symlinks=true")
+
+
+def is_link(path):
+    """Whether a path is a symbolic link — or, on Windows, any reparse point, junctions included."""
+    try:
+        if os.name == "nt":
+            return bool(getattr(os.lstat(path), "st_file_attributes", 0) & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
+        return os.path.islink(path)
+    except OSError:
+        return False
+
+
 def write_lf(path, text):
-    """Write a small text file with '\\n' line endings on every platform."""
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(text)
+    """Write a small text file with '\\n' line endings on every platform. The file is replaced whole, so a write
+    never goes through a link or into another name for the same file."""
+    path, data = Path(path), text.encode("utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if not is_link(str(path)) and path.read_bytes() == data:
+            return
+    except OSError:
+        pass
+    handle, temp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+    try:
+        with os.fdopen(handle, "wb") as out:
+            out.write(data)
+        os.replace(temp, str(path))
+    finally:
+        if os.path.lexists(temp):
+            os.unlink(temp)
 
 
 def remove_temp(path):
@@ -116,15 +154,19 @@ def remove_temp(path):
 
 # ---------------------------------------------------------------- git
 
-def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(0,)):
-    """Run one git command; raise Fail on an unexpected exit code."""
-    command = ["git", "-c", "core.quotePath=false", "-c", "core.fsmonitor=false"]
+def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(0,), quiet=False):
+    """Run one git command; raise Fail on an unexpected exit code — and, with quiet=True, on any warning: for a
+    listing that means git could not see everything (an unreadable folder, for example)."""
+    command = ["git"]
+    for setting in SAFE_SETTINGS + (fidelity_settings() if store is not None else ()):
+        command += ["-c", setting]
     if store is not None:
         command.append("--git-dir=" + str(store))
     if work_tree is not None:
         command.append("--work-tree=" + str(work_tree))
     command += args
-    env = {key: value for key, value in os.environ.items() if key not in GIT_ENV_TO_DROP}
+    env = {key: value for key, value in os.environ.items()
+           if key not in GIT_ENV_TO_DROP and not key.startswith(GIT_ENV_PREFIXES_TO_DROP)}
     env.update(IDENTITY)
     env["GIT_OPTIONAL_LOCKS"] = "0"  # read-only commands never refresh the project's index
     env["GIT_TERMINAL_PROMPT"] = "0"
@@ -135,9 +177,9 @@ def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     except FileNotFoundError:
         raise Fail("git is not installed or not on the PATH")
-    if done.returncode not in ok:
+    if done.returncode not in ok or (quiet and done.stderr.strip()):
         detail = done.stderr.decode("utf-8", "replace").strip() or "exit code %d" % done.returncode
-        raise Fail("git %s failed: %s" % (args[0], detail))
+        raise Fail("git %s %s: %s" % (args[0], "failed" if done.returncode not in ok else "reported a problem", detail))
     return done
 
 
@@ -174,16 +216,44 @@ def is_git_project(project):
     return git(["check-ignore", "-q", "."], cwd=project, ok=(0, 1, 128)).returncode != 0
 
 
+def check_state_folder(project):
+    """Refuse a state folder, ignore file or store that could make a write land anywhere else (G7): a link or
+    junction on the way, a special file, or a store that git would redirect to another repository."""
+    state = project / STATE_DIR
+    store = state / STORE_NAME
+    for path, folder in ((state, True), (state / ".gitignore", False), (store, True)):
+        if os.path.lexists(str(path)) and (is_link(str(path)) or not (path.is_dir() if folder else path.is_file())):
+            raise Fail("%s is a link or not a plain %s — checkpoints are written only inside the project's own %s "
+                       "folder. Nothing was changed" % (path, "folder" if folder else "file", STATE_DIR))
+    if not store.is_dir():
+        return
+    for redirect in ("commondir", os.path.join("objects", "info", "alternates")):
+        if os.path.lexists(str(store / redirect)):
+            raise Fail("the store %s has a %s file, which makes git use another repository. Nothing was changed"
+                       % (store, redirect))
+    for folder, dirs, names in os.walk(str(store)):
+        for name in dirs + names:
+            path = os.path.join(folder, name)
+            if is_link(path) or not (os.path.isdir(path) or os.path.isfile(path)):
+                raise Fail("%s is a link or a special file inside the store. Nothing was changed" % path)
+
+
 def prepare_store(project, git_project):
-    """Create the store if needed and (re)write the settings that keep snapshots byte-exact."""
-    ignore = project / STATE_DIR / ".gitignore"
-    if not ignore.exists():
-        write_lf(ignore, "*\n")
-    store = store_path(project)
+    """Create the store if needed and (re)write the settings that keep snapshots byte-exact — after making sure
+    that every write stays inside the state folder (G7)."""
+    check_state_folder(project)
+    state = project / STATE_DIR
+    if not state.exists():
+        os.mkdir(str(state))
+    ignore = state / ".gitignore"
+    if not os.path.lexists(str(ignore)):
+        with open(str(ignore), "x", encoding="utf-8", newline="\n") as handle:  # "x" never follows a link
+            handle.write("*\n")
+    store = state / STORE_NAME
     if not (store / "HEAD").exists():
-        git(["init", "--bare", "--quiet", str(store)])
+        git(["init", "--bare", "--quiet", "--template=", str(store)])  # no template: no hooks copied in
     for key, value in (("core.autocrlf", "false"), ("core.safecrlf", "false"), ("core.longpaths", "true")):
-        git(["config", key, value], store=store)
+        git(["config", "--file", str(store / "config"), key, value])
     write_lf(store / "info" / "attributes", ATTRIBUTES)
     excludes = ["/" + STATE_DIR + "/"] + ([] if git_project else list(DEFAULT_EXCLUDES))
     write_lf(store / "info" / "exclude", "\n".join(excludes) + "\n")
@@ -196,92 +266,206 @@ def open_store(project):
     return prepare_store(project, is_git_project(project))
 
 
+# ---------------------------------------------------------------- what is on disk
+
+def child(folder, name):
+    return folder + b"/" + name if folder else name
+
+
+def inside(rel, folders):
+    """Whether rel lies inside one of `folders` (paths without a trailing '/')."""
+    parts = rel.split(b"/")
+    return any(b"/".join(parts[:depth]) in folders for depth in range(1, len(parts)))
+
+
+def walk_disk(root):
+    """Every file and link under root as the file system spells it (bytes, '/'-separated), and the names in each
+    folder — found without git. Entries named .git and the state folder are left out, as git leaves them out.
+    A folder that cannot be read stops the command (G1)."""
+    files, folders, pending = set(), {}, [b""]
+    while pending:
+        folder = pending.pop()
+        try:
+            with os.scandir(local_path(root, folder)) as scan:
+                entries = list(scan)
+        except OSError as error:
+            raise Fail("cannot read the folder %s (%s) — every folder has to be readable, or files could be left "
+                       "out without anyone noticing" % (local_path(root, folder), error.strerror or error))
+        folders[folder] = {os.fsencode(entry.name) for entry in entries}
+        for entry in entries:
+            name = os.fsencode(entry.name)
+            rel = child(folder, name)
+            if name == b".git" or rel == STATE_DIR.encode():
+                continue
+            if entry.is_symlink() or entry.is_file(follow_symlinks=False):
+                files.add(rel)
+            elif entry.is_dir(follow_symlinks=False):
+                pending.append(rel)
+    return files, folders
+
+
+class Disk:
+    """What is on disk under root and how the file system spells each name, read once per folder."""
+
+    def __init__(self, root, folders=None):
+        self.root, self.folders, self.inodes = root, dict(folders or {}), {}
+
+    def names(self, folder):
+        if folder not in self.folders:
+            try:
+                self.folders[folder] = {os.fsencode(name) for name in os.listdir(local_path(self.root, folder))}
+            except OSError as error:
+                raise Fail("cannot read the folder %s (%s)" % (local_path(self.root, folder), error.strerror or error))
+        return self.folders[folder]
+
+    def lstat(self, rel):
+        return os.lstat(local_path(self.root, rel))
+
+    def entry(self, folder, name):
+        """The name under which `folder` lists what the file system opens for `name`: the name itself or, on a
+        disk that ignores letter case or Unicode normalization, the one entry that is the same file — found by
+        the file's identity, never by comparing spellings. None when nothing is there."""
+        names = self.names(folder)
+        if name in names:
+            return name
+        try:
+            wanted = self.lstat(child(folder, name))
+        except (FileNotFoundError, NotADirectoryError):
+            return None
+        if folder not in self.inodes:
+            self.inodes[folder] = {}
+            for other in names:
+                found = self.lstat(child(folder, other))
+                self.inodes[folder].setdefault((found.st_dev, found.st_ino), []).append(other)
+        matches = self.inodes[folder].get((wanted.st_dev, wanted.st_ino), [])
+        if len(matches) != 1:
+            raise Fail("cannot tell which entry the name %s means on this disk (%d match) — did the project change "
+                       "while it was being read?" % (show(child(folder, name)), len(matches)))
+        return matches[0]
+
+    def locate(self, rel):
+        """(rel spelled as the file system spells it, its lstat), or (rel, None) when nothing is there — including
+        when a name on the way is a file or a link instead of a folder."""
+        spelled, parts = [], rel.split(b"/")
+        for depth, part in enumerate(parts, 1):
+            name = self.entry(b"/".join(spelled), part)
+            if name is None:
+                return rel, None
+            spelled.append(name)
+            here = b"/".join(spelled)
+            if depth < len(parts) and here not in self.folders and not stat.S_ISDIR(self.lstat(here).st_mode):
+                return rel, None
+        return here, self.lstat(here)
+
+    def emptied(self, folder, deleting, memo):
+        """Whether deleting the files in `deleting`, then every folder that leaves empty (remove_emptied_folders),
+        removes `folder` too."""
+        if folder not in memo:
+            removed = kept = False
+            for name in self.names(folder):
+                rel = child(folder, name)
+                if name != b".git" and stat.S_ISDIR(self.lstat(rel).st_mode):
+                    gone = self.emptied(rel, deleting, memo)
+                else:
+                    gone = rel in deleting
+                removed, kept = removed or gone, kept or not gone
+            memo[folder] = removed and not kept
+        return memo[folder]
+
+
 # ---------------------------------------------------------------- snapshots
 
-def spelled_on_disk(project, rel, listings):
-    """The path as the file system spells it now. On a case-insensitive disk git can report
-    the letter case a file had when it was added, not the case it has today."""
-    folder = os.fsencode(str(project))
-    parts = []
-    for part in rel.split(b"/"):
-        if folder not in listings:
-            try:
-                names = os.listdir(folder)
-            except OSError:
-                names = []
-            listings[folder] = (set(names), names)
-        exact, names = listings[folder]
-        if part not in exact:
-            matches = [name for name in names if name.lower() == part.lower()]
-            if len(matches) == 1:
-                part = matches[0]
-        parts.append(part)
-        folder = os.path.join(folder, part)
-    return b"/".join(parts)
-
-
-def list_files(project, store, git_project):
-    """The files a checkpoint must hold (G1): git's own view of the project, or the store's view."""
-    if git_project:
-        out = git(["ls-files", "-z", "--cached", "--others", "--exclude-standard"], cwd=project).stdout
-    else:
-        out = git(["ls-files", "-z", "--others", "--exclude-standard"],
-                  store=store, work_tree=project, cwd=project).stdout
+def list_git(project, store, git_project, ignored):
+    """git's own list of the project's files — with ignored=True, of every file it ignores — read-only, and only
+    when git could see every folder."""
+    args = ["ls-files", "-z", "--others", "--exclude-standard"] + (
+        ["--ignored"] if ignored else ["--cached"] if git_project else [])
+    view = {} if git_project else {"store": store, "work_tree": project}
+    out = git(args, cwd=project, quiet=True, **view).stdout
     state = STATE_DIR.encode()
-    paths, nested, seen, listings = [], [], set(), {}
-    for rel in out.split(b"\0"):
-        if not rel or rel == state or rel.startswith(state + b"/"):
-            continue
+    return [rel for rel in out.split(b"\0") if rel and rel.rstrip(b"/") != state and not rel.startswith(state + b"/")]
+
+
+def survey(project, store, git_project):
+    """The project as a checkpoint must hold it (G1): the files to save, every ignored file and the nested
+    repositories, each spelled as the file system spells it, and checked against a walk of the disk made without
+    git, so nothing is left out unseen. In a git project it is the project's own view (git ls-files, read-only);
+    otherwise the store's view."""
+    on_disk, folders = walk_disk(project)
+    disk = Disk(project, folders)
+    files, ignored, nested = set(), set(), set()
+    for rel in list_git(project, store, git_project, ignored=False):
         if rel.endswith(b"/"):  # a nested repository: git does not look inside it
-            nested.append(rel)
+            nested.add(disk.locate(rel[:-1])[0] + b"/")
             continue
-        if git_project:
-            rel = spelled_on_disk(project, rel, listings)
-        path = local_path(project, rel)
-        if os.path.isdir(path) and not os.path.islink(path) and not os.path.exists(os.path.join(path, ".git")):
-            continue  # a tracked file that is now a folder: the folder's files are listed themselves
-        if rel not in seen:
-            seen.add(rel)
-            paths.append(rel)
-    return paths, nested
+        spelled, found = disk.locate(rel)
+        if found is None:
+            continue  # a tracked file that is gone from disk
+        if not stat.S_ISDIR(found.st_mode):
+            files.add(spelled)
+        elif b".git" in disk.names(spelled):
+            nested.add(spelled + b"/")  # a nested repository the project's own git tracks
+        # else a tracked file that is now a folder: git lists the folder's files themselves
+    for rel in list_git(project, store, git_project, ignored=True):
+        ignored.add(disk.locate(rel.rstrip(b"/"))[0] + (b"/" if rel.endswith(b"/") else b""))
+    unsaved = {rel[:-1] for rel in nested | ignored if rel.endswith(b"/")}
+    expected = {rel for rel in on_disk if not inside(rel, unsaved)}
+    listed = files | {rel for rel in ignored if not rel.endswith(b"/")}
+    if expected != listed:
+        problems = ["%s: %s" % (words, ", ".join(show(rel) for rel in sorted(rels)[:10]))
+                    for words, rels in (("on disk but not in git's list", expected - listed),
+                                        ("in git's list but not on disk under that name", listed - expected)) if rels]
+        raise Fail("git's list of the project's files does not match the disk (%s)" % "; ".join(problems))
+    return Found(sorted(files), sorted(ignored), sorted(nested), disk)
 
 
-def list_ignored(project, store, git_project):
-    """The ignored files and folders (a folder counts once) that checkpoints do not hold (G10)."""
-    args = ["ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory"]
-    if git_project:
-        out = git(args, cwd=project).stdout
-    else:
-        out = git(args, store=store, work_tree=project, cwd=project).stdout
-    state = STATE_DIR.encode()
-    return sorted(rel for rel in out.split(b"\0")
-                  if rel and rel.rstrip(b"/") != state and not rel.startswith(state + b"/"))
-
-
-def recorded_ignored(store, commit):
-    """The ignored entries a checkpoint recorded, or None for a checkpoint that recorded none."""
-    message = git(["cat-file", "commit", commit], store=store).stdout.decode("utf-8", "surrogateescape")
-    for line in message.splitlines():
-        if line.startswith(IGNORED_MARK):
-            return [os.fsencode(name) for name in json.loads(line[len(IGNORED_MARK):])]
-    return None
+def check_nested(project, nested):
+    """A nested repository is not saved in checkpoints: its own git keeps its committed work. Refuse while one holds
+    work its own git does not keep, because nothing could bring that work back (G1)."""
+    for rel in nested:
+        try:
+            unsaved = git(["status", "--porcelain", "-z", "--untracked-files=all"],
+                          cwd=local_path(project, rel[:-1])).stdout
+        except Fail as error:
+            raise Fail("cannot tell whether the nested repository %s holds unsaved work (%s)" % (show(rel), error))
+        if unsaved:
+            raise Fail("the nested repository %s holds uncommitted changes or untracked files. Checkpoints do not save "
+                       "nested repositories, so that work would have no recovery point: it has to be committed in "
+                       "that repository first, which is the human's decision" % show(rel))
 
 
 def snapshot(project, store, git_project, allow_empty):
-    """Write the project's current files into the store; return (tree id, file count, nested repositories)."""
-    paths, nested = list_files(project, store, git_project)
-    if not paths and not allow_empty:
+    """Write the project's current files into the store and prove the tree holds exactly them: the same names,
+    bytes, links and executable bits, checked here rather than trusted to git (G1). Returns (tree id, survey)."""
+    found = survey(project, store, git_project)
+    check_nested(project, found.nested)
+    if not found.files and not allow_empty:
         raise Fail("found no files to save in %s — check the folder and its ignore rules" % project)
     temp = tempfile.mkdtemp(prefix="v2e-")
     try:
         index = os.path.join(temp, "index")
-        if paths:
-            git(["update-index", "--add", "--remove", "-z", "--stdin"], store=store, work_tree=project,
-                cwd=project, index=index, stdin=b"\0".join(paths) + b"\0")
+        if found.files:
+            git(["update-index", "--add", "-z", "--stdin"], store=store, work_tree=project, cwd=project,
+                index=index, stdin=b"\0".join(found.files) + b"\0", quiet=True)
         tree = git(["write-tree"], store=store, index=index).stdout.strip().decode()
     finally:
         remove_temp(temp)
-    return tree, len(paths), nested
+    saved = tree_files(store, tree)
+    wrong = sorted(set(saved) ^ set(found.files))
+    for rel in sorted(set(saved) & set(found.files)):
+        mode, oid = saved[rel]
+        path = local_path(project, rel)
+        if os.path.islink(path):
+            same = mode == SYMLINK and blob_id(os.fsencode(os.readlink(path)), len(oid)) == oid
+        else:
+            same = (mode != SYMLINK and file_id(path, len(oid)) == oid
+                    and executable_bit(path) in (None, mode == EXECUTABLE))
+        if not same:
+            wrong.append(rel)
+    if wrong:
+        raise Fail("the snapshot does not match the files on disk (%s) — a file changed while it was being saved, or "
+                   "git altered it" % ", ".join(show(rel) for rel in wrong[:10]))
+    return tree, found
 
 
 def tree_files(store, treeish):
@@ -318,6 +502,49 @@ def blob_id(data, oid_length):
     return algorithm(b"blob %d\0" % len(data) + data).hexdigest()
 
 
+def file_id(path, oid_length):
+    """blob_id of the bytes of the file at `path`, read in pieces."""
+    digest = hashlib.sha1() if oid_length == 40 else hashlib.sha256()
+    with open(path, "rb") as handle:
+        digest.update(b"blob %d\0" % os.fstat(handle.fileno()).st_size)
+        for piece in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(piece)
+    return digest.hexdigest()
+
+
+def verify_commit(project, store, commit, label):
+    """Write a checkpoint into an empty folder on the project's own disk and compare it with its tree: exactly the
+    same names (two names this disk treats as one collide here, and one goes missing) and, for each, the same
+    bytes, link and executable bit (G4). Raises Fail naming what did not come back; returns the file count."""
+    files = tree_files(store, commit)
+    temp = tempfile.mkdtemp(prefix="verify-", dir=str(project / STATE_DIR))
+    try:
+        try:
+            write_files(store, commit, temp)
+        except Fail as error:
+            raise Fail("checkpoint %s cannot be written back — %s" % (label, error))
+        found = walk_disk(temp)[0]
+        problems = set(files) ^ found
+        for rel in found & set(files):
+            mode, oid = files[rel]
+            path = local_path(temp, rel)
+            if os.path.islink(path):
+                same = mode == SYMLINK and blob_id(os.fsencode(os.readlink(path)), len(oid)) == oid
+            elif mode == SYMLINK and os.name != "nt":
+                same = False  # should have come back as a link (Windows without link support writes a file)
+            else:
+                same = (file_id(path, len(oid)) == oid
+                        and (mode == SYMLINK or executable_bit(path) in (None, mode == EXECUTABLE)))
+            if not same:
+                problems.add(rel)
+    finally:
+        remove_temp(temp)
+    if problems:
+        listed = ", ".join(show(rel) for rel in sorted(problems)[:20])
+        raise Fail("checkpoint %s did not come back identical (%d files): %s" % (label, len(problems), listed))
+    return len(files)
+
+
 # ---------------------------------------------------------------- checkpoints
 
 def check_label(label):
@@ -349,15 +576,46 @@ def resolve(store, label):
     return found.stdout.strip().decode()
 
 
-def save_checkpoint(store, tree, label, ignored):
-    """Commit a tree under a new label; a label that exists already is refused (G3)."""
+def save_checkpoint(store, tree, label, found):
+    """Commit a tree under a new label with what it does not hold; a label that exists already is refused (G3)."""
     if label_exists(store, label):
         raise Fail("checkpoint %r already exists — labels are permanent; choose a new one" % label)
-    names = json.dumps([os.fsdecode(rel) for rel in ignored])
-    message = "vibe-to-engineering checkpoint: %s\n\n%s%s\n" % (label, IGNORED_MARK, names)
+    message = "vibe-to-engineering checkpoint: %s\n\n%s%s\n%s%s\n" % (
+        label, IGNORED_MARK, json.dumps([os.fsdecode(rel) for rel in found.ignored]),
+        NESTED_MARK, json.dumps([os.fsdecode(rel) for rel in found.nested]))
     commit = git(["commit-tree", "--no-gpg-sign", "-m", message, tree], store=store).stdout.strip().decode()
     git(["update-ref", REF_PREFIX + label, commit, ""], store=store)  # "": only if the ref does not exist
     return commit
+
+
+def recorded(store, commit, mark):
+    """The entries a checkpoint recorded on its `mark` line, or None for a checkpoint that recorded none."""
+    message = git(["cat-file", "commit", commit], store=store).stdout.decode("utf-8", "surrogateescape")
+    for line in message.splitlines():
+        if line.startswith(mark):
+            return [os.fsencode(name) for name in json.loads(line[len(mark):])]
+    return None
+
+
+def missing(before, after):
+    """Entries recorded before that are gone now. An entry still counts as there while it is listed, while
+    something inside it is listed, or while a folder around it is listed as one entry (a nested repository)."""
+    if before is None or after is None:
+        return []
+    present, folders = set(after), {rel for rel in after if rel.endswith(b"/")}
+    for rel in after:
+        parts = rel.rstrip(b"/").split(b"/")
+        present.update(b"/".join(parts[:depth]) + b"/" for depth in range(1, len(parts)))
+
+    def around(rel):
+        parts = rel.rstrip(b"/").split(b"/")
+        return any(b"/".join(parts[:depth]) + b"/" in folders for depth in range(1, len(parts)))
+    return [rel for rel in before if rel not in present and not around(rel)]
+
+
+def gone_since(store, commit, ignored, nested):
+    """What a checkpoint recorded as there but not saved — ignored files, nested repositories — that is gone (G10)."""
+    return missing(recorded(store, commit, IGNORED_MARK), ignored) + missing(recorded(store, commit, NESTED_MARK), nested)
 
 
 # ---------------------------------------------------------------- commands
@@ -368,53 +626,19 @@ def cmd_create(project, args):
     store = prepare_store(project, git_project)
     if label_exists(store, args.label):
         raise Fail("checkpoint %r already exists — labels are permanent; choose a new one" % args.label)
-    tree, count, nested = snapshot(project, store, git_project, allow_empty=False)
-    commit = save_checkpoint(store, tree, args.label, list_ignored(project, store, git_project))
-    for rel in nested:
-        warn("nested repository %s is not included — its own git keeps it" % show(rel))
-    print("created checkpoint %s: %d files (commit %s)" % (args.label, count, commit[:12]))
+    tree, found = snapshot(project, store, git_project, allow_empty=False)
+    commit = save_checkpoint(store, tree, args.label, found)
+    for rel in found.nested:
+        warn("nested repository %s is not saved in checkpoints — its own git keeps its committed work, and it holds "
+             "no other work now" % show(rel))
+    print("created checkpoint %s: %d files (commit %s)" % (args.label, len(found.files), commit[:12]))
     return 0
 
 
 def cmd_verify(project, args):
     store = open_store(project)
-    commit = resolve(store, args.label)
-    files = tree_files(store, commit)
-    problems = []
-    temp = tempfile.mkdtemp(prefix="v2e-verify-")
-    try:
-        restored = os.path.join(temp, "restored")
-        os.mkdir(restored)
-        write_files(store, commit, restored)
-        for rel, (mode, oid) in files.items():
-            path = local_path(restored, rel)
-            if mode == SYMLINK and os.path.islink(path):
-                data = os.fsencode(os.readlink(path))
-            elif mode == SYMLINK and os.name != "nt":
-                problems.append(rel)  # should have come back as a link
-                continue
-            elif os.path.isfile(path) and not os.path.islink(path):
-                with open(path, "rb") as handle:
-                    data = handle.read()
-                if mode != SYMLINK and executable_bit(path) not in (None, mode == EXECUTABLE):
-                    problems.append(rel)
-                    continue
-            else:
-                problems.append(rel)
-                continue
-            if blob_id(data, len(oid)) != oid:
-                problems.append(rel)
-        found = set()
-        for folder, dirs, names in os.walk(restored):
-            for name in names + [d for d in dirs if os.path.islink(os.path.join(folder, d))]:
-                found.add(os.fsencode(os.path.relpath(os.path.join(folder, name), restored).replace(os.sep, "/")))
-        problems += sorted(found - set(files))
-    finally:
-        remove_temp(temp)
-    if problems:
-        listed = ", ".join(show(rel) for rel in problems[:20])
-        raise Fail("checkpoint %s did not come back identical (%d files): %s" % (args.label, len(problems), listed))
-    print("verified %s: all %d files come back byte for byte" % (args.label, len(files)))
+    count = verify_commit(project, store, resolve(store, args.label), args.label)
+    print("verified %s: all %d files come back byte for byte, under exactly their saved names" % (args.label, count))
     return 0
 
 
@@ -439,33 +663,19 @@ def parse_name_status(out):
     return changes
 
 
-def missing_ignored(before, after):
-    """Ignored entries recorded before that are gone now. git lists a wholly ignored folder once, so an entry
-    still counts as there when something inside it is listed, or when a listed folder contains it."""
-    if before is None or after is None:
-        return []
-    folders = [other for other in after if other.endswith(b"/")]
-    return [rel for rel in before
-            if rel not in after
-            and not any(other.startswith(rel.rstrip(b"/") + b"/") for other in after)
-            and not any(rel.startswith(folder) for folder in folders)]
-
-
 def cmd_diff(project, args):
     store = open_store(project)
     old = resolve(store, args.old)
     if args.new:
         new, new_name = resolve(store, args.new), args.new
-        ignored_now = recorded_ignored(store, new)
+        now = (recorded(store, new, IGNORED_MARK), recorded(store, new, NESTED_MARK))
     else:
-        git_project = is_git_project(project)
-        new = snapshot(project, store, git_project, allow_empty=True)[0]
-        new_name = "the current files"
-        ignored_now = list_ignored(project, store, git_project)
+        new, found = snapshot(project, store, is_git_project(project), allow_empty=True)
+        new_name, now = "the current files", (found.ignored, found.nested)
     limit = ["--"] + args.path if args.path else []
     out = git(["diff-tree", "-r", "-z", "-M", "--name-status", "--no-ext-diff", old, new] + limit, store=store).stdout
     changes = parse_name_status(out)
-    gone = [] if args.path else missing_ignored(recorded_ignored(store, old), ignored_now)
+    gone = [] if args.path else gone_since(store, old, *now)
     if not changes and not gone:
         print("no changes from %s to %s" % (args.old, new_name))
         return 0
@@ -479,8 +689,8 @@ def cmd_diff(project, args):
         print("%d %s: %s" % (len(changes), "change" if len(changes) == 1 else "changes", ", ".join(
             "%d %s" % (n, words.get(s, s)) for s, n in sorted(counts.items()))))
     if gone:
-        print("files git ignores that were there at %s and are gone now — checkpoints do not hold them, "
-              "so they cannot be restored from here:" % args.old)
+        print("files git ignores and nested repositories that were there at %s and are gone now — checkpoints do not "
+              "hold them, so they cannot be restored from here:" % args.old)
         for rel in gone:
             print("  gone  %s" % show(rel))
     if args.patch:
@@ -495,14 +705,14 @@ def cmd_diff(project, args):
 def current_files_read_only(project):
     """The files a checkpoint would hold now, found without writing anything in the project (G9)."""
     if is_git_project(project):
-        return list_files(project, None, True)[0]
+        return survey(project, None, True).files
     temp = tempfile.mkdtemp(prefix="v2e-tree-")
     try:
         store = os.path.join(temp, "store.git")
-        git(["init", "--bare", "--quiet", store])
+        git(["init", "--bare", "--quiet", "--template=", store])
         write_lf(os.path.join(store, "info", "exclude"),
                  "\n".join(["/" + STATE_DIR + "/"] + list(DEFAULT_EXCLUDES)) + "\n")
-        return list_files(project, store, False)[0]
+        return survey(project, store, False).files
     finally:
         remove_temp(temp)
 
@@ -590,20 +800,48 @@ def list_some(verb, paths):
         print("  … and %d more" % (len(paths) - 40))
 
 
+def collisions(disk, now, to_delete, to_write):
+    """What a restore would overwrite, replace or remove although no checkpoint holds it (G6): a file or link the
+    checkpoints do not save where the restore writes, a folder still holding such files where a file goes, or a
+    folder the restore could only reach under another spelling. The restore deletes `to_delete`, then the folders
+    that leaves empty, then writes `to_write`."""
+    deleting, memo, found = set(to_delete), {}, set()
+    for rel in to_write:
+        parts = rel.split(b"/")
+        for depth in range(1, len(parts) + 1):
+            here = b"/".join(parts[:depth])
+            spelled, entry = disk.locate(here)
+            if entry is None:
+                break  # nothing there: git creates it
+            if stat.S_ISDIR(entry.st_mode):
+                if depth < len(parts) and spelled == here and b".git" in disk.names(spelled):
+                    found.add(spelled)  # a nested repository: nothing is written inside it
+                    break
+                if depth < len(parts) and spelled == here:
+                    continue  # a folder on the way
+                if not disk.emptied(spelled, deleting, memo):
+                    found.add(spelled)  # git would remove it with what is inside, or keep its old spelling
+                break
+            if spelled not in deleting and not (depth == len(parts) and spelled == here and here in now):
+                found.add(spelled)  # a file or link no checkpoint holds, or a second name for one the restore writes
+            break
+    return sorted(found)
+
+
 def cmd_restore(project, args):
+    # 1. validate: the store, the label, the current files, what the restore changes and what it must not touch
     store = open_store(project)
     git_project = is_git_project(project)
     commit = resolve(store, args.label)
     wanted = tree_files(store, commit)
-    now_tree = snapshot(project, store, git_project, allow_empty=True)[0]
+    now_tree, found = snapshot(project, store, git_project, allow_empty=True)
     now = tree_files(store, now_tree)
     to_delete = sorted(rel for rel in now if rel not in wanted)
     to_write = sorted(rel for rel, entry in wanted.items() if now.get(rel) != entry)
-    ignored_now = list_ignored(project, store, git_project)
-    gone = missing_ignored(recorded_ignored(store, commit), ignored_now)
+    gone = gone_since(store, commit, found.ignored, found.nested)
     if gone:
-        print("warning: files git ignores that were there at %s are gone, and a restore cannot bring them back:"
-              % args.label)
+        print("warning: files git ignores or nested repositories that were there at %s are gone, and a restore cannot "
+              "bring them back:" % args.label)
         list_some("gone   ", gone)
     if not to_delete and not to_write:
         print("the project already matches %s — nothing to restore" % args.label)
@@ -612,14 +850,34 @@ def cmd_restore(project, args):
           % (args.label, len(to_write), len(to_delete)))
     list_some("rewrite", to_write)
     list_some("delete ", to_delete)
+    unsafe = collisions(found.disk, now, to_delete, to_write)
+    refused = ("this restore is refused: it would overwrite or remove what no checkpoint holds (files git ignores, "
+               "nested repositories, or a folder holding them): %s" % ", ".join(show(rel) for rel in unsafe[:20]))
     if not args.apply:
+        if unsafe:
+            raise Fail(refused + ". Nothing in the project was changed")
         print("nothing was changed. Run again with --apply only after the human approves this restore.")
         return 0
+    # 2. keep the current state, 3. prove it comes back, 4. prove the checkpoint to restore comes back
     saved = "pre-restore-" + time.strftime("%Y%m%dt%H%M%Sz", time.gmtime())
-    save_checkpoint(store, now_tree, saved, ignored_now)
+    save_checkpoint(store, now_tree, saved, found)
     print("saved the current state as checkpoint %s" % saved)
+    try:
+        verify_commit(project, store, resolve(store, saved), saved)
+        verify_commit(project, store, commit, args.label)
+    except Fail as error:
+        raise Fail("%s — so the restore did not start. Nothing in the project was changed" % error)
+    # 5. safety: nothing it must not touch is in its way, and the project is still exactly what was saved
+    if unsafe:
+        raise Fail("%s. Nothing in the project was changed; the current state is saved as checkpoint %s"
+                   % (refused, saved))
+    again_tree, again = snapshot(project, store, git_project, allow_empty=True)
+    if (again_tree, again.ignored, again.nested) != (now_tree, found.ignored, found.nested):
+        raise Fail("the project changed while the restore was being prepared. Nothing in the project was changed; "
+                   "run the restore again")
+    # 6. change the project: delete first — on a case-insensitive disk the old and new name are one file
     stuck = []
-    for rel in to_delete:  # delete first: on a case-insensitive disk the old and new name are one file
+    for rel in to_delete:
         try:
             remove_file(local_path(project, rel))
         except FileNotFoundError:
@@ -631,10 +889,17 @@ def cmd_restore(project, args):
         write_files(store, commit, project, to_write)
     except Fail as error:
         stuck.append(str(error))
-    after = tree_files(store, snapshot(project, store, git_project, allow_empty=True)[0])
-    different = sorted(rel for rel in set(after) | set(wanted) if after.get(rel) != wanted.get(rel))
-    if stuck or different:
-        details = stuck + ["differs: " + show(rel) for rel in different[:20]]
+    # 7. verify the result, and that everything the checkpoints do not hold is still there
+    different = []
+    try:
+        after = tree_files(store, snapshot(project, store, git_project, allow_empty=True)[0])
+        different = sorted(rel for rel in set(after) | set(wanted) if after.get(rel) != wanted.get(rel))
+    except Fail as error:
+        stuck.append(str(error))
+    disk = Disk(project)
+    lost = [rel for rel in found.ignored + found.nested if disk.locate(rel.rstrip(b"/"))[1] is None]
+    if stuck or different or lost:
+        details = stuck + ["differs: " + show(rel) for rel in different[:20]] + ["lost: " + show(rel) for rel in lost[:20]]
         raise Fail("the restore did not complete — %s. Everything from before the restore is saved as "
                    "checkpoint %s." % ("; ".join(details), saved))
     print("restored %s: the project matches it again (verified)" % args.label)

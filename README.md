@@ -13,12 +13,12 @@ INSPECT → DIAGNOSE → DESIGN TARGET ARCHITECTURE → CREATE MIGRATION PLAN �
 - **Reads before it judges.** Inspection and diagnosis are read-only: no builds, tests or scripts run, and nothing in the project is written.
 - **Can say no.** Every finding cites evidence someone else can re-check. A project whose structure already fits gets `NO MIGRATION REQUIRED`, and nothing is written. It never imposes one folder tree on every project, and it treats more folders or more abstraction as a cost, not as engineering.
 - **Plans before it touches anything.** A justified migration gets a current tree, a target tree designed for that project, phased steps and an `Engineering-Migration-Plan.pdf` that shows CURRENT → MIGRATION → TARGET on one page. Then it stops at `AWAITING HUMAN APPROVAL`.
-- **Backs up by itself.** After approval, and before Phase 1, it saves the whole project — uncommitted work included — as a recovery baseline and proves the baseline restores byte for byte.
+- **Backs up by itself.** After approval, and before Phase 1, it saves the whole project — uncommitted work included — as a recovery baseline and proves the baseline restores byte for byte. It refuses to start when it cannot save everything, for example a folder it cannot read or a nested repository with uncommitted work.
 - **One phase per approval.** After each phase: checks compared with the baseline, the change compared with the plan, a new verified checkpoint, a report, and a stop.
-- **Investigates failures instead of guessing.** A break stops the work, saves the broken state, compares it with the last known-good checkpoint and reports the root cause and the options. Nothing is rolled back without the human's approval.
-- **Finishes with an independent review.** The approved target tree is compared with the actual final tree, and `VIBE-TO-ENGINEERING — ALL GREEN` is reported only when nothing blocking remains.
+- **Investigates failures instead of guessing.** A break stops the work, saves the broken state, compares it with the last known-good checkpoint and reports the root cause and the options. Stopping never rolls anything back; a restore needs the human's own approval and refuses, changing nothing, when it cannot be done safely.
+- **Finishes with an independent review.** The approved target tree is compared with the actual final tree, and `VIBE-TO-ENGINEERING — ALL GREEN` is reported only when nothing blocking remains and every final check passes. Checks that were already failing when the human approved going ahead anyway are named in a separate completion status instead.
 
-It never adds features, fixes bugs or changes dependencies, commits nothing unless asked, never pushes, and never touches files git ignores, secrets or data.
+It never adds features, fixes bugs or changes dependencies, commits nothing unless asked, never pushes, and never touches files git ignores, secrets, data or nested repositories.
 
 ## Install
 
@@ -92,7 +92,7 @@ To validate a platform, run the tests on it.
 python3 -m unittest discover -s tests -v
 ```
 
-`tests/test_checkpoint.py` checks every guarantee of the recovery contract on throwaway projects, under deliberately hostile git settings. Point `V2E_CHECKPOINT` at another implementation to test it against the same contract. `tests/test_render_pdf.py` checks the template and the PDF renderer; its render test is skipped when no browser is installed.
+`tests/test_checkpoint.py` checks every guarantee of the recovery contract on throwaway projects, under deliberately hostile git settings. Point `V2E_CHECKPOINT` at another implementation to test it against the same contract. `tests/test_render_pdf.py` checks the template and the PDF renderer; its render test is skipped when no browser is installed. `tests/test_protocol.py` guards the wording of the protocol's gate transitions and completion outcomes in `SKILL.md`.
 
 ## Repository layout
 
@@ -108,7 +108,7 @@ skills/vibe-to-engineering/
 │   ├── checkpoint.py                the recovery tool
 │   └── render_pdf.py                HTML plan → PDF
 └── assets/plan-template.html        the plan's layout
-tests/                               conformance and renderer tests
+tests/                               conformance, renderer and protocol tests
 ```
 
 ## Why a new skill

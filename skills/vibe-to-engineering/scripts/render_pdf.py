@@ -7,7 +7,8 @@ Standard library only. It uses a Chrome, Chromium, Edge or Brave browser that is
 already installed, or one downloaded by Playwright; set V2E_BROWSER to a browser's
 full path to choose one. Where browsers are looked for is the only
 platform-specific part, in browser_candidates(). It refuses a plan with unfilled
-placeholders, scripts or external resources, and blocks every network lookup while
+placeholders, scripts, external resources, nested documents or local files — reading
+the markup decoded, as the browser does — and blocks every network lookup while
 printing.
 
 Exit codes: 0 written; 1 refused or failed; 2 usage; 3 no browser found.
@@ -20,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from html.parser import HTMLParser
 from pathlib import Path
 
 PLACEHOLDER = re.compile(r"\{\{[^{}]*\}\}|\{\{")
@@ -31,6 +33,92 @@ REMOTE = (  # anything the browser would fetch from the network; the plan must b
 )
 # A plan is static. (Turning scripts off in the browser also stops it printing, so they are refused here.)
 SCRIPT = re.compile(r"""<script\b|<[^>]*\son[a-z]+\s*=""", re.I)
+
+# The markup a plan may use: the template's, plus plain text markup. Anything else — frames, objects, embeds, links
+# to other files, a <base>, forms, media, SVG — could run code or bring another document or file into the PDF.
+ELEMENTS = {"html", "head", "meta", "title", "style", "body", "section", "article", "header", "footer", "main", "div",
+            "span", "p", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "dl", "dt", "dd", "table", "caption",
+            "colgroup", "col", "thead", "tbody", "tfoot", "tr", "th", "td", "pre", "code", "b", "strong", "i", "em",
+            "u", "s", "small", "sub", "sup", "br", "hr", "blockquote", "figure", "figcaption", "abbr", "mark", "kbd",
+            "samp", "var", "img"}
+ATTRIBUTES = {"class", "id", "style", "lang", "dir", "title", "colspan", "rowspan", "span"}
+ELEMENT_ATTRIBUTES = {"meta": {"charset", "name", "content"}, "img": {"src", "srcset", "alt", "width", "height"}}
+# The same kinds of markup, looked for in the raw text too: odd markup that Python's parser reads differently from
+# the browser's (a comment closed with "--!>", for example) cannot hide them.
+NESTED = re.compile(r"""<\s*(script|iframe|frame|frameset|object|embed|applet|portal|fencedframe|base|link|svg|math)\b"""
+                    r"""|<[^>]*[\s"'/](srcdoc|http-equiv)\s*=""", re.I)
+CSS_LOADS = re.compile(r"""(?<![\w-])(?:image-set|-webkit-image-set|image|element|cross-fade|src)\s*\(|@import""", re.I)
+CSS_URL = re.compile(r"""(?<![\w-])url\s*\(\s*["']?\s*([^"')\s]*)""", re.I)
+
+
+def address_kind(address):
+    """"inline" for data carried in the plan itself, "network" for an http(s) address (the browser's network block
+    stops those), "local" for anything else — a file, a relative path, another scheme."""
+    address = address.strip().lower()
+    if address.startswith("data:"):
+        return "inline"
+    return "network" if address.startswith(("http:", "https:")) else "local"
+
+
+def css_problem(css):
+    """What in this CSS could load something while the plan prints, or None."""
+    css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+    if "\\" in css:
+        return "a CSS escape (\\), which can spell url( or @import in disguise"
+    found = CSS_LOADS.search(css)
+    if found:
+        return "CSS " + found.group(0)
+    for match in CSS_URL.finditer(css):
+        if address_kind(match.group(1)) != "inline":
+            return "CSS url(%s)" % match.group(1)[:60]
+    return None
+
+
+class Markup(HTMLParser):
+    """Collects what in a plan could run code, or bring in another document or a file, while it prints. Attribute
+    values arrive decoded (&#58; is ':'), as the browser reads them."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.problems, self.css, self.in_style = [], [], False
+
+    def handle_starttag(self, tag, attrs):
+        if tag not in ELEMENTS:
+            self.problems.append("<%s>" % tag)
+        self.in_style = tag == "style"
+        for name, value in attrs:
+            value = value or ""
+            if name not in ATTRIBUTES and name not in ELEMENT_ATTRIBUTES.get(tag, ()):
+                self.problems.append('%s="…" on <%s>' % (name, tag))
+            elif name == "style":
+                self.css.append(value)
+            elif name in ("src", "srcset"):
+                addresses = [value] if name == "src" else [part.split()[0] for part in value.split(",") if part.split()]
+                for address in addresses:  # a network address in srcset is left to the browser's network block
+                    if address_kind(address) == "local" or (name == "src" and address_kind(address) == "network"):
+                        self.problems.append('%s="%s"' % (name, address[:60]))
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        self.in_style = False
+
+    def handle_endtag(self, tag):
+        self.in_style = False
+
+    def handle_data(self, data):
+        if self.in_style:
+            self.css.append(data)
+
+
+def static_problems(text):
+    """Everything in the plan that could run code, or bring in another document or a file, while it prints."""
+    problems = ["<%s>" % match.group(1).lower() if match.group(1) else '%s="…"' % match.group(2).lower()
+                for match in NESTED.finditer(text)]
+    markup = Markup()
+    markup.feed(text)
+    markup.close()
+    problems += markup.problems + [problem for problem in map(css_problem, markup.css) if problem]
+    return list(dict.fromkeys(problems))
 
 
 def browser_candidates():
@@ -105,6 +193,12 @@ def main(argv):
     if any(rule.search(text) for rule in REMOTE):
         print("render_pdf.py: error: the plan loads something from the network; keep it self-contained "
               "(no external scripts, stylesheets, fonts or images).", file=sys.stderr)
+        return 1
+    problems = static_problems(text)
+    if problems:
+        print("render_pdf.py: error: the plan holds something that could run code, or bring in another document or a "
+              "file, while it prints: %s. A plan is static and self-contained — remove it; text that shows code is "
+              "written with &lt; and &gt;." % ", ".join(problems[:10]), file=sys.stderr)
         return 1
     browser = find_browser()
     if browser is None:

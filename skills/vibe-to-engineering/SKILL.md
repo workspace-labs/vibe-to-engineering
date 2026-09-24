@@ -1,6 +1,6 @@
 ---
 name: vibe-to-engineering
-description: "Decides from evidence whether an existing software project's structure shows vibe-coded or ad-hoc development and, only if restructuring is justified, converts it into a project-specific engineered architecture through a controlled migration the human approves step by step: read-only inspection and diagnosis, current and target trees, a phased plan with Engineering-Migration-Plan.pdf, a verified recovery baseline, one approved phase at a time with tests and a checkpoint after each, failure investigation against the last known-good checkpoint, and a final review that ends in ALL GREEN. Use when the user invokes vibe-to-engineering, asks whether a project is vibe-coded or structurally sound, or asks to restructure a whole existing project into a proper engineering architecture. Not for building features, fixing bugs or small local refactors."
+description: "Decides from evidence whether an existing software project's structure shows vibe-coded or ad-hoc development and, only if restructuring is justified, converts it into a project-specific engineered architecture through a controlled migration the human approves step by step: read-only inspection and diagnosis, current and target trees, a phased plan with Engineering-Migration-Plan.pdf, a verified recovery baseline, one approved phase at a time with tests and a checkpoint after each, failure investigation against the last known-good checkpoint, and a final review that reports ALL GREEN only when every final check passes. Use when the user invokes vibe-to-engineering, asks whether a project is vibe-coded or structurally sound, or asks to restructure a whole existing project into a proper engineering architecture. Not for building features, fixing bugs or small local refactors."
 license: MIT
 metadata:
   version: "0.1.0"
@@ -21,7 +21,7 @@ Engineering here means the right structure for this project — never more folde
 ## Start here, every time
 
 1. **Find the project.** It is the folder the human names. If none is named, it is the root of the current git repository, or else the current folder. If that is not clearly one software project (a home folder, a folder holding several projects, an empty folder), ask which one. Never guess, and name the project in your first line. The project folder itself is never moved or renamed.
-2. **Resume if a migration exists.** If `<project>/.vibe-to-engineering/ledger.md` exists, read it. Its last entry says where the migration stands: tell the human in one line and continue from exactly there. Never redo a completed phase; never skip a gate. A phase recorded as started but not completed is handled as a break (section 8). If the last entry is ALL GREEN or a stop, that migration is over: say so, and begin again at INSPECT only if the human asks. A new migration keeps the same ledger and store, and gives its checkpoints a run prefix (`r2-00-baseline`), because labels are never reused.
+2. **Resume if a migration exists.** If `<project>/.vibe-to-engineering/ledger.md` exists, read it. Its last entry says where the migration stands: tell the human in one line and continue from exactly there. Never redo a completed phase; never skip a gate. A phase recorded as started but not completed is handled as a break (section 8). If the last entry is a completion (ALL GREEN, or COMPLETE WITH APPROVED BASELINE FAILURES) or MIGRATION STOPPED, that migration is over: say so, and begin again at INSPECT only if the human asks. A new migration keeps the same ledger and store, and gives its checkpoints a run prefix (`r2-00-baseline`), because labels are never reused.
 3. Otherwise begin at INSPECT.
 
 **Conventions.** `<skill>` is this skill's folder and `<project>` the project's folder. `checkpoint.py …` is short for `python3 <skill>/scripts/checkpoint.py --project <project> …` — on Windows use `py -3` instead of `python3`.
@@ -37,12 +37,28 @@ The human owns every decision that changes the project. Stop and wait at:
 | Baseline not green | the starting checks fail or cannot prove the application works |
 | Unexpected change | the project changed while you were waiting |
 | Break | a failure you may not fix inside the phase (section 8), and before any restore |
+| Restored | a restore is done and verified (section 8); the phase whose changes it undid is not complete |
 | Plan change | reality contradicts the approved plan, or the human asks for a different target |
 | Corrective phase | the final review found blocking findings |
 
-**What counts as approval:** the human's explicit words approving that exact step ("approve", "approved", "yes, go ahead with phase 2"). A question, a comment, silence, or approval of something else is not approval — ask. One approval covers one step: even if the human says "do all the phases", stop after each one, explaining that the protocol stops there so a failure is caught at the phase that caused it and the next approval takes one word. Record every approval in the ledger with the human's words, the time and what it approved.
+**What counts as approval:** the human's explicit words approving that exact step ("approve", "approved", "yes, go ahead with phase 2"). A question, a comment, silence, or approval of something else is not approval — ask. **ONE APPROVAL = ONE STEP:** even if the human says "do all the phases", stop after each one, explaining that the protocol stops there so a failure is caught at the phase that caused it and the next approval takes one word. Record every approval in the ledger with the human's words, the time and what it approved.
 
-The human can stop the migration at any gate. The project then stays at its last verified checkpoint; record the stop in the ledger.
+### Stop, restore, correct, retry
+
+Four separate transitions. Each is the human's decision, and none happens as part of another. A phase completes only when its whole verification passes — never because of a stop or a restore.
+
+| Transition | What happens | What the human's word authorizes |
+|---|---|---|
+| **STOP** | The migration ends where it is. Nothing is restored, undone or changed: at a failure gate the failed state stays in place (it is saved as `failed-NN-phase-n`). Report `MIGRATION STOPPED` and record the stop in the ledger. | Stopping only. Restoring a checkpoint later is a separate RESTORE. |
+| **RESTORE `<label>`** | `checkpoint.py restore <label> --apply`, then its verification (section 8), then the `RESTORED <label>` report and a stop. | That restore and its verification — nothing after them. |
+| **CORRECT** | The correction the failure report proposed, inside the failed phase, then the whole phase verification again (checks and architecture check). If everything passes, the phase finishes with `PHASE n COMPLETE`; if not, it is a new break. A correction that changes the target, later phases or anything outside this phase is a plan change: revise the plan first. | That correction and the re-verification of that phase. |
+| **RETRY MIGRATION** | The migration moves on after a RESTORE or a CORRECT: phase n again from its first step (after a restore, from the restored checkpoint), or the next phase after a corrected one. | Only its own explicit approval ("retry phase 2", "go ahead with phase 3"). An approval to restore or to correct never includes it. |
+
+```
+MIGRATION STOPPED
+Project: unchanged — <where it stands: after phase n, or the failed state saved as failed-NN-phase-n>
+Last verified checkpoint: <label> (restoring it needs its own approval)
+```
 
 ## Status lines
 
@@ -51,9 +67,10 @@ Print these exactly, each on its own line:
 - `NO MIGRATION REQUIRED`
 - `AWAITING HUMAN APPROVAL`
 - `PHASE n COMPLETE` and `PHASE n FAILED` (the blocks in sections 7 and 8)
-- `VIBE-TO-ENGINEERING — ALL GREEN`
+- `RESTORED <label>` and `MIGRATION STOPPED` (the blocks in section 8 and under Human gates)
+- `VIBE-TO-ENGINEERING — ALL GREEN`, or `VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED BASELINE FAILURES` (section 9)
 
-Never write PASS for a check that did not run: write `N/A — <reason>` or `FAIL`.
+Never write PASS for a check that did not run: write `N/A — <reason>` or `FAIL`. Never write PASS for a check that fails, even when its failure was approved at the baseline.
 
 ## 1. INSPECT (read-only)
 
@@ -125,11 +142,11 @@ AWAITING HUMAN APPROVAL
 
 Only after the human approves this plan version. Load `references/recovery.md`.
 
-1. `checkpoint.py create 00-baseline`, then `checkpoint.py verify 00-baseline`. If either fails, stop: no migration without a verified recovery point.
+1. `checkpoint.py create 00-baseline`, then `checkpoint.py verify 00-baseline`. If either fails, stop: no migration without a verified recovery point. `create` refuses, for example, while a folder cannot be read or a nested repository holds uncommitted work; report what it names — resolving it is the human's decision.
 2. Record the starting point in the ledger: the time, the checkpoint name and — if the project uses git — its branch, commit and number of uncommitted changes (`git --no-optional-locks status`).
 3. Run the plan's checks once; save their output in `.vibe-to-engineering/evidence/00-baseline/`; record the results with numbers (tests found, passed, failed, skipped).
 4. If running the checks changed project files (`checkpoint.py diff 00-baseline`), record which files and create `00-baseline-checked`. Files the checks rewrite by themselves are not unplanned changes in later phases.
-5. Stop if any check failed. Also stop if the checks cannot prove the application works, unless the plan begins with a safety-net phase that adds exactly that proof. When you stop, report the baseline, ask whether to continue with "no new failures" as the bar or to fix it separately first, and end with `AWAITING HUMAN APPROVAL`.
+5. Stop if any check failed. Also stop if the checks cannot prove the application works, unless the plan begins with a safety-net phase that adds exactly that proof. When you stop, report the baseline, ask whether to continue with "no new failures" as the bar or to fix it separately first, and end with `AWAITING HUMAN APPROVAL`. If the human approves continuing, record in the ledger every check that fails at the baseline, with its numbers: these are the approved baseline failures, and they stay visible to the end (sections 7 and 9).
 6. If everything passed, start Phase 1 — the plan approval covers it.
 
 ## 7. PHASE n — one per approval
@@ -144,8 +161,8 @@ Add `PHASE n STARTED` to the ledger, then:
 
 1. State the phase's scope in a few lines.
 2. Make only this phase's planned changes, then update every reference to what it moved or renamed: imports, paths in configuration, scripts, build files, CI, documentation.
-3. Run the plan's checks and compare them with the baseline: everything that passed then passes now, the number of tests is not lower, and the smoke run behaves the same.
-4. Architecture check: `checkpoint.py diff <last>` shows exactly the phase's planned changes and their reference updates — nothing else — it reports no ignored file `gone`, and no reference to an old path remains anywhere.
+3. Run the plan's checks and compare them with the baseline: everything that passed then passes now, the number of tests is not lower, and the smoke run behaves the same. A check that still fails under an approved "no new failures" bar is reported as `FAIL — no new failures (<numbers>; the same failures as the approved baseline)`, never as PASS.
+4. Architecture check: `checkpoint.py diff <last>` shows exactly the phase's planned changes and their reference updates — nothing else — it reports no ignored file or nested repository `gone`, and no reference to an old path remains anywhere.
 5. Record in the ledger what changed (with the diff summary), every check with its numbers, and where the evidence is.
 6. `checkpoint.py create NN-phase-n`, then `checkpoint.py verify NN-phase-n`.
 7. Report and stop:
@@ -180,13 +197,21 @@ Failing check: <command>
 Observed failure: <exact excerpt; full output in evidence/…>
 Changes since last good checkpoint (<label>): <list>
 Root cause: <cause> | NOT ESTABLISHED — <what was ruled out>
-Proposed action: <correction> (recommended) · or restore <label> · or stop the migration
+Proposed action: CORRECT — <correction> (recommended) · or RESTORE <label> · or STOP
 AWAITING HUMAN APPROVAL
 ```
 
-6. After approval, do exactly the approved action and record it in the ledger — from then on the architecture check counts it as planned — then run the whole phase verification again (checks and architecture check) and finish the phase normally. A correction that changes the target, later phases or anything outside this phase is a plan change: revise the plan first.
+6. Do exactly the transition the human chose (Human gates → Stop, restore, correct, retry) and record it in the ledger. After a CORRECT, the architecture check counts the approved correction as planned. A RESTORE never completes the phase, and nothing moves on after it without a RETRY MIGRATION approval.
 
-**Restoring is never automatic.** `checkpoint.py restore <label>` only shows what it would change. Run it with `--apply` only after the human approves that restore. It first saves the current state as a new checkpoint, never touches files git ignores, and checks its own result.
+**Restoring is never automatic.** `checkpoint.py restore <label>` only shows what it would change. Run it with `--apply` only after the human approves that restore. Before it changes anything, it saves the current state as a new checkpoint and proves that this checkpoint and `<label>` both come back byte for byte; it refuses, changing nothing, when either does not, or when the restore would overwrite or remove something no checkpoint holds (files git ignores, nested repositories, a folder holding them). Report a refusal as it is and stop. After a restore it checks its own result; verify it with `checkpoint.py diff <label>` (no changes) and the plan's checks, then report and stop:
+
+```
+RESTORED <label>
+Restore: VERIFIED — checkpoint.py diff <label> reports no changes; the state before it is saved as pre-restore-<time>
+Checks: <results, compared with those recorded for <label>>
+Phase n: NOT COMPLETE — its changes were undone
+AWAITING HUMAN APPROVAL
+```
 
 ## 9. FINAL REVIEW
 
@@ -197,18 +222,27 @@ After the human approves it:
 3. Verify: responsibility boundaries and dependency direction as designed; no dependency added or removed unless planned (compare the manifests and lockfiles with `00-baseline`); the build; the tests (none fewer than at the baseline, no new failures); the smoke run behaves as at the baseline; no migration remnants (references to old paths, temporary shims not meant to stay, empty folders, backup or scratch files, migration notes left in code); documentation that describes the structure matches it.
 4. Final architecture and code review: judge the final project with `references/engineering-standard.md`. A Material finding that the migration left or introduced blocks completion.
 5. Blocking findings: report them and propose a corrective phase as a plan revision — new version, new PDF, new fingerprint (`references/migration-plan.md`, section 6) — and end with `AWAITING HUMAN APPROVAL`.
-6. None: `checkpoint.py create NN-final` and `checkpoint.py verify NN-final`, then report:
+6. None: `checkpoint.py create NN-final` and `checkpoint.py verify NN-final`, then report exactly one outcome:
 
 ```
 VIBE-TO-ENGINEERING — ALL GREEN
 ```
 
-followed by the before and after trees, the checks compared with the baseline, and the checkpoint list. Tell the human that `.vibe-to-engineering/` holds the plan, ledger, evidence and checkpoints, and that keeping or deleting it is their decision. No commits were made unless they asked for them.
+only when every check the plan requires ran in this review and passed — no check fails, whatever was approved at the baseline. Otherwise, when the migration is complete but checks approved as failing at the baseline still fail:
+
+```
+VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED BASELINE FAILURES
+Still failing (approved at the baseline): <check> — <numbers now> (baseline: <numbers>)
+```
+
+with one `Still failing` line per such check. Never shorten it to ALL GREEN, and never present those checks as passing.
+
+Follow the outcome with the before and after trees, the checks compared with the baseline, and the checkpoint list. Tell the human that `.vibe-to-engineering/` holds the plan, ledger, evidence and checkpoints, and that keeping or deleting it is their decision. No commits were made unless they asked for them.
 
 ## Always
 
 - **Behavior:** preserve the product's intended behavior. No new features, no bug fixes (write down bugs you notice for the human), no dependency changes (adding, removing or upgrading), no formatting sweeps, no renames for taste.
-- **Scope:** only planned changes. Files git ignores, secrets, databases and user data are never moved, edited or deleted — so move files by name, never with wildcards or whole-folder moves that could carry them along. External contracts keep working.
+- **Scope:** only planned changes. Files git ignores, secrets, databases, user data and nested repositories (folders with their own git, which checkpoints do not save) are never moved, edited or deleted — so move files by name, never with wildcards or whole-folder moves that could carry them along. External contracts keep working.
 - **The skill's own folder:** no phase moves, edits or deletes the plan, ledger, evidence or checkpoints in `.vibe-to-engineering/`; the only files a phase adds there are a safety net's checks, in `checks/`.
 - **Checks stay local:** a check never installs or updates dependencies, deploys, publishes, migrates a database or sends anything anywhere. If running a check changes a dependency manifest or lockfile, stop and ask: that is a dependency change.
 - **Git:** never push. Never commit, branch, reset, clean, stash or rewrite history in the project's repository unless the human asks; if they ask for commits, commit one completed phase at a time.

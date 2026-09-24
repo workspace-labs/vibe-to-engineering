@@ -80,6 +80,51 @@ class Renderer(unittest.TestCase):
         self.assertEqual(code, 3, output)
         self.assertIn("V2E_BROWSER", output)
 
+    def checked(self, extra):
+        """Exit code and output for the template plus `extra`, stopped before any browser starts:
+        1 means the plan was refused, 3 that it passed every check (only the missing browser stopped it)."""
+        env = dict(os.environ, V2E_BROWSER=str(self.tmp / "no-such-browser"))
+        code, output, pdf = self.render(filled_template().replace("</body>", extra + "</body>"), env=env)
+        self.assertFalse(pdf.exists())
+        return code, output
+
+    def test_refuses_nested_documents_local_files_and_encoded_active_content(self):
+        local = self.tmp / "local-secret.txt"
+        local.write_text("LOCAL-FILE-CONTENT")
+        cases = {
+            "an entity-encoded script in a nested document":
+                '<iframe srcdoc="&#60;script&#62;document.write(\'SCRIPT-EXECUTED\')&#60;/script&#62;"></iframe>',
+            "a local file in a frame": '<iframe src="%s"></iframe>' % local.as_uri(),
+            "a local file in an object": '<object data="%s"></object>' % local.as_uri(),
+            "an embedded file": '<embed src="local-secret.txt">',
+            "a relative image": '<img src="local-secret.txt">',
+            "a local image": '<img src="%s">' % local.as_uri(),
+            "a local image candidate": '<img srcset="local-secret.txt 1x">',
+            "an entity-encoded network address": '<img src="http&#58;//127.0.0.1:9/x.png">',
+            "an entity-encoded script address": '<img src="javascript&#58;alert(1)">',
+            "a stylesheet file": '<link rel="stylesheet" href="plan.css">',
+            "a local file in CSS": '<div style="background: url(local-secret.txt)"></div>',
+            "an entity-encoded url() in a style attribute": '<div style="background: u&#114;l(local-secret.txt)"></div>',
+            "a CSS escape": '<style>div { background: u\\72 l(local-secret.txt) }</style>',
+            "a CSS image-set": '<style>div { background: image-set("local-secret.txt" 1x) }</style>',
+            "a refresh to a local file": '<meta http-equiv="refresh" content="0; url=%s">' % local.as_uri(),
+            "a base address": '<base href="%s">' % self.tmp.as_uri(),
+            "an SVG image": '<svg><image href="%s"/></svg>' % local.as_uri(),
+            "markup another parser reads differently": '<!-- x --!><iframe src="%s"></iframe> -->' % local.as_uri(),
+        }
+        for name, extra in cases.items():
+            with self.subTest(name):
+                code, output = self.checked(extra)
+                self.assertEqual(code, 1, output)
+                self.assertIn("self-contained", output)
+
+    def test_accepts_code_that_is_quoted_as_text(self):
+        quoted = ('<p>Evidence: <code>&lt;script src="app.js"&gt;</code>, <code>&lt;iframe srcdoc="x"&gt;</code>, '
+                  '<code>onclick="save()"</code>, <code>url(logo.png)</code>, file:///etc/hosts and '
+                  '<code>javascript:void(0)</code>.</p>')
+        code, output = self.checked(quoted)
+        self.assertEqual(code, 3, output)
+
     def test_refuses_a_plan_with_a_script_or_an_event_handler(self):
         for extra in ('<script>document.title = "x"</script>', '<img src="data:," onload="alert(1)">'):
             with self.subTest(extra=extra):

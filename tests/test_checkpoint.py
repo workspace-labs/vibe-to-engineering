@@ -17,6 +17,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import unicodedata
 import unittest
 import zlib
 from pathlib import Path
@@ -103,8 +104,8 @@ class Contract(unittest.TestCase):
         return subprocess.run(["git", "-c", "commit.gpgsign=false", *args], cwd=str(cwd), env=self.env,
                               check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode()
 
-    def tool(self, project, *args, expect=0):
-        done = subprocess.run([sys.executable, str(TOOL), "--project", str(project), *args], env=self.env,
+    def tool(self, project, *args, expect=0, env=None):
+        done = subprocess.run([sys.executable, str(TOOL), "--project", str(project), *args], env=dict(self.env, **(env or {})),
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = done.stdout.decode("utf-8", "replace"), done.stderr.decode("utf-8", "replace")
         if expect is not None:
@@ -150,6 +151,32 @@ class Contract(unittest.TestCase):
 
     def without(self, state, *prefixes):
         return {k: v for k, v in state.items() if not any(k == p or k.startswith(p + "/") for p in prefixes)}
+
+    def store(self, project):
+        return project / STATE / "checkpoints.git"
+
+    def store_git(self, project, *args, data=None):
+        done = subprocess.run(["git", "--git-dir=" + str(self.store(project)), *args], env=self.env, input=data,
+                              check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return done.stdout.decode().strip()
+
+    def damage(self, project, label, path, data=None):
+        """Delete the stored copy of `path` in checkpoint `label`, or replace its bytes with `data` under the same id."""
+        oid = self.store_git(project, "rev-parse", "refs/checkpoints/%s:%s" % (label, path))
+        obj = self.store(project) / "objects" / oid[:2] / oid[2:]
+        os.chmod(obj, stat.S_IWRITE | stat.S_IREAD)
+        if data is None:
+            obj.unlink()
+        else:
+            obj.write_bytes(zlib.compress(b"blob %d\0" % len(data) + data))
+
+    def plant(self, project, label, files):
+        """Save by hand a checkpoint holding `files` (name -> bytes), the way a store from another disk could hold it."""
+        rows = ["100644 blob %s\t%s" % (self.store_git(project, "hash-object", "-w", "--stdin", data=data), name)
+                for name, data in files.items()]
+        tree = self.store_git(project, "mktree", data=("\n".join(rows) + "\n").encode())
+        commit = self.store_git(project, "commit-tree", "-m", "vibe-to-engineering checkpoint: " + label, tree)
+        self.store_git(project, "update-ref", "refs/checkpoints/" + label, commit)
 
     # ------------------------------------------------------------ G2 hands off
 
@@ -413,6 +440,328 @@ class Contract(unittest.TestCase):
         write(full / "x.txt", b"x")
         self.tool(p, "extract", "00-baseline", str(full), expect=1)
         self.tool(p, "restore", "no-such-label", expect=1)
+
+    # ------------------------------------------------------------ G6 nothing a checkpoint does not hold is touched (F01)
+
+    def test_restore_refuses_to_overwrite_or_remove_what_no_checkpoint_holds(self):
+        outside = self.tmp / "outside"
+        write(outside / "app.ini", b"outside the project\n")
+        conf = lambda p, ignored: (shutil.rmtree(p / "conf"), write(p / ".gitignore", b"node_modules/\n.env\nconf\n"),
+                                   write(p / "conf", ignored) if ignored else os.symlink(str(outside), str(p / "conf")))
+        cases = {   # name: (before the checkpoint, after it)
+            "a file that became ignored": (
+                lambda p: write(p / "local.txt", b"an ordinary file\n"),
+                lambda p: (write(p / ".gitignore", b"node_modules/\n.env\nlocal.txt\n"),
+                           write(p / "local.txt", b"IMPORTANT IGNORED DATA\n"))),
+            "a folder holding an ignored database where a file goes": (
+                lambda p: write(p / "shape", b"a file\n"),
+                lambda p: ((p / "shape").unlink(), write(p / ".gitignore", b"node_modules/\n.env\n*.db\n"),
+                           write(p / "shape" / "local.db", b"KEEP THIS DATABASE\n"))),
+            "an ignored file where a folder goes": (
+                lambda p: write(p / "conf" / "app.ini", b"x=1\n"), lambda p: conf(p, b"ignored data\n")),
+            "an ignored link where a folder goes": (
+                lambda p: write(p / "conf" / "app.ini", b"x=1\n"), lambda p: conf(p, None)),
+            "a nested repository where a folder was": (
+                lambda p: write(p / "module" / "app.ini", b"x=1\n"),
+                lambda p: ((p / "module" / "app.ini").unlink(), self.git(p / "module", "init", "-q"))),
+        }
+        if case_insensitive_disk(self.tmp):
+            cases["an ignored file whose name differs only in letter case"] = (
+                lambda p: write(p / "Notes.txt", b"saved notes\n"),
+                lambda p: ((p / "Notes.txt").unlink(), write(p / ".gitignore", b"node_modules/\n.env\nnotes.txt\n"),
+                           write(p / "notes.txt", b"IGNORED NOTES\n")))
+        for number, (name, (before_checkpoint, after_checkpoint)) in enumerate(cases.items()):
+            with self.subTest(case=name):
+                p = self.git_project("collision-%d" % number)
+                before_checkpoint(p)
+                self.tool(p, "create", "00-baseline")
+                after_checkpoint(p)
+                before, kept = disk_state(p), folder_digest(outside)
+                self.tool(p, "restore", "00-baseline", expect=1)            # the dry run already says no
+                _, err = self.tool(p, "restore", "00-baseline", "--apply", expect=1)
+                self.assertIn("nothing in the project was changed", err.lower())
+                self.assertEqual(disk_state(p), before)
+                self.assertEqual(folder_digest(outside), kept)
+
+    # ------------------------------------------------------------ G6 both recovery points are proven first (F04)
+
+    def test_restore_changes_nothing_when_the_target_checkpoint_is_damaged(self):
+        for damage in (None, b"CORRUPTED\n"):
+            with self.subTest(damage="missing" if damage is None else "altered"):
+                p = self.git_project("missing" if damage is None else "altered")
+                self.tool(p, "create", "00-baseline")
+                write(p / "unix.txt", b"current work\n")
+                write(p / "added.txt", b"added since the checkpoint\n")
+                self.damage(p, "00-baseline", "unix.txt", damage)
+                before = disk_state(p)
+                _, err = self.tool(p, "restore", "00-baseline", "--apply", expect=1)
+                self.assertEqual(disk_state(p), before)
+                self.assertIn("00-baseline", err)
+
+    def test_restore_changes_nothing_when_the_saved_current_state_would_not_come_back(self):
+        p = self.git_project()
+        self.tool(p, "create", "00-baseline")
+        write(p / "unix.txt", b"CURRENT WORK\n")
+        self.tool(p, "create", "01-current")                        # the current bytes are in the store now...
+        self.damage(p, "01-current", "unix.txt", b"WRONG STORED BYTES\n")   # ...and damaged there
+        before = disk_state(p)
+        _, err = self.tool(p, "restore", "00-baseline", "--apply", expect=1)
+        self.assertIn("pre-restore", err)
+        self.assertEqual(disk_state(p), before)
+
+    # ------------------------------------------------------------ G7 the tool writes only inside its own folder (F02)
+
+    def test_every_command_refuses_a_store_whose_files_are_links_and_changes_nothing(self):
+        p = self.git_project()
+        self.tool(p, "create", "00-baseline")
+        store, outside = self.store(p), self.tmp / "outside.txt"
+        write(outside, b"KEEP\n")
+        commands = (("create", "01-next"), ("verify", "00-baseline"), ("list",), ("diff", "00-baseline"),
+                    ("tree", "00-baseline"), ("extract", "00-baseline", str(self.tmp / "out")),
+                    ("restore", "00-baseline"), ("restore", "00-baseline", "--apply"))
+        for name, target in (("info/attributes", p / "unix.txt"), ("info/exclude", p / ".env"), ("config", outside)):
+            original = (store / name).read_bytes()
+            (store / name).unlink()
+            os.symlink(str(target), str(store / name))
+            for command in commands:
+                with self.subTest(link=name, command=command[0]):
+                    before, kept = disk_state(p), outside.read_bytes()
+                    self.tool(p, *command, expect=1)
+                    self.assertEqual(disk_state(p), before)
+                    self.assertEqual(outside.read_bytes(), kept)
+                    self.assertFalse((self.tmp / "out").exists())
+            (store / name).unlink()
+            write(store / name, original)
+
+    def test_links_and_redirections_in_the_state_folder_are_refused_before_anything_is_written(self):
+        outside = self.tmp / "outside"
+        outside.mkdir()
+        shapes = {   # name: (made before the first checkpoint?, how)
+            "the state folder is a link": (True, lambda p: os.symlink(str(outside), str(p / STATE))),
+            "the store is a link to the project's own repository": (
+                True, lambda p: ((p / STATE).mkdir(), os.symlink(str(p / ".git"), str(self.store(p))))),
+            "the ignore file is a dangling link": (
+                True, lambda p: ((p / STATE).mkdir(), os.symlink(str(p / "created.txt"), str(p / STATE / ".gitignore")))),
+            "a store folder is a link into the project": (
+                False, lambda p: (shutil.rmtree(self.store(p) / "refs" / "checkpoints"),
+                                  os.symlink(str(p / "src"), str(self.store(p) / "refs" / "checkpoints")))),
+            "the store borrows the project's repository (commondir)": (
+                False, lambda p: write(self.store(p) / "commondir", str(p / ".git").encode() + b"\n")),
+            "the store borrows the project's objects (alternates)": (
+                False, lambda p: write(self.store(p) / "objects" / "info" / "alternates",
+                                       str(p / ".git" / "objects").encode() + b"\n")),
+        }
+        for number, (name, (first, make)) in enumerate(shapes.items()):
+            with self.subTest(shape=name):
+                p = self.git_project("shape-%d" % number)
+                if not first:
+                    self.tool(p, "create", "00-baseline")
+                make(p)
+                before = (disk_state(p), folder_digest(p / ".git"), folder_digest(outside))
+                self.tool(p, "create", "01-next", expect=1)
+                self.assertEqual((disk_state(p), folder_digest(p / ".git"), folder_digest(outside)), before)
+
+    def test_a_store_file_that_is_another_name_for_a_project_file_is_replaced_not_written_through(self):
+        p = self.git_project()
+        self.tool(p, "create", "00-baseline")
+        attributes = self.store(p) / "info" / "attributes"
+        attributes.unlink()
+        os.link(str(p / "unix.txt"), str(attributes))   # one file under two names
+        before = disk_state(p)
+        self.tool(p, "verify", "00-baseline")
+        self.assertEqual(disk_state(p), before)
+
+    # ------------------------------------------------------------ G11 no hook runs, no git setting bends a checkpoint (F03)
+
+    def hostile_git(self, p):
+        """Hooks for the events checkpoint commands could fire — configured globally, through the environment and as
+        templates for new repositories — plus environment settings that would redirect git's own writes."""
+        marker, hooks = self.tmp / "hook-ran.txt", self.tmp / "hooks"
+        hooks.mkdir()
+        for name in ("reference-transaction", "post-index-change", "post-checkout", "pre-commit", "post-commit",
+                     "pre-auto-gc", "post-rewrite", "fsmonitor-watchman"):
+            (hooks / name).write_text("#!/bin/sh\necho %s >> '%s'\n" % (name, marker))
+            os.chmod(hooks / name, 0o755)
+        shutil.copytree(str(hooks), str(self.tmp / "templates" / "hooks"))
+        with open(self.home / "gitconfig", "a") as config:
+            config.write("[core]\n\thooksPath = %s\n\tfsmonitor = %s\n[init]\n\ttemplateDir = %s\n"
+                         % (hooks, hooks / "fsmonitor-watchman", self.tmp / "templates"))
+        env = {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "core.hooksPath", "GIT_CONFIG_VALUE_0": str(hooks),
+               "GIT_CONFIG": str(p / "unix.txt"), "GIT_TRACE": str(p / "trace.txt"),
+               "GIT_TRACE2_EVENT": str(p / "trace2.txt")}
+        return marker, env
+
+    def test_no_hook_runs_and_no_git_setting_makes_the_tool_write_anywhere_else(self):
+        p = self.git_project()                        # built before the hostile settings exist
+        marker, env = self.hostile_git(p)
+        before = disk_state(p)
+        for command in (("create", "00-baseline"), ("verify", "00-baseline"), ("list",), ("diff", "00-baseline"),
+                        ("tree", "00-baseline"), ("tree", "--current"), ("restore", "00-baseline"),
+                        ("extract", "00-baseline", str(self.tmp / "out"))):
+            with self.subTest(command=command[0]):
+                self.tool(p, *command, env=env)
+                self.assertFalse(marker.exists(), "a hook ran: %s" % (marker.read_text() if marker.exists() else ""))
+                self.assertEqual(disk_state(p), before)
+        write(p / "unix.txt", b"changed\n")
+        self.tool(p, "restore", "00-baseline", "--apply", env=env)
+        self.assertEqual(disk_state(p), before)
+        self.assertFalse(marker.exists(), "a hook ran: %s" % (marker.read_text() if marker.exists() else ""))
+        self.assertFalse((self.store(p) / "hooks").exists(), "the store was created from a template")
+
+    def test_the_executable_bit_and_links_survive_git_settings_that_would_drop_them(self):
+        for setting in ("filemode", "symlinks"):
+            with self.subTest(setting=setting):
+                p = self.git_project(setting)
+                (self.home / "gitconfig").write_text(HOSTILE_GITCONFIG + "[core]\n\t%s = false\n" % setting)
+                env = {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "core." + setting, "GIT_CONFIG_VALUE_0": "false"}
+                good = disk_state(p)
+                self.tool(p, "create", "00-baseline", env=env)
+                out = self.tmp / ("extracted-" + setting)
+                self.tool(p, "extract", "00-baseline", str(out), env=env)
+                self.assertEqual(disk_state(out), self.without(good, ".env", "node_modules"))
+                self.tool(p, "verify", "00-baseline", env=env)
+                os.chmod(p / "run.sh", 0o644)
+                (p / "link.js").unlink()
+                write(p / "link.js", b"no longer a link\n")
+                self.tool(p, "restore", "00-baseline", "--apply", env=env)
+                self.assertEqual(disk_state(p), good)
+
+    # ------------------------------------------------------------ G1 names exactly as the disk spells them (F05)
+
+    def test_a_rename_that_only_changes_letter_case_is_saved_under_its_one_real_name_and_restored(self):
+        if not case_insensitive_disk(self.tmp):
+            self.skipTest("this file system tells letter cases apart")
+        renames = (("Ä.txt", "ä.txt", None), ("Ä", "ä", "x.txt"), ("Guide", "guide", "x.txt"))
+        for number, (old, new, inside) in enumerate(renames):
+            for kind in ("git", "plain"):
+                with self.subTest(rename=old + " -> " + new, project=kind):
+                    p = (self.git_project if kind == "git" else self.plain_project)("case-%d-%s" % (number, kind))
+                    old_file = p / old / inside if inside else p / old
+                    write(old_file, b"the same bytes\n")
+                    if kind == "git":
+                        self.git(p, "add", str(old_file.relative_to(p)))
+                    self.tool(p, "create", "00-baseline")
+                    good = disk_state(p)
+                    os.rename(p / old, p / "tmp-name")
+                    os.rename(p / "tmp-name", p / new)
+                    renamed = disk_state(p)
+                    self.tool(p, "create", "01-renamed")
+                    self.tool(p, "verify", "01-renamed")
+                    saved = self.store_git(p, "ls-tree", "-r", "--name-only", "-z", "refs/checkpoints/01-renamed")
+                    self.assertEqual(sorted(saved.strip("\0").split("\0")),
+                                     sorted(self.without(renamed, ".env", "node_modules", "debug.log", "__pycache__")))
+                    self.tool(p, "restore", "00-baseline", "--apply")
+                    self.assertEqual(disk_state(p), good)
+
+    def test_a_name_the_disk_keeps_decomposed_is_saved_and_extracted_with_its_exact_bytes(self):
+        name = unicodedata.normalize("NFD", "café.txt")   # 'e' followed by a combining accent
+        p = self.git_project()
+        write(p / name, b"decomposed name\n")
+        self.git(p, "add", name)
+        self.tool(p, "create", "00-baseline")
+        out = self.tmp / "extracted"
+        self.tool(p, "extract", "00-baseline", str(out))
+        self.assertEqual(sorted(n for n in os.listdir(os.fsencode(str(out))) if n.startswith(b"caf")),
+                         sorted(n for n in os.listdir(os.fsencode(str(p))) if n.startswith(b"caf")))
+
+    def test_verify_fails_a_checkpoint_holding_two_names_for_one_file_on_this_disk(self):
+        if not case_insensitive_disk(self.tmp):
+            self.skipTest("this file system tells letter cases apart")
+        p = self.plain_project()
+        self.tool(p, "create", "00-baseline")
+        # the same bytes under two names: extracted here they become one file that reads back right under either name
+        self.plant(p, "01-two-names", {"Ä.txt": b"same\n", "ä.txt": b"same\n"})
+        _, err = self.tool(p, "verify", "01-two-names", expect=1)
+        self.assertIn("did not come back identical", err)
+
+    # ------------------------------------------------------------ G1 complete, or no checkpoint at all (F06)
+
+    @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+                     "needs POSIX folder permissions and a normal user")
+    def test_create_refuses_when_a_folder_or_file_cannot_be_read(self):
+        for kind in ("git", "plain"):
+            for locked in ("locked", "locked-file.txt"):
+                with self.subTest(project=kind, unreadable=locked):
+                    p = (self.git_project if kind == "git" else self.plain_project)("%s-%s" % (kind, locked))
+                    write(p / "locked" / "unsaved.txt" if locked == "locked" else p / locked, b"important work\n")
+                    os.chmod(p / locked, 0o000)
+                    try:
+                        _, err = self.tool(p, "create", "00-baseline", expect=1)
+                    finally:
+                        os.chmod(p / locked, 0o755)
+                    self.assertIn("locked", err)
+                    out, _ = self.tool(p, "list")
+                    self.assertIn("no checkpoints yet", out)
+
+    @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+                     "needs POSIX file permissions and a normal user")
+    def test_create_refuses_when_git_cannot_read_an_ignore_file(self):
+        p = self.git_project()
+        excludes = self.home / "excludes"
+        write(excludes, b"*.secret\n")
+        with open(self.home / "gitconfig", "a") as config:
+            config.write("[core]\n\texcludesFile = %s\n" % excludes)
+        write(p / "keys.secret", b"SECRET=1\n")   # ignored for this user — unless git cannot read the rule
+        os.chmod(excludes, 0o000)
+        try:
+            _, err = self.tool(p, "create", "00-baseline", expect=1)
+        finally:
+            os.chmod(excludes, 0o644)
+        self.assertIn("excludes", err)
+
+    def test_create_refuses_when_git_leaves_a_file_out_without_saying_so(self):
+        if not case_insensitive_disk(self.tmp):
+            self.skipTest("this file system tells letter cases apart")
+        p = self.git_project()
+        write(p / "docs" / ".GIT", b"real work that git treats as its own folder name and skips\n")
+        _, err = self.tool(p, "create", "00-baseline", expect=1)
+        self.assertIn("docs/.GIT", err)
+
+    def test_nested_repositories_are_named_and_refused_while_they_hold_unsaved_work(self):
+        p = self.git_project()
+        tracked, untracked = p / "module", p / "tools"
+        for nested in (tracked, untracked):
+            nested.mkdir()
+            self.git(nested, "init", "-q")
+            write(nested / "code.txt", b"committed\n")
+            self.git(nested, "add", "code.txt")
+            self.git(nested, "commit", "-qm", "nested")
+        self.git(p, "add", "module")                   # the project tracks one of them (a gitlink)
+        self.git(p, "commit", "-qm", "link the module")
+        _, err = self.tool(p, "create", "00-clean")
+        self.assertIn("module", err)
+        self.assertIn("tools", err)
+        for nested in (tracked, untracked):
+            for unsaved in ("code.txt", "untracked.txt"):
+                with self.subTest(nested=nested.name, unsaved=unsaved):
+                    original = (nested / unsaved).read_bytes() if (nested / unsaved).exists() else None
+                    write(nested / unsaved, b"UNSAVED WORK\n")
+                    _, err = self.tool(p, "create", "01-%s-%s" % (nested.name, unsaved.split(".")[0]), expect=1)
+                    self.assertIn(nested.name, err)
+                    if original is None:
+                        (nested / unsaved).unlink()
+                    else:
+                        write(nested / unsaved, original)
+        shutil.rmtree(untracked)                        # a phase deleted a nested repository
+        out, _ = self.tool(p, "diff", "00-clean", expect=3)
+        self.assertRegex(out, r"gone\s+tools/")
+
+    # ------------------------------------------------------------ G10 every ignored file is watched (F07)
+
+    def test_losing_one_ignored_file_inside_a_kept_ignored_folder_is_reported(self):
+        for p in (self.git_project(), self.plain_project()):
+            with self.subTest(project=p.name):
+                write(p / ".gitignore", b"node_modules/\n.env\n*.log\ndata/\n")
+                write(p / "data" / "main.db", b"the database\n")
+                write(p / "data" / "keep.txt", b"still here\n")
+                self.tool(p, "create", "00-baseline")
+                (p / "data" / "main.db").unlink()
+                out, _ = self.tool(p, "diff", "00-baseline", expect=3)
+                self.assertRegex(out, r"gone\s+data/main\.db")
+                self.assertNotIn("keep.txt", out)
+                out, _ = self.tool(p, "restore", "00-baseline")
+                self.assertIn("cannot bring them back", out)
+                self.assertIn("data/main.db", out)
 
 
 if __name__ == "__main__":
