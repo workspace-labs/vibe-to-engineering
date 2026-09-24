@@ -5,6 +5,7 @@ Run from the repository root:  python3 -m unittest discover -s tests -v
 """
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -84,6 +85,81 @@ class Evidence(unittest.TestCase):
         code, _, report = self.run_tool(self.folder / "x.txt", sys.executable, "-c", "print('ran')")
         self.assertEqual(code, 2, report)                                  # no plan yet, so no state folder to use
         self.assertIn("not there yet", report)
+
+    def test_every_value_a_secret_file_holds_is_masked_however_it_is_written(self):
+        token = "fixture-ordinary-value-73921"
+        outside = self.tmp / "linked-value.env"
+        outside.write_text("SECRET_KEY=%s\n" % token)
+        cases = {   # the independent review's five leaks (2026-09-24), and the forms an agent meets
+            "an inline comment after the value": (
+                (".env", "SECRET_KEY=%s # fixture-only comment\n" % token),
+                "print(open('.env').read().split('=',1)[1].split('#')[0].strip())"),
+            "an inline comment after a value with spaces": (
+                (".env", "SECRET_KEY=quorble zaxtic wembly # fixture-only comment\n"),
+                "print(open('.env').read().split('=',1)[1].split('#')[0].strip())"),
+            "a JSON credentials file": (
+                ("credentials.json", '{"password": "%s"}' % token),
+                "import json; print(json.load(open('credentials.json'))['password'])"),
+            "a three-character password, printed bare": (
+                (".env", "PASSWORD=xyz\n"), "print(open('.env').read().split('=',1)[1].strip())"),
+            "a .env that is a link": ((".env", outside), "print(open('.env').read().split('=',1)[1])"),
+            "a quoted value with an escaped quote": (
+                ("secrets.yaml", 'token: "abc\\"def-98765"\n'), "print('abc\"def-98765')"),
+            "a YAML value under a nested key": (
+                ("credentials.yml", "db:\n  password: %s\n" % token), "print('%s')" % token),
+        }
+        for name, ((file, content), check) in cases.items():
+            with self.subTest(name):
+                project = self.tmp / re.sub(r"\W+", "-", name)
+                (project / ".vibe-to-engineering").mkdir(parents=True)
+                if isinstance(content, Path):
+                    os.symlink(str(content), str(project / file))
+                else:
+                    (project / file).write_text(content)
+                self.project = project
+                out = project / ".vibe-to-engineering" / "evidence" / "check.txt"
+                code, printed, report = self.run_tool(out, sys.executable, "-c", check)
+                self.assertEqual(code, 0, report)
+                secret = ("xyz" if "three" in name else 'abc"def-98765' if "escaped" in name
+                          else "quorble zaxtic wembly" if "spaces" in name else token)
+                for word in secret.split():                 # no part of the value survives, not only the whole
+                    self.assertNotIn(word, printed.split("\n\n", 1)[1])   # (the header repeats the check's code)
+                    self.assertNotIn(word, out.read_text(encoding="utf-8").split("\n\n", 1)[1])
+                    self.assertNotIn(word, report)
+
+    def test_a_number_or_a_yes_no_word_under_an_ordinary_name_stays_readable_and_is_named(self):
+        (self.project / ".env").write_text("PORT=8000\nDEBUG=true\nSECRET_KEY=abcd1234efgh5678\nPIN=1234\n")
+        code, printed, report = self.run_tool(self.folder / "check.txt", sys.executable, "-c",
+                                              "print('listening on 8000, debug true, 12 passed')")
+        self.assertEqual(code, 0, report)
+        self.assertIn("listening on 8000, debug true, 12 passed", printed)   # settings, not secrets
+        self.assertIn("settings left readable: DEBUG, PORT", report)
+        self.assertNotIn("PIN", report.split("settings left readable")[1])   # a PIN is masked, whatever its shape
+        code, printed, _ = self.run_tool(self.folder / "pin.txt", sys.executable, "-c", "print('pin 1234 ok, 12345')")
+        self.assertIn("pin <masked PIN> ok, 12345", printed)                 # a short value: whole words only
+
+    @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+                     "needs POSIX file permissions and a normal user")
+    def test_a_folder_that_cannot_be_listed_or_is_a_link_stops_the_run_before_the_check(self):
+        (self.project / "config").mkdir()
+        (self.project / "config" / ".env").write_text("SECRET_KEY=fixture-ordinary-value-73921\n")
+        os.chmod(self.project / "config", 0o111)                 # can be entered, cannot be listed
+        try:
+            code, printed, report = self.run_tool(self.folder / "x.txt", sys.executable, "-c",
+                                                  "print(open('config/.env').read())")
+        finally:
+            os.chmod(self.project / "config", 0o755)
+        self.assertEqual(code, 2, report)
+        self.assertNotIn("fixture-ordinary-value-73921", printed + report)
+        self.assertIn("cannot list the folder", report)
+        os.chmod(self.project / "config", 0o755)
+        elsewhere = self.tmp / "elsewhere"
+        elsewhere.mkdir()
+        os.symlink(str(elsewhere), str(self.project / "shared"))
+        code, printed, report = self.run_tool(self.folder / "y.txt", sys.executable, "-c", "print('ran')")
+        self.assertEqual(code, 2, report)
+        self.assertNotIn("ran", printed)
+        self.assertIn("is a link to a folder", report)
 
     @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
                      "needs POSIX file permissions and a normal user")

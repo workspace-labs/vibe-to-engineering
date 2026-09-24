@@ -148,6 +148,34 @@ class Renderer(unittest.TestCase):
                 self.assertEqual(code, 1, output)
                 self.assertIn("<meta> other than the template's", output)
 
+    def test_refuses_a_plan_with_anything_but_spaces_before_the_doctype(self):
+        for name, lead in (("a non-breaking space", " "), ("a vertical tab", "\x0b"), ("an em space", " "),
+                           ("a comment", "<!-- x -->"), ("text", "x")):
+            with self.subTest(name):
+                env = dict(os.environ, V2E_BROWSER=str(self.tmp / "no-such-browser"))
+                code, output, pdf = self.render(lead + filled_template(), env=env)
+                self.assertEqual(code, 1, output)
+                self.assertIn("must begin with <!DOCTYPE html>", output)
+                self.assertFalse(pdf.exists())
+        code, output, pdf = self.render(filled_template().replace("<!DOCTYPE html>", "", 1),
+                                        env=dict(os.environ, V2E_BROWSER=str(self.tmp / "no-such-browser")))
+        self.assertEqual(code, 1, output)
+        self.assertIn("it has no doctype", output)
+
+    @unittest.skipIf(os.name == "nt", "the stand-in browser is a shell script")
+    def test_refuses_the_print_when_the_browser_reports_the_policy_ignored(self):
+        browser = self.tmp / "browser"
+        browser.write_text('#!/bin/sh\nfor arg in "$@"; do case "$arg" in --print-to-pdf=*) printf "%%s" "%%PDF-1.4 stand-in" '
+                           '> "${arg#--print-to-pdf=}";; esac; done\n'
+                           'echo "[0924/000000.000000:INFO:CONSOLE:1] \\"The Content Security Policy \'default-src '
+                           "'none'\\' was delivered via a <meta> element outside the document's <head>, which is "
+                           'disallowed. The policy has been ignored.\\", source: file:///plan.html (1)" >&2\n')
+        os.chmod(browser, 0o755)
+        code, output, pdf = self.render(filled_template(), env=dict(os.environ, V2E_BROWSER=str(browser)))
+        self.assertEqual(code, 1, output)
+        self.assertIn("The policy has been ignored", output)
+        self.assertFalse(pdf.exists(), "a PDF printed without the policy was kept")
+
     @unittest.skipIf(installed_browser() is None or not shutil.which("pdftotext"),
                      "needs a Chrome-family browser and pdftotext")
     def test_the_browser_runs_no_script_and_loads_no_local_file_whatever_markup_gets_past_the_checks(self):
@@ -167,15 +195,19 @@ class Renderer(unittest.TestCase):
                 % svg.as_uri(),
         }
         for name, extra in cases.items():
-            with self.subTest(name):
-                plan = filled_template().replace("</body>", '<p><img alt="" src="%s"></p>%s</body>' % (inline, extra))
+            with self.subTest(name):   # the policy stops it in the browser, and the browser's report stops the print
+                code, output, pdf = self.render(filled_template().replace("</body>", extra + "</body>"))
+                self.assertEqual(code, 1, output)
+                self.assertIn("violates the following Content Security Policy directive", output)
+                self.assertFalse(pdf.exists(), "a PDF was kept although the browser reported the plan")
+        for name, lead in (("nothing", ""), ("a byte order mark and spaces", "﻿ \t\n")):
+            with self.subTest("an image written into the plan, with %s before the doctype" % name):
+                plan = lead + filled_template().replace("</body>", '<p><img alt="" src="%s"></p></body>' % inline)
                 code, output, pdf = self.render(plan)
                 self.assertEqual(code, 0, output)
                 text = subprocess.run(["pdftotext", str(pdf), "-"], stdout=subprocess.PIPE).stdout.decode()
                 self.assertIn("AWAITING HUMAN APPROVAL", text)        # the plan printed...
-                self.assertIn("INLINE-IMAGE-SHOWN", text)             # ...with the image written into it...
-                self.assertNotIn("EVENT-SCRIPT-EXECUTED", text)       # ...and no script ran
-                self.assertNotIn("LOCAL-FILE-LOADED", text)           # ...and no local file came in
+                self.assertIn("INLINE-IMAGE-SHOWN", text)             # ...with the image written into it
 
     @unittest.skipIf(installed_browser() is None, "no Chrome-family browser installed")
     def test_nothing_is_fetched_while_rendering(self):
@@ -198,8 +230,10 @@ class Renderer(unittest.TestCase):
             code, output, pdf = self.render(filled_template().replace("</body>", sneaky))
         finally:
             server.shutdown()
-        self.assertEqual(code, 0, output)
-        self.assertTrue(pdf.read_bytes().startswith(b"%PDF-"), "no PDF, so the absence of requests proves nothing")
+            server.server_close()
+        self.assertEqual(code, 1, output)   # the policy stopped the image, and the browser's report stopped the print
+        self.assertIn("violates the following Content Security Policy directive", output)
+        self.assertFalse(pdf.exists())
         self.assertEqual(requests, [], "the renderer reached the network")
 
     @unittest.skipIf(installed_browser() is None, "no Chrome-family browser installed")

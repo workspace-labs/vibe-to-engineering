@@ -6,11 +6,17 @@
 
 Standard library only. The command runs in the project folder, with each --env setting added to its environment —
 how a check is pointed at throwaway data. Its output, standard output and error together, is printed and saved with
-secret values masked: the values in the project's secret files (.env and the like — read here, never shown) and
-anything shaped like a private key, an access token or a password. The evidence file is replaced whole, and it must
-lie inside the project's .vibe-to-engineering/evidence/ folder.
+secret values masked. The values come from the project's secret files (.env and its variants, key, credential and
+certificate files — read here for masking, never shown): every NAME=VALUE, NAME: VALUE or "name": "value" they hold,
+with and without an inline comment, quoted and unquoted. A value under a name that says secret (key, token,
+password…) is always masked; under any other name, a number or a yes/no word is a setting, left readable and named
+in the summary. Anything shaped like a private key, an access token or a password is masked wherever it appears. A
+secret file that is a link is read through the link; a folder that cannot be listed, or a linked folder, stops the
+run before the check, because secret files inside it would not be found. The evidence file is replaced whole, and it
+must lie inside the project's .vibe-to-engineering/evidence/ folder.
 
-Exit codes: the command's own; 1 when it could not run; 2 usage or a refused evidence path.
+Exit codes: the command's own; 1 when it could not run; 2 usage, a refused evidence path, or secret files that
+could not be gathered.
 """
 
 import argparse
@@ -25,7 +31,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from checkpoint import (SECRET_FILES, STATE_DIR, UNWATCHED_FOLDERS, Fail,  # noqa: E402 — one list of secret files
                         configure_output, is_link, resolve_project, write_lf)
 
-ASSIGNMENT = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_.-]*)\s*[=:]\s*(.*?)\s*$")
+# A name given a value, anywhere on a line: NAME=VALUE, export NAME=VALUE, name: value, "name": "value", 'name' = …
+NAME = re.compile(r"""(?<![\w.-])(?:export\s+)?(["']?)([A-Za-z_][\w.-]*)\1\s*[=:]\s*""")
+QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"|\'([^\']*)\'')
+SECRET_NAME = re.compile(r"(?i)key|secret|token|passw(?:or)?d|pwd|credential|private|salt|(?<![a-z])pin(?![a-z])")
+SETTING = re.compile(r"(?i)[0-9][0-9._-]*|true|false|yes|no|on|off|null|none")  # a number or a yes/no word
+LARGEST_SECRET_FILE = 1 << 20  # a secret file bigger than this is not a secret file
 SHAPES = (  # secret values recognized wherever they appear
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S),
     re.compile(r"\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{8,}"),                  # Stripe
@@ -37,41 +48,95 @@ SHAPES = (  # secret values recognized wherever they appear
     re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),  # a JSON web token
 )
 # A value given to a name that says it is secret: API_KEY=…, "password": "…", token: …
-NAMED = re.compile(r"""(?i)\b([A-Za-z0-9_.-]*(?:key|secret|token|passw(?:or)?d|pwd|credential)[A-Za-z0-9_.-]*)"""
-                   r"""(["']?\s*[:=]\s*["']?)(?!<masked)([^\s"',;]{4,})""")
+NAMED = re.compile(r"""(?i)\b([A-Za-z0-9_.-]*(?:key|secret|token|passw(?:or)?d|pwd|credential|private|salt|pin)"""
+                   r"""[A-Za-z0-9_.-]*)(["']?\s*[:=]\s*["']?)(?!<masked)([^\s"',;]+)""")
 
 
-def secret_values(project):
-    """(name, value) for each NAME=VALUE or NAME: VALUE line of every secret file in the project, outside dependency,
-    build-output and cache folders. A secret file that cannot be read stops the run: its values could not be
-    masked."""
+def values_on(line):
+    """(name, value) for every value the line gives a name — each unquoted value in every form it may be printed
+    in: whole, without an inline comment, up to a separator, its first word."""
     found = []
-    for folder, dirs, names in os.walk(str(project)):
-        dirs[:] = [name for name in dirs if name not in UNWATCHED_FOLDERS and name not in (".git", STATE_DIR)
-                   and not is_link(os.path.join(folder, name))]
-        for name in names:
-            path = os.path.join(folder, name)
-            if is_link(path) or not any(fnmatch.fnmatchcase(name.lower(), pattern) for pattern in SECRET_FILES):
-                continue
-            try:
-                text = Path(path).read_text(encoding="utf-8", errors="replace")
-            except OSError as error:
-                raise Fail("cannot read %s to mask its values (%s)" % (path, error.strerror or error))
-            for line in text.splitlines():
-                match = ASSIGNMENT.match(line)
-                if match and not line.lstrip().startswith("#"):
-                    value = match.group(2).strip().strip("'\"")
-                    if len(value) >= 4:
-                        found.append((match.group(1), value))
+    for match in NAME.finditer(line):
+        rest = line[match.end():]
+        quoted = QUOTED.match(rest)
+        if quoted:
+            raw = quoted.group(1) if quoted.group(1) is not None else quoted.group(2)
+            candidates = [raw, re.sub(r"\\(.)", r"\1", raw)]
+        else:
+            rest = rest.strip()
+            candidates = [rest, re.split(r"\s+#", rest)[0].strip(), re.split(r"[,;}]", rest)[0].strip(),
+                          rest.split()[0] if rest.split() else ""]
+        found += [(match.group(2), value) for value in dict.fromkeys(candidates) if value]
     return found
 
 
+def secret_files(project):
+    """Every secret file in the project, outside dependency, build-output and cache folders — through a link to a
+    plain file too. A folder that cannot be listed, or that is a link, stops the run: a secret file inside it would
+    not be found, and its values would reach the evidence unmasked."""
+    def unreadable(error):
+        raise Fail("cannot list the folder %s to find secret files (%s)" % (error.filename, error.strerror or error))
+    found = []
+    for folder, dirs, names in os.walk(str(project), onerror=unreadable):
+        kept = []
+        for name in dirs:
+            path = os.path.join(folder, name)
+            if name in UNWATCHED_FOLDERS or name in (".git", STATE_DIR):
+                continue
+            if is_link(path):
+                raise Fail("%s is a link to a folder — secret files inside it would not be found; run the check "
+                           "with that folder in place, or add it to the plan as out of scope" % path)
+            kept.append(name)
+        dirs[:] = kept
+        for name in names:
+            if any(fnmatch.fnmatchcase(name.lower(), pattern) for pattern in SECRET_FILES):
+                found.append(os.path.join(folder, name))
+    return found
+
+
+def secret_values(project):
+    """(name, value) for every value the project's secret files give a name. A secret file that cannot be read stops
+    the run: its values could not be masked."""
+    found = []
+    for path in secret_files(project):
+        try:
+            if not os.path.isfile(path):  # a link to nothing, or to a folder: no values to mask
+                continue
+            if os.path.getsize(path) > LARGEST_SECRET_FILE:
+                raise Fail("%s is larger than a secret file (%d bytes) — its values cannot be masked" % (path, os.path.getsize(path)))
+            text = Path(path).read_text(encoding="utf-8", errors="replace")
+        except OSError as error:
+            raise Fail("cannot read %s to mask its values (%s)" % (path, error.strerror or error))
+        for line in text.splitlines():
+            if not line.lstrip().startswith("#"):
+                found += values_on(line)
+    return found
+
+
+def classify(values):
+    """The values to mask, longest first, and the names of settings left readable: a number or a yes/no word under
+    a name that does not say secret."""
+    masked, settings = {}, []
+    for name, value in values:
+        if not SECRET_NAME.search(name) and SETTING.fullmatch(value):
+            settings.append(name)
+        else:
+            masked.setdefault(value, name)
+    return sorted(masked.items(), key=lambda item: -len(item[0])), sorted(dict.fromkeys(settings))
+
+
 def mask(text, values):
-    """text with every secret value replaced, and how many were."""
+    """text with every secret value replaced, and how many were. A value under four characters, or all digits, is
+    replaced only where it stands as a whole word — a PIN of 1234 is not the inside of 12345 — every other value
+    wherever it appears."""
     count = 0
-    for name, value in sorted(values, key=lambda item: -len(item[1])):  # longest first: no value is split
-        count += text.count(value)
-        text = text.replace(value, "<masked %s>" % name)
+    for value, name in values:
+        if len(value) >= 4 and not value.isdigit():
+            count += text.count(value)
+            text = text.replace(value, "<masked %s>" % name)
+        else:
+            text, found = re.subn(r"(?<![\w-])%s(?![\w-])" % re.escape(value), "<masked %s>" % name, text)
+            count += found
     for shape in SHAPES:
         text, found = shape.subn("<masked>", text)
         count += found
@@ -107,7 +172,7 @@ def main(argv=None):
     try:
         project = resolve_project(args.project)
         out = evidence_path(project, args.out)
-        values = secret_values(project)
+        values, settings = classify(secret_values(project))
     except Fail as error:
         print("evidence.py: error: %s" % error, file=sys.stderr)
         return 2
@@ -127,8 +192,9 @@ def main(argv=None):
         return 1
     print(text, end="" if text.endswith("\n") else "\n")
     code = done.returncode if done.returncode >= 0 else 1   # a check stopped by a signal failed
-    print("evidence.py: exit code %d; saved to %s (%d secret %s masked)"
-          % (done.returncode, out, masked, "value" if masked == 1 else "values"), file=sys.stderr)
+    print("evidence.py: exit code %d; saved to %s (%d secret %s masked%s)"
+          % (done.returncode, out, masked, "value" if masked == 1 else "values",
+             "; settings left readable: " + ", ".join(settings) if settings else ""), file=sys.stderr)
     return code
 
 

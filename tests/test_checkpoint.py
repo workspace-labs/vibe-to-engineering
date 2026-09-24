@@ -1145,15 +1145,55 @@ class Contract(unittest.TestCase):
                     "ignored-contents: ")[1]
                 self.assertIn('"data.db": [8, "sha256:', watched)
                 self.assertNotIn("node_modules", watched)
-                if p.name == "project":                                 # a file with secrets is never read
-                    self.assertRegex(watched, r'"\.env": \[9, "mtime:\d+"\]')
+                if p.name == "project":                                 # a file with secrets: a keyed fingerprint
+                    self.assertRegex(watched, r'"\.env": \[9, "hmac:[0-9a-f]{64}"\]')
+                    self.assertNotIn(hashlib.sha256(b"SECRET=1\n").hexdigest(), watched)
                     write(p / ".env", b"SECRET=2\n")
-                    os.utime(p / ".env", ns=(os.stat(p / ".env").st_mtime_ns + 10**9,) * 2)
                     out, _ = self.tool(p, "diff", "00-baseline", expect=3)
                     self.assertRegex(out, r"changed\s+\.env\s+\(the same size\)")
         self.plant(p, "01-recorded-nothing", {"a.txt": b"a\n"})          # older checkpoints recorded no contents
         out, _ = self.tool(p, "diff", "01-recorded-nothing", expect=3)
         self.assertNotIn("contents changed", out)
+
+    def test_a_secret_file_replaced_with_the_same_size_and_time_is_reported_changed_and_never_hashed_plainly(self):
+        p = self.git_project()                                   # .env is ignored
+        write(p / ".env", b"SECRET_KEY=fixture-first-value\n")
+        self.tool(p, "create", "00-baseline")
+        info = os.stat(p / ".env")
+        write(p / ".env", b"SECRET_KEY=fixture-other-value\n")  # the same size...
+        os.utime(p / ".env", ns=(info.st_atime_ns, info.st_mtime_ns))   # ...and the same modification time
+        out, _ = self.tool(p, "diff", "00-baseline", expect=3)
+        self.assertRegex(out, r"changed\s+\.env\s+\(the same size\)")
+        out, _ = self.tool(p, "restore", "00-baseline")
+        self.assertRegex(out, r"changed\s+\.env")
+        write(p / ".env", b"SECRET_KEY=fixture-first-value\n")
+        os.utime(p / ".env", ns=(info.st_atime_ns, info.st_mtime_ns))
+        out, _ = self.tool(p, "diff", "00-baseline")
+        self.assertIn("no changes", out)
+        message = self.store_git(p, "cat-file", "commit", "refs/checkpoints/00-baseline")
+        self.assertNotIn("fixture-first-value", message)
+        self.assertRegex(message, r'"\.env": \[31, "hmac:[0-9a-f]{64}"\]')       # keyed, so it tells nothing...
+        self.assertNotIn(hashlib.sha256(b"SECRET_KEY=fixture-first-value\n").hexdigest(), message)  # ...unlike a hash
+        key = p / STATE / "fingerprint.key"
+        self.assertTrue(key.is_file())
+        if os.name != "nt":
+            self.assertEqual(stat.S_IMODE(os.stat(key).st_mode), 0o600)
+        self.assertNotIn("fingerprint.key", self.store_git(p, "ls-tree", "-r", "--name-only", "refs/checkpoints/00-baseline"))
+        # a checkpoint from before keyed fingerprints recorded the modification time: it still compares
+        tree = self.store_git(p, "rev-parse", "refs/checkpoints/00-baseline^{tree}")
+        old = self.store_git(p, "commit-tree", tree, "-m", "vibe-to-engineering checkpoint: 01-older\n\n"
+                             'ignored-by-git: [".env", "node_modules/pkg/index.js"]\nnested-repositories: []\n'
+                             'ignored-contents: {".env": [31, "mtime:%d"]}' % info.st_mtime_ns)
+        self.store_git(p, "update-ref", "refs/checkpoints/01-older", old)
+        out, _ = self.tool(p, "diff", "01-older")
+        self.assertIn("no changes", out)
+        os.utime(p / ".env", ns=(info.st_atime_ns, info.st_mtime_ns + 10**9))
+        out, _ = self.tool(p, "diff", "01-older", expect=3)
+        self.assertRegex(out, r"changed\s+\.env")
+        key.unlink()                                             # the key file is guarded like the store (G7)
+        os.symlink(str(self.tmp / "elsewhere"), str(key))
+        _, err = self.tool(p, "diff", "00-baseline", expect=1)
+        self.assertIn("fingerprint.key is a link", err)
 
     @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
                      "needs POSIX file permissions and a normal user")
@@ -1180,7 +1220,109 @@ class Contract(unittest.TestCase):
                 self.assertRegex(out, r"M\s+\.gitignore")
                 self.assertNotIn("gone", out)
 
+    # ------------------------------------------------------------ G11 a nested partial clone fetches nothing (F03)
+
+    def test_a_nested_partial_clone_missing_an_object_is_refused_before_git_fetches_it(self):
+        p = self.git_project()
+        module = self.repository(p / "module", {"code.txt": b"committed\n"})
+        self.tool(p, "create", "00-clean")
+        marker, helper = self.tmp / "helper-ran", self.tmp / "bin"
+        helper.mkdir()
+        (helper / "git-remote-fixture").write_text("#!/bin/sh\nprintf ran > '%s'\nexit 1\n" % marker)
+        os.chmod(helper / "git-remote-fixture", 0o755)
+        tree = self.git(module, "rev-parse", "HEAD^{tree}").strip()
+        os.rename(module / ".git" / "objects" / tree[:2] / tree[2:], self.tmp / "missing-tree")
+        for key, value in (("extensions.partialClone", "origin"), ("remote.origin.promisor", "true"),
+                           ("remote.origin.url", "fixture::local-only"), ("protocol.fixture.allow", "always")):
+            self.git(module, "config", key, value)       # a partial clone: git fetches what it lacks when it reads it
+        env = {"PATH": str(helper) + os.pathsep + self.env["PATH"]}
+        before = disk_state(p)                            # module/.git included: nested folders are walked whole
+        for command in (("create", "01-changed"), ("diff", "00-clean"), ("restore", "00-clean"),
+                        ("restore", "00-clean", "--apply")):
+            with self.subTest(command=" ".join(command)):
+                _, err = self.tool(p, *command, expect=1, env=env)
+                self.assertFalse(marker.exists(), "git fetched through the remote helper")
+                self.assertIn("cannot tell whether the nested repository module/", err)
+                self.assertEqual(disk_state(p), before, "the nested repository or the project changed")
+
+    def test_a_store_configured_as_a_partial_clone_is_refused(self):
+        p = self.git_project()
+        self.tool(p, "create", "00-baseline")
+        with open(self.store(p) / "config", "a") as config:
+            config.write('[extensions]\n\tpartialClone = origin\n[remote "origin"]\n\tpromisor = true\n')
+        for command in (("list",), ("verify", "00-baseline"), ("create", "01-next")):
+            with self.subTest(command=command[0]):
+                _, err = self.tool(p, *command, expect=1)
+                self.assertIn("configured as a partial clone", err)
+
+    # ------------------------------------------------------------ G1 a link that became a plain file is unsaved work (F06)
+
+    def test_a_link_replaced_by_a_plain_file_is_unsaved_work_unless_the_repository_keeps_links_as_files(self):
+        for ignored in (False, True):
+            for symlinks in ("true", "false"):
+                with self.subTest(ignored=ignored, core_symlinks=symlinks):
+                    p = self.git_project("link-%d-%s" % (ignored, symlinks))
+                    if ignored:
+                        write(p / ".gitignore", b"node_modules/\n.env\nmodule/\n")
+                    module = self.repository(p / "module", {"keep.txt": b"kept\n"})
+                    os.symlink("keep.txt", str(module / "link.txt"))
+                    self.git(module, "add", "link.txt")
+                    self.git(module, "commit", "-qm", "link")
+                    self.git(module, "config", "core.symlinks", symlinks)
+                    self.tool(p, "create", "00-clean")                 # a real link: clean either way
+                    (module / "link.txt").unlink()
+                    write(module / "link.txt", b"keep.txt")            # the link's target, as a plain file's bytes
+                    before = disk_state(p)
+                    if symlinks == "true":                             # what git calls " T link.txt"
+                        for command in (("create", "01-changed"), ("diff", "00-clean"),
+                                        ("restore", "00-clean", "--apply")):
+                            _, err = self.tool(p, *command, expect=1)
+                            self.assertIn("module/: changed link.txt", err)
+                            self.assertEqual(disk_state(p), before)
+                    else:                                              # this repository keeps links as plain files
+                        self.tool(p, "create", "01-same")
+                        out, _ = self.tool(p, "diff", "00-clean")
+                        self.assertIn("no changes", out)
+
     # ------------------------------------------------------------ G1 a repository git will not open is not a plain folder (NEW-1)
+
+    def test_a_broken_git_pointer_is_refused_not_read_as_a_plain_folder(self):
+        p = self.git_project()
+        write(p / "tracked.log", b"tracked, and matched by an ignore rule\n")
+        self.git(p, "add", "tracked.log")
+        self.git(p, "commit", "-qm", "log")
+        write(p / ".gitignore", b"node_modules/\n.env\n*.log\n")
+        os.rename(p / ".git", self.tmp / "saved-git")
+        write(p / ".git", b"gitdir: " + os.fsencode(str(self.tmp / "nonexistent-repository")) + b"\n")
+        before = disk_state(p, skip=())
+        for command in (("create", "00-baseline"), ("tree", "--current")):
+            with self.subTest(command=command[0]):
+                _, err = self.tool(p, *command, expect=1)
+                self.assertIn("cannot open the repository at", err)
+                self.assertEqual(disk_state(p, skip=()), before)
+        self.assertFalse((p / STATE).exists(), "a checkpoint store was created")
+        write(p / "sub" / "a.txt", b"a\n")                      # a folder inside it: the same broken pointer above
+        _, err = self.tool(p / "sub", "tree", "--current", expect=1)
+        self.assertIn("cannot open the repository at", err)
+
+    @unittest.skipIf(os.name == "nt", "the stand-in git is a shell script")
+    def test_a_failure_to_open_that_is_not_a_missing_repository_stops_a_plain_folder_too(self):
+        p = self.plain_project()
+        stand_in = self.tmp / "bin" / "git"          # answers the one question itself, hands the rest to real git
+        stand_in.parent.mkdir()
+        env = {"PATH": str(stand_in.parent) + os.pathsep + self.env["PATH"]}
+        for words, expect in (("fatal: unable to read current working directory: Operation not permitted", 1),
+                              ("fatal: not a git repository (or any parent up to mount point /)", 0)):
+            with self.subTest(words):
+                stand_in.write_text('#!/bin/sh\ncase "$*" in *--is-inside-work-tree*) echo "%s" >&2; exit 128;; esac\n'
+                                    'exec "%s" "$@"\n' % (words, shutil.which("git")))
+                os.chmod(stand_in, 0o755)
+                _, err = self.tool(p, "create", "00-baseline", expect=expect, env=env)
+                if expect:
+                    self.assertIn("cannot open the repository this folder belongs to", err)
+                    self.assertFalse((p / STATE).exists())
+                else:                                      # git's own words for "no repository": a plain folder
+                    self.assertTrue((p / STATE).is_dir())
 
     def test_a_repository_git_refuses_to_open_stops_every_command_instead_of_losing_tracked_files(self):
         p = self.git_project()

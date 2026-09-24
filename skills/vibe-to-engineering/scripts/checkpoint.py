@@ -14,9 +14,11 @@ operating-system differences live in the "Platform helpers" section.
 import argparse
 import fnmatch
 import hashlib
+import hmac
 import json
 import os
 import re
+import secrets
 import shutil
 import stat
 import subprocess
@@ -46,7 +48,7 @@ IDENTITY = {
 GIT_ENV_TO_DROP = (
     "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_NAMESPACE",
-    "GIT_AUTHOR_DATE", "GIT_COMMITTER_DATE",
+    "GIT_AUTHOR_DATE", "GIT_COMMITTER_DATE", "GIT_CEILING_DIRECTORIES",
     "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT", "GIT_TEMPLATE_DIR", "GIT_EXTERNAL_DIFF",
 )
 GIT_ENV_PREFIXES_TO_DROP = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_", "GIT_TRACE")  # ...and the trace files git writes
@@ -57,6 +59,7 @@ GITLINK, SYMLINK, EXECUTABLE = "160000", "120000", "100755"
 IGNORED_MARK = "ignored-by-git: "  # the line in a checkpoint's message that lists every ignored file it did not save
 NESTED_MARK = "nested-repositories: "  # ...and the one that lists the nested repositories, which it does not save either
 CONTENTS_MARK = "ignored-contents: "  # ...and the one that records each watched ignored file's size and fingerprint
+KEY_NAME = "fingerprint.key"  # in the state folder: the key that fingerprints files holding secrets (G10)
 # Ignored files that change by themselves and are too many to fingerprint: dependency, build-output and cache folders,
 # and the default excluded files. Every other ignored file is watched for changes (G10).
 UNWATCHED_FOLDERS = frozenset([entry[:-1] for entry in DEFAULT_EXCLUDES if entry.endswith("/")]
@@ -193,6 +196,10 @@ def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(
     env.update(IDENTITY)
     env["GIT_OPTIONAL_LOCKS"] = "0"  # read-only commands never refresh the project's index
     env["GIT_TERMINAL_PROMPT"] = "0"
+    # A partial clone makes git fetch an object it lacks the moment a command reads it — through a remote helper, a
+    # credential helper or the network, none of which may run here (G11). git 2.46 and later obey this switch; for
+    # an older git, nested_work() and prepare_store() refuse a partial clone instead.
+    env["GIT_NO_LAZY_FETCH"] = "1"
     if index is not None:
         env["GIT_INDEX_FILE"] = str(index)
     if english:
@@ -233,14 +240,46 @@ def store_path(project):
     return project / STATE_DIR / STORE_NAME
 
 
+_GIT_VERSION = []
+PROMISOR_KEYS = r"^(extensions\.partialclone|remote\..*\.(promisor|partialclonefilter))$"
+
+
+def git_version():
+    """(major, minor) of the git on the PATH, read once."""
+    if not _GIT_VERSION:
+        found = re.search(rb"(\d+)\.(\d+)", git(["version"]).stdout)
+        _GIT_VERSION.append((int(found.group(1)), int(found.group(2))) if found else (0, 0))
+    return _GIT_VERSION[0]
+
+
+def promisor_configured(folder=None, config=None):
+    """Whether a repository (or a configuration file) tells git to fetch missing objects from a remote."""
+    where = ["--file", str(config)] if config is not None else []
+    return git(["config"] + where + ["--get-regexp", "-z", PROMISOR_KEYS], cwd=folder, ok=(0, 1)).returncode == 0
+
+
 def is_git_project(project):
-    """True when the folder is inside a git work tree whose repository does not ignore it. Only a folder git calls
-    "not a git repository" follows the plain-folder rules: a repository git refuses to open (another user's folder,
-    for example) stops the command, because those rules would drop its tracked files that match an ignore rule."""
+    """True when the folder is inside a git work tree whose repository does not ignore it. Only a folder with no
+    `.git` entry anywhere up to the root — which git calls "not a git repository (or any of the parent
+    directories)" — follows the plain-folder rules: a repository git refuses to open, whether another user's folder
+    or a `.git` file whose pointer is broken, stops the command, because those rules would drop its tracked files
+    that match an ignore rule (NEW-1)."""
     inside = git(["rev-parse", "--is-inside-work-tree"], cwd=project, ok=(0, 128), english=True)
     if inside.returncode != 0:
         message = inside.stderr.decode("utf-8", "replace").strip()
-        if re.search(r"^fatal: not a git repository", message, re.M):
+        entries, device = [], os.stat(str(project)).st_dev
+        for folder in [project] + list(project.parents):
+            try:
+                if os.stat(str(folder)).st_dev != device:
+                    break  # git looks no further than the file system the project is on
+            except OSError:
+                break
+            if os.path.lexists(str(folder / ".git")):
+                entries.append(folder / ".git")
+        if entries:
+            raise Fail("git cannot open the repository at %s — %s" % (entries[0], message))
+        if re.search(r"^fatal: not a git repository \(or any (of the parent directories|parent up to mount point)",
+                     message, re.M):
             return False
         raise Fail("git cannot open the repository this folder belongs to — %s" % message)
     if inside.stdout.strip() != b"true":
@@ -253,7 +292,7 @@ def check_state_folder(project):
     junction on the way, a special file, or a store that git would redirect to another repository."""
     state = project / STATE_DIR
     store = state / STORE_NAME
-    for path, folder in ((state, True), (state / ".gitignore", False), (store, True)):
+    for path, folder in ((state, True), (state / ".gitignore", False), (store, True), (state / KEY_NAME, False)):
         if os.path.lexists(str(path)) and (is_link(str(path)) or not (path.is_dir() if folder else path.is_file())):
             raise Fail("%s is a link or not a plain %s — checkpoints are written only inside the project's own %s "
                        "folder. Nothing was changed" % (path, "folder" if folder else "file", STATE_DIR))
@@ -290,6 +329,9 @@ def prepare_store(project, git_project):
     store = state / STORE_NAME
     if not (store / "HEAD").exists():
         git(["init", "--bare", "--quiet", "--template=", str(store)])  # no template: no hooks copied in
+    if promisor_configured(config=store / "config"):
+        raise Fail("the store %s is configured as a partial clone, which makes git fetch missing objects from a "
+                   "remote — a store has no remote. Nothing was changed" % store)
     for key, value in (("core.autocrlf", "false"), ("core.safecrlf", "false"), ("core.longpaths", "true")):
         git(["config", "--file", str(store / "config"), key, value])
     write_lf(store / "info" / "attributes", ATTRIBUTES)
@@ -485,6 +527,9 @@ def nested_work(folder, name):
             raise Fail("git printed the index of %s in a form this tool does not know" % name)
         entries.append(entry.groups())
         at = entry.end()
+    if git_version() < (2, 46) and promisor_configured(folder):
+        raise Fail("%s is a partial clone, and a git older than 2.46 fetches its missing objects from a remote the "
+                   "moment they are read — which may run a configured program" % name)
     if git(["rev-parse", "-q", "--verify", "HEAD^{commit}"], cwd=folder, ok=(0, 1)).returncode:
         if entries:
             return "%s: files added but never committed" % name
@@ -496,6 +541,7 @@ def nested_work(folder, name):
     if untracked:
         return "%s: untracked %s" % (name, show(untracked[0]))
     filemode = git(["config", "--bool", "core.filemode"], cwd=folder, ok=(0, 1)).stdout.strip() != b"false"
+    symlinks = git(["config", "--bool", "core.symlinks"], cwd=folder, ok=(0, 1)).stdout.strip() != b"false"
     written = os.stat(os.path.join(os.fsdecode(where[1]), "index")).st_mtime_ns if entries else 0
     written = ((written // 10**9) & 0xFFFFFFFF, written % 10**9)
     inner = []
@@ -518,8 +564,10 @@ def nested_work(folder, name):
                 continue
             same = stat.S_ISDIR(info.st_mode) and not os.listdir(path)  # an empty folder: not checked out
         elif mode == SYMLINK:
-            same = (stat.S_ISLNK(info.st_mode) and blob_id(os.fsencode(os.readlink(path)), len(oid)) == oid) or (
-                stat.S_ISREG(info.st_mode) and file_id(path, len(oid)) == oid)  # a link git keeps as a plain file
+            if stat.S_ISLNK(info.st_mode):
+                same = blob_id(os.fsencode(os.readlink(path)), len(oid)) == oid
+            else:  # a plain file where a link was is a change — unless this repository keeps links as plain files
+                same = not symlinks and stat.S_ISREG(info.st_mode) and file_id(path, len(oid)) == oid
         else:
             fields = tuple(int(field) for field in recorded)
             same = (stat.S_ISREG(info.st_mode)
@@ -727,45 +775,83 @@ def recorded(store, commit, mark):
     return None
 
 
+def fingerprint_key(project):
+    """The key that fingerprints files holding secrets (G10): 32 random bytes made on first use, kept in the state
+    folder next to the store and readable by the owner only. A keyed fingerprint in a checkpoint's message tells
+    nothing about the file to anyone who has the message but not this key — a plain hash would let a short secret be
+    guessed offline. Never copied into a checkpoint: the state folder is excluded from every one."""
+    path = project / STATE_DIR / KEY_NAME
+    if is_link(str(path)) or (os.path.lexists(str(path)) and not path.is_file()):
+        raise Fail("%s is a link or not a plain file. Nothing was changed" % path)
+    if not path.exists():
+        try:
+            handle = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)  # O_EXCL: never through a link
+        except FileExistsError:
+            pass  # another command made it first
+        else:
+            with os.fdopen(handle, "w") as out:
+                out.write(secrets.token_hex(32) + "\n")
+    try:
+        key = bytes.fromhex(path.read_text(encoding="ascii").strip())
+    except (OSError, ValueError) as error:
+        raise Fail("cannot read the fingerprint key %s (%s)" % (path, error))
+    if len(key) < 16:
+        raise Fail("the fingerprint key %s is too short to trust" % path)
+    return key
+
+
 def watched_contents(project, ignored):
     """name -> [size, fingerprint] for every ignored file outside dependency, build-output and cache folders, so that
     diff and restore can tell when one changed, though no checkpoint holds it (G10). The fingerprint is the SHA-256 of
-    the bytes — for a file that holds secrets, which is never read, its modification time. A watched file that cannot
-    be read stops the command: a change to it could not be noticed."""
-    contents = {}
+    the bytes — for a file that holds secrets, a keyed one (HMAC-SHA256 with fingerprint_key), so the checkpoint's
+    message gives away nothing about the file. Neither reads a byte into any output. A watched file that cannot be
+    read stops the command: a change to it could not be noticed."""
+    contents, key = {}, None
     for rel in ignored:
         parts = os.fsdecode(rel).split("/")
         if rel.endswith(b"/") or UNWATCHED_FOLDERS.intersection(parts[:-1]) or any(
                 fnmatch.fnmatchcase(parts[-1], pattern) for pattern in UNWATCHED_FILES):
             continue
         path = local_path(project, rel)
+        secret = any(fnmatch.fnmatchcase(parts[-1].lower(), pattern) for pattern in SECRET_FILES)
+        if secret and key is None:
+            key = fingerprint_key(project)
+        digest = hmac.new(key, digestmod="sha256") if secret else hashlib.sha256()
         try:
             info = os.lstat(path)
-            if any(fnmatch.fnmatchcase(parts[-1].lower(), pattern) for pattern in SECRET_FILES):
-                fingerprint = "mtime:%d" % info.st_mtime_ns
-            elif stat.S_ISLNK(info.st_mode):
-                fingerprint = "sha256:" + hashlib.sha256(os.fsencode(os.readlink(path))).hexdigest()
+            if stat.S_ISLNK(info.st_mode):
+                digest.update(os.fsencode(os.readlink(path)))
             else:
-                digest = hashlib.sha256()
                 with open(path, "rb") as handle:
                     for piece in iter(lambda: handle.read(1 << 20), b""):
                         digest.update(piece)
-                fingerprint = "sha256:" + digest.hexdigest()
         except OSError as error:
             raise Fail("cannot read %s, a file git ignores (%s) — without reading it, a change to it could not be "
                        "noticed" % (show(rel), error.strerror or error))
-        contents[os.fsdecode(rel)] = [info.st_size, fingerprint]
+        contents[os.fsdecode(rel)] = [info.st_size, ("hmac:" if secret else "sha256:") + digest.hexdigest()]
     return contents
 
 
-def changed_since(store, commit, contents):
+def changed_since(project, store, commit, contents):
     """Watched ignored files still there whose size or fingerprint differs from what a checkpoint recorded (G10):
-    (name, [size, fingerprint] then, [size, fingerprint] now)."""
+    (name, [size, fingerprint] then, [size, fingerprint] now). A checkpoint from before keyed fingerprints recorded
+    a secret file's modification time; it is compared with the file's modification time now."""
     before = recorded(store, commit, CONTENTS_MARK)
     if before is None or contents is None:
         return []
-    return [(name, before[name], contents[name]) for name in sorted(before)
-            if name in contents and before[name] != contents[name]]
+    changed = []
+    for name in sorted(before):
+        if name not in contents:
+            continue  # gone: gone_since reports it
+        old, now = before[name], contents[name]
+        if old[1].startswith("mtime:") and not now[1].startswith("mtime:"):
+            try:
+                now = [now[0], "mtime:%d" % os.lstat(local_path(project, os.fsencode(name))).st_mtime_ns]
+            except OSError:
+                continue
+        if old != now:
+            changed.append((name, old, now))
+    return changed
 
 
 def report_changed(changed, label):
@@ -863,7 +949,7 @@ def cmd_diff(project, args):
     out = git(["diff-tree", "-r", "-z", "-M", "--name-status", "--no-ext-diff", old, new] + limit, store=store).stdout
     changes = parse_name_status(out)
     gone = [] if args.path else gone_since(store, old, *now)
-    changed = [] if args.path else changed_since(store, old, contents)
+    changed = [] if args.path else changed_since(project, store, old, contents)
     if not changes and not gone and not changed:
         print("no changes from %s to %s" % (args.old, new_name))
         return 0
@@ -1082,7 +1168,7 @@ def cmd_restore(project, args):
               "bring them back:" % args.label)
         list_some("gone   ", gone)
     contents = watched_contents(project, found.ignored)
-    changed = changed_since(store, commit, contents)
+    changed = changed_since(project, store, commit, contents)
     if changed:
         print("warning: a restore cannot bring back what these ignored files held at %s either." % args.label)
         report_changed(changed, args.label)

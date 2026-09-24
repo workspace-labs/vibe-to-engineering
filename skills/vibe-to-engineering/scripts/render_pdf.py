@@ -11,7 +11,8 @@ placeholders, scripts, external resources, nested documents or local files — r
 the markup decoded, as the browser does — and blocks every network lookup while
 printing. It prints a temporary copy that starts with a content security policy, so
 the browser itself runs no script and loads nothing but images written into the plan,
-whatever markup got past the checks.
+whatever markup got past the checks — and if the browser reports the policy ignored or
+anything running into it, nothing is printed.
 
 Exit codes: 0 written; 1 refused or failed; 2 usage; 3 no browser found.
 """
@@ -60,7 +61,13 @@ META_ALLOWED = re.compile(r"""<meta\s+(?:charset\s*=\s*["']?utf-8["']?|name\s*=\
 # handler runs, and nothing loads — no local file, no network address — except images and fonts written into the plan.
 POLICY = ('<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
           "style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'\">")
-DOCTYPE = re.compile(r"﻿?\s*<!doctype[^>]*>", re.I)
+# The plan starts with the template's doctype, and only a byte order mark and ordinary (ASCII) whitespace may come
+# before it: the browser skips those, while any other character there is body text and pushes everything after it —
+# the policy included — out of the head, where the browser ignores the policy (F08).
+DOCTYPE = re.compile(r"﻿?[ \t\n\f\r]*<!doctype[^>]*>", re.I)
+# What the browser logs when the policy is ignored or when something in the plan runs into it: either way the plan
+# is not the static, self-contained document the policy stands for, and nothing is printed.
+POLICY_REPORT = re.compile(r'Content Security Policy', re.I)
 
 
 def address_kind(address):
@@ -206,6 +213,13 @@ def main(argv):
         print("render_pdf.py: error: the plan still has unfilled placeholders: %s. Fill them, or write text "
               "that really contains two braces as &#123;&#123;." % ", ".join(left[:10]), file=sys.stderr)
         return 1
+    if not DOCTYPE.match(text):
+        first = re.search(r"(?i)<!doctype", text)
+        print("render_pdf.py: error: the plan must begin with <!DOCTYPE html>, the template's first line, with nothing "
+              "but ordinary spaces before it — %s. Remove what comes before it." % (
+                  "%d character(s) come before the doctype" % first.start() if first else "it has no doctype"),
+              file=sys.stderr)
+        return 1
     if SCRIPT.search(text):
         print("render_pdf.py: error: the plan contains a script or an event handler; a plan is static — "
               "remove them.", file=sys.stderr)
@@ -244,6 +258,15 @@ def main(argv):
         return 1
     finally:
         shutil.rmtree(str(work), ignore_errors=True)
+    reports = [line for line in done.stderr.decode("utf-8", "replace").splitlines() if POLICY_REPORT.search(line)]
+    if reports:
+        if pdf.exists():
+            pdf.unlink()  # the browser's word outranks the text checks: what it printed is not the static plan
+        quoted = re.search(r'"(.*?)"(?:, source:|$)', reports[0])
+        print("render_pdf.py: error: the browser reported the plan against its content security policy, so the "
+              "plan is not static and self-contained — nothing was printed. The browser said: %s"
+              % (quoted.group(1) if quoted else reports[0])[:400], file=sys.stderr)
+        return 1
     if not pdf.is_file() or not pdf.read_bytes().startswith(b"%PDF-"):
         detail = done.stderr.decode("utf-8", "replace").strip().splitlines()[-3:]
         print("render_pdf.py: error: %s did not produce a PDF. %s" % (browser, " ".join(detail)), file=sys.stderr)
