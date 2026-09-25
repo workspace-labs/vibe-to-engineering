@@ -27,7 +27,7 @@ from collections import namedtuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the modules beside this file
 from gitrun import (EXECUTABLE, Fail, GITLINK, SYMLINK, blob_id, configure_output,
-    executable_bit, file_id, git, is_link, local_path, promisor_configured,
+    executable_bit, file_id, git, is_link, local_path, promisor_configured, refuse_sparse_index,
     remove_file, remove_temp, show, warn, write_lf)
 from nested import check_nested, repositories
 from watched import (CONTENTS_MARK, DEFAULT_EXCLUDES, KEY_NAME, changed_since, report_changed, watched_contents)
@@ -94,6 +94,8 @@ def is_git_project(project):
         raise Fail("git cannot open the repository this folder belongs to — %s" % message)
     if inside.stdout.strip() != b"true":
         return False
+    git_dir = os.fsdecode(git(["rev-parse", "--absolute-git-dir"], cwd=project).stdout.rstrip(b"\n"))
+    refuse_sparse_index(git_dir, "the project's git repository at %s" % git_dir)  # before git reads its index (G11)
     return git(["check-ignore", "-q", "."], cwd=project, ok=(0, 1, 128)).returncode != 0
 
 

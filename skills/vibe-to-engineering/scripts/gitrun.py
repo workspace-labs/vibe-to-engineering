@@ -2,7 +2,8 @@
 the checkpoint tool.
 
 Every git call goes through git(): argument lists, never a shell; hooks, file-system monitors and lazy fetching
-off; the environment variables that would point git elsewhere dropped (G11). The platform helpers keep the
+off; the environment variables that would point git elsewhere dropped (G11). One question is answered without git,
+because asking git would change the repository: whether its index is a sparse index. The platform helpers keep the
 operating-system differences in one place, as references/recovery.md section 4 promises.
 """
 
@@ -11,6 +12,7 @@ import os
 import re
 import shutil
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -196,6 +198,91 @@ def promisor_configured(folder=None, config=None):
     """Whether a repository (or a configuration file) tells git to fetch missing objects from a remote."""
     where = ["--file", str(config)] if config is not None else []
     return git(["config"] + where + ["--get-regexp", "-z", PROMISOR_KEYS], cwd=folder, ok=(0, 1)).returncode == 0
+
+
+# ---------------------------------------------------------------- git's index, read without git
+
+def offset_varint(data, at):
+    """The number git's offset varint encodes at `at` (as index version 4 and pack files use it), and where it ends."""
+    byte = data[at]
+    value, at = byte & 0x7F, at + 1
+    while byte & 0x80:
+        byte = data[at]
+        value, at = (value + 1) << 7 | byte & 0x7F, at + 1
+    return value, at
+
+
+def read_index(data, oid_size):
+    """What the bytes of one git index file hold, read the way git's read-cache.c reads them when object ids are
+    `oid_size` bytes long: (sparse, shared) — whether an entry stands for a whole folder (mode 040000) or the "sdir"
+    extension is there, and the id of the shared index a split index names ("link"), or None. None instead when the
+    bytes do not end exactly where the trailing checksum of that length begins: then the ids have another length."""
+    try:
+        signature, version, count = struct.unpack_from(">4sLL", data, 0)
+        if signature != b"DIRC" or version not in (2, 3, 4):
+            return None
+        at, previous, sparse, shared, end = 12, 0, False, None, len(data) - oid_size
+        for _ in range(count):  # 40 bytes of stat data (the mode at 24), the id, 16 bits of flags, perhaps 16 more
+            mode, = struct.unpack_from(">L", data, at + 24)
+            flags, = struct.unpack_from(">H", data, at + 40 + oid_size)
+            sparse = sparse or (mode & 0o170000) == 0o040000
+            name, length = at + 42 + oid_size + (2 if version >= 3 and flags & 0x4000 else 0), flags & 0xFFF
+            if version == 4:  # strip that many bytes from the previous path, add a NUL-terminated suffix, no padding
+                strip, name = offset_varint(data, name)
+                if strip > previous:
+                    return None
+                kept = previous - strip
+                if length == 0xFFF:
+                    length = data.index(b"\0", name) - name + kept
+                if length < kept:
+                    return None
+                at, previous = name + length - kept + 1, length
+            else:  # NUL-terminated, padded with NULs to a multiple of 8 bytes: git's ondisk_ce_size
+                if length == 0xFFF:
+                    length = data.index(b"\0", name) - name
+                at += (name - at + length + 8) & ~7
+            if at > end:
+                return None
+        while at + 8 <= end:  # extensions: a 4-byte signature, a 32-bit size, the data
+            extension, size = struct.unpack_from(">4sL", data, at)
+            sparse = sparse or extension == b"sdir"
+            if extension == b"link" and data[at + 8:at + 8 + oid_size].strip(b"\0"):
+                shared = data[at + 8:at + 8 + oid_size].hex()  # all zeros: the index needs no shared index
+            at += 8 + size
+        return (sparse, shared) if at == end else None
+    except (struct.error, ValueError, IndexError):
+        return None
+
+
+def sparse_index(git_dir, shared=None):
+    """Whether the index git keeps in `git_dir` — or, for a split index, the shared index it names — is a sparse
+    index: one where an entry stands for a whole folder outside a sparse checkout. False when there is no index. Read
+    here, byte by byte, because asking git expands it. An index this tool cannot read is not inspected (Fail)."""
+    path = os.path.join(str(git_dir), "index" if shared is None else "sharedindex." + shared)
+    try:
+        with open(path, "rb") as handle:
+            data = handle.read()
+    except FileNotFoundError:
+        if shared is None:
+            return False
+        raise Fail("cannot read git's index at %s: the file is missing" % path)
+    except OSError as error:
+        raise Fail("cannot read git's index at %s (%s)" % (path, error.strerror or error))
+    readings = [reading for reading in (read_index(data, 20), read_index(data, 32)) if reading is not None]
+    if not readings:
+        raise Fail("cannot read git's index at %s: it is not in a form this tool knows" % path)
+    return any(sparse or (link is not None and shared is None and sparse_index(git_dir, link))
+               for sparse, link in readings)
+
+
+def refuse_sparse_index(git_dir, name):
+    """git expands a sparse index to list a repository's files — writing tree objects there, and on a partial clone
+    fetching them from its remote first — so such a repository is refused before git runs any command that reads its
+    index (G11)."""
+    if sparse_index(git_dir):
+        raise Fail("%s keeps a sparse index, which git expands just to list its files — writing new objects into that "
+                   "repository, and on a partial clone fetching them from its remote — so it cannot be inspected "
+                   "without changing it, and turning the sparse index off there is the human's decision" % name)
 
 
 def blob_id(data, oid_length):

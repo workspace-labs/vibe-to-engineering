@@ -8,7 +8,7 @@ import os
 import re
 import shutil
 import sys
-from support import Fixture, disk_state, folder_digest, write
+from support import Fixture, disk_state, folder_digest, identities, write
 
 
 class Nested(Fixture):
@@ -225,6 +225,86 @@ class Nested(Fixture):
                     if git == "older":
                         self.assertIn("module/child/ is a partial clone", err)
                     self.assertEqual(disk_state(p), before, "a nested repository or the project changed")
+
+    # ------------------------------------------------------------ G11 a sparse index is refused, never expanded (F03)
+
+    def older_git(self):
+        """A folder holding a "git" older than 2.46 — capability emulation, not a native old git: it says it is 2.43.0
+        and has no GIT_NO_LAZY_FETCH switch to obey, then runs the installed git."""
+        older, real = self.tmp / "older-git", shutil.which("git", path=self.env["PATH"])
+        older.mkdir()
+        (older / "git").write_text(
+            "#!%s\nimport os, sys\nif sys.argv[-1:] == ['version']:\n    print('git version 2.43.0')\n"
+            "    raise SystemExit\nos.environ.pop('GIT_NO_LAZY_FETCH', None)\nos.execv(%r, [%r] + sys.argv[1:])\n"
+            % (sys.executable, real, real))
+        os.chmod(older / "git", 0o755)
+        return older
+
+    def make_sparse_index(self, repository):
+        """Turn on a cone-mode sparse checkout of included/ with a sparse index: excluded/ becomes one index entry."""
+        self.git(repository, "config", "advice.sparseIndexExpanded", "false")   # no hint on stderr when git expands it
+        self.git(repository, "sparse-checkout", "set", "--cone", "--sparse-index", "included")
+        listing = self.git(repository, "ls-files", "--sparse", "--stage")
+        self.assertRegex(listing, r"(?m)^040000 [0-9a-f]+ 0\texcluded/$")   # excluded/ is one entry, a folder
+
+    def test_a_nested_repository_with_a_sparse_index_is_refused_before_git_writes_or_fetches_anything(self):
+        marker, helper, older = self.tmp / "helper-ran", self.tmp / "helper", self.older_git()
+        helper.mkdir()
+        (helper / "git-remote-fixture").write_text("#!/bin/sh\nprintf ran > '%s'\nexit 1\n" % marker)
+        os.chmod(helper / "git-remote-fixture", 0o755)
+        for shape in ("untracked", "ignored"):
+            p = self.git_project("sparse-" + shape)
+            if shape == "ignored":
+                write(p / ".gitignore", (p / ".gitignore").read_bytes() + b"module/\n")
+            module = self.repository(p / "module", {"included/a.txt": b"included\n", "excluded/b.txt": b"excluded\n"})
+            self.tool(p, "create", "00-clean")           # before the sparse index: this tool refuses one
+            self.make_sparse_index(module)
+            tree = self.git(module, "rev-parse", "HEAD:excluded").strip()
+            for key, value in (("extensions.partialClone", "origin"), ("remote.origin.promisor", "true"),
+                               ("remote.origin.url", "fixture::local-only"), ("protocol.fixture.allow", "always")):
+                self.git(module, "config", key, value)   # a partial clone: git fetches what it lacks when it reads it
+            os.rename(module / ".git" / "objects" / tree[:2] / tree[2:], self.tmp / ("missing-tree-" + shape))
+            for git in ("installed", "older"):           # the older git is refused as a partial clone first
+                path = ([str(older)] if git == "older" else []) + [str(helper), self.env["PATH"]]
+                reason = "module/ keeps a sparse index" if git == "installed" else "module/ is a partial clone"
+                for command in (("create", "01-after"), ("diff", "00-clean"), ("restore", "00-clean"),
+                                ("restore", "00-clean", "--apply")):
+                    with self.subTest(module=shape, git=git, command=" ".join(command)):
+                        if marker.exists():
+                            marker.unlink()                  # each command is judged on its own
+                        before = identities(module)          # module/.git included: objects, bytes and times
+                        _, err = self.tool(p, *command, expect=1, env={"PATH": os.pathsep.join(path)})
+                        self.assertFalse(marker.exists(), "git fetched through the remote helper")
+                        self.assertEqual(identities(module), before, "git wrote into the nested repository")
+                        self.assertIn("cannot tell whether the nested repository module/", err)
+                        self.assertIn(reason, err)
+
+    def test_a_project_whose_own_git_keeps_a_sparse_index_is_refused_before_git_writes_anything(self):
+        p = self.repository(self.tmp / "project", {"main.txt": b"main\n", "included/a.txt": b"included\n",
+                                                   "excluded/b.txt": b"excluded\n"})
+        self.tool(p, "create", "00-clean")               # before the sparse index: this tool refuses one
+        self.make_sparse_index(p)
+        for command in (("create", "01-after"), ("tree", "--current"), ("diff", "00-clean"), ("restore", "00-clean"),
+                        ("restore", "00-clean", "--apply")):
+            with self.subTest(command=" ".join(command)):
+                before = identities(p / ".git")
+                _, err = self.tool(p, *command, expect=1)
+                self.assertEqual(identities(p / ".git"), before, "git wrote into the project's repository")
+                self.assertIn("the project's git repository at %s keeps a sparse index" % (p / ".git"), err)
+
+    def test_a_sparse_checkout_without_a_sparse_index_is_still_inspected(self):
+        p = self.git_project()
+        module = self.repository(p / "module", {"included/a.txt": b"included\n", "excluded/b.txt": b"excluded\n"})
+        self.git(module, "sparse-checkout", "set", "--cone", "--no-sparse-index", "included")
+        self.assertNotIn("040000", self.git(module, "ls-files", "--sparse", "--stage"))   # every file its own entry
+        self.assertFalse((module / "excluded").exists())
+        _, err = self.tool(p, "create", "00-clean")
+        self.assertIn("nested repository module/", err)
+        write(module / "included" / "a.txt", b"included, then edited\n")
+        before = disk_state(p)
+        _, err = self.tool(p, "create", "01-edited", expect=1)
+        self.assertIn("module/: changed included/a.txt", err)
+        self.assertEqual(disk_state(p), before)
 
     # ------------------------------------------------------------ G1 a link that became a plain file is unsaved work (F06)
 

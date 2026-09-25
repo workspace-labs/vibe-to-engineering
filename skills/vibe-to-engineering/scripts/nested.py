@@ -2,7 +2,8 @@
 
 A checkpoint does not save them: their own git keeps their committed work. So a checkpoint is refused while one
 holds work its commits do not, and the check asks git only for lists — never to read a file, which would run a
-filter program the git settings name (G11).
+filter program the git settings name (G11). A repository git cannot list without changing it — a partial clone on a
+git older than 2.46, or one that keeps a sparse index — is refused before git runs anything else there.
 """
 
 import os
@@ -10,7 +11,7 @@ import re
 import stat
 from pathlib import Path
 from gitrun import (EXECUTABLE, Fail, GITLINK, SYMLINK, blob_id, executable_bit,
-    file_id, git, git_version, local_path, promisor_configured, show)
+    file_id, git, git_version, local_path, promisor_configured, refuse_sparse_index, show)
 
 INDEX_ENTRY = re.compile(  # one entry of `git ls-files -z -s -v --debug`: tag, mode, id, stage, path, recorded stat data
     rb"([A-Za-z]) (\d{6}) ([0-9a-f]{40}|[0-9a-f]{64}) ([0-3])\t([^\0]*)\0"
@@ -45,10 +46,16 @@ def nested_work(folder, name):
     (G11). Each file is compared with its index entry instead: unchanged when its stat data is exactly what git
     recorded and it was not changed in the same instant the index was written — the test git itself applies —
     otherwise when its bytes hash to the recorded blob. So a file git converts on checkout (line endings, a filter)
-    whose stat data changed counts as changed: stricter than `git status`, never looser."""
+    whose stat data changed counts as changed: stricter than `git status`, never looser.
+
+    Right after git has said which repository it opens there, and before it runs anything else in it, a repository
+    it cannot list without changing is refused (G11): a partial clone on a git older than 2.46, which fetches what it
+    lacks, and a sparse index, which git expands — writing objects, and fetching them first on a partial clone."""
     where = git(["rev-parse", "--show-toplevel", "--absolute-git-dir"], cwd=folder).stdout.splitlines()
     if len(where) != 2 or not os.path.samefile(os.fsdecode(where[0]), str(folder)):
         raise Fail("git opens another repository there, not the one in %s" % name)
+    refuse_partial_clone(folder, name)
+    refuse_sparse_index(os.fsdecode(where[1]), name)  # read here, without git: listing the index would expand it
     listed, entries, at = git(["ls-files", "-z", "-s", "-v", "--debug"], cwd=folder, quiet=True).stdout, [], 0
     while at < len(listed):
         entry = INDEX_ENTRY.match(listed, at)
@@ -56,7 +63,6 @@ def nested_work(folder, name):
             raise Fail("git printed the index of %s in a form this tool does not know" % name)
         entries.append(entry.groups())
         at = entry.end()
-    refuse_partial_clone(folder, name)
     if git(["rev-parse", "-q", "--verify", "HEAD^{commit}"], cwd=folder, ok=(0, 1)).returncode:
         if entries:
             return "%s: files added but never committed" % name
