@@ -30,7 +30,8 @@ from gitrun import (EXECUTABLE, Fail, GITLINK, SYMLINK, blob_id, configure_outpu
     executable_bit, file_id, git, is_link, local_path, promisor_configured, refuse_sparse_index,
     remove_file, remove_temp, show, warn, write_lf)
 from nested import check_nested, repositories
-from watched import (CONTENTS_MARK, DEFAULT_EXCLUDES, KEY_NAME, changed_since, report_changed, watched_contents)
+from watched import (CONTENTS_MARK, DEFAULT_EXCLUDES, KEY_NAME, changed_since, report_changed, watched_contents,
+    watched_names)
 from treeview import print_tree
 
 STATE_DIR = ".vibe-to-engineering"
@@ -464,6 +465,23 @@ def recorded(store, commit, mark):
     return None
 
 
+def content_record(store, commit):
+    """What a checkpoint recorded about its watched ignored files' contents (G10), for changed_since: its CONTENTS_MARK
+    record; for a checkpoint written before content records, each watched name on its IGNORED_MARK line with a record
+    of None — listed, but nothing known about its contents, so it can never be called unchanged — and, the same way,
+    each folder it listed as one entry on either line (a nested repository, ignored or not): the files inside were
+    there, but not even named. None for a checkpoint that has neither line. Only read: the stored record is never
+    rewritten."""
+    contents = recorded(store, commit, CONTENTS_MARK)
+    if contents is not None:
+        return contents
+    ignored = recorded(store, commit, IGNORED_MARK)
+    if ignored is None:
+        return None
+    folders = [os.fsdecode(rel) for rel in ignored + (recorded(store, commit, NESTED_MARK) or []) if rel.endswith(b"/")]
+    return dict.fromkeys(watched_names(ignored) + folders)
+
+
 def missing(before, after):
     """Entries recorded before that are gone now. An entry still counts as there while it is listed, while
     something inside it is listed, or while a folder around it is listed as one entry (a nested repository)."""
@@ -540,7 +558,7 @@ def cmd_diff(project, args):
     if args.new:
         new, new_name = resolve(store, args.new), args.new
         now = (recorded(store, new, IGNORED_MARK), recorded(store, new, NESTED_MARK))
-        contents = recorded(store, new, CONTENTS_MARK)
+        contents = content_record(store, new)
     else:
         new, found = snapshot(project, store, is_git_project(project), allow_empty=True)
         new_name, now = "the current files", (found.ignored, found.nested)
@@ -549,7 +567,7 @@ def cmd_diff(project, args):
     out = git(["diff-tree", "-r", "-z", "-M", "--name-status", "--no-ext-diff", old, new] + limit, store=store).stdout
     changes = parse_name_status(out)
     gone = [] if args.path else gone_since(store, old, *now)
-    changed = [] if args.path else changed_since(recorded(store, old, CONTENTS_MARK), contents)
+    changed = [] if args.path else changed_since(content_record(store, old), contents)
     if not changes and not gone and not changed:
         print("no changes from %s to %s" % (args.old, new_name))
         return 0
@@ -695,7 +713,7 @@ def cmd_restore(project, args):
               "bring them back:" % args.label)
         list_some("gone   ", gone)
     contents = watched_contents(project, found.ignored, key_path(project))
-    changed = changed_since(recorded(store, commit, CONTENTS_MARK), contents)
+    changed = changed_since(content_record(store, commit), contents)
     if changed:
         print("warning: a restore cannot bring back what these ignored files held at %s either." % args.label)
         report_changed(changed, args.label)

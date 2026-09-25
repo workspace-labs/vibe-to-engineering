@@ -56,6 +56,23 @@ def fingerprint_key(key_path):
     return key
 
 
+def watched_names(ignored):
+    """The names, as text, of the ignored entries that are watched (G10): every one but a whole folder git lists as
+    one entry, a file inside a dependency, build-output or cache folder, and a default excluded file. `ignored` holds
+    names as git gives them (bytes) or as a checkpoint's message records them (text). watched_contents fingerprints
+    exactly these, and a checkpoint from before content records is read through the same list, so the two can never
+    disagree about which files are watched."""
+    names = []
+    for rel in ignored:
+        name = os.fsdecode(rel)
+        parts = name.split("/")
+        if name.endswith("/") or UNWATCHED_FOLDERS.intersection(parts[:-1]) or any(
+                fnmatch.fnmatchcase(parts[-1], pattern) for pattern in UNWATCHED_FILES):
+            continue
+        names.append(name)
+    return names
+
+
 def watched_contents(project, ignored, key_path):
     """name -> [size, fingerprint] for every ignored file outside dependency, build-output and cache folders, so that
     diff and restore can tell when one changed, though no checkpoint holds it (G10). The fingerprint is the SHA-256 of
@@ -63,11 +80,8 @@ def watched_contents(project, ignored, key_path):
     message gives away nothing about the file. Neither reads a byte into any output. A watched file that cannot be
     read stops the command: a change to it could not be noticed."""
     contents, key = {}, None
-    for rel in ignored:
-        parts = os.fsdecode(rel).split("/")
-        if rel.endswith(b"/") or UNWATCHED_FOLDERS.intersection(parts[:-1]) or any(
-                fnmatch.fnmatchcase(parts[-1], pattern) for pattern in UNWATCHED_FILES):
-            continue
+    for name in watched_names(ignored):
+        rel, parts = os.fsencode(name), name.split("/")
         path = local_path(project, rel)
         secret = any(fnmatch.fnmatchcase(parts[-1].lower(), pattern) for pattern in SECRET_FILES)
         if secret and key is None:
@@ -84,21 +98,31 @@ def watched_contents(project, ignored, key_path):
         except OSError as error:
             raise Fail("cannot read %s, a file git ignores (%s) — without reading it, a change to it could not be "
                        "noticed" % (show(rel), error.strerror or error))
-        contents[os.fsdecode(rel)] = [info.st_size, ("hmac:" if secret else "sha256:") + digest.hexdigest()]
+        contents[name] = [info.st_size, ("hmac:" if secret else "sha256:") + digest.hexdigest()]
     return contents
 
 
 def changed_since(before, contents):
     """Watched ignored files whose contents differ from what a checkpoint recorded, or cannot be compared with it
-    (G10): (name, then, now), each side its [size, fingerprint] record or None where that side recorded nothing. Two
-    fingerprints of the bytes are compared; a record of only a modification time (a checkpoint from before keyed
-    fingerprints) or no record at all says nothing about the bytes, so such a file is listed as one whose change
-    cannot be told — never called unchanged. `before` is what the checkpoint recorded (its CONTENTS_MARK line) and
-    `contents` what the other side holds, each None where nothing was recorded."""
+    (G10): (name, then, now), each side its [size, fingerprint] record or None where that side recorded nothing.
+    `before` is what the checkpoint recorded and `contents` what the other side holds: each a name -> record object,
+    where a record of None means the file was listed but nothing about its contents was recorded (a checkpoint from
+    before content records), or None where not even the names are known — then every name on the other side is
+    listed. A name on only one side of two such objects is gone since the checkpoint (gone_since reports it), or new
+    since — unless the other side lists a folder around it as one entry ("x/", a nested repository, with a record of
+    None): that side had the file inside, but recorded nothing about its contents. A folder entry itself is never
+    listed. Two fingerprints of the bytes are compared; a record of only a modification time (a checkpoint from before
+    keyed fingerprints) or no record at all says nothing about the bytes, so such a file is listed as one whose change
+    cannot be told — never called unchanged, not even when neither side recorded anything about it."""
+    def listed(side, name):  # by its own name, or by a folder around it listed as one entry
+        parts = name.split("/")
+        return name in side or any("/".join(parts[:depth]) + "/" in side for depth in range(1, len(parts)))
     changed = []
     for name in sorted(set(before or ()) | set(contents or ())):
+        if name.endswith("/"):
+            continue  # a folder listed as one entry: only the files inside it are in question
         then, now = (before or {}).get(name), (contents or {}).get(name)
-        if before is not None and contents is not None and (then is None or now is None):
+        if before is not None and contents is not None and not (listed(before, name) and listed(contents, name)):
             continue  # gone since the checkpoint (gone_since reports it), or new since
         comparable = (then is not None and now is not None
                       and not then[1].startswith("mtime:") and not now[1].startswith("mtime:"))
@@ -113,7 +137,9 @@ def report_changed(changed, label, other="the current files"):
     print("files git ignores whose contents changed since %s, or cannot be compared with it — checkpoints do not "
           "hold them, so their earlier contents cannot be restored from here:" % label)
     for name, then, now in changed[:40]:
-        if then is None or now is None:
+        if then is None and now is None:
+            print("  unknown  %s  (neither %s nor %s recorded anything about its contents)" % (name, label, other))
+        elif then is None or now is None:
             print("  unknown  %s  (%s recorded nothing about its contents)" % (name, label if then is None else other))
         elif then[1].startswith("mtime:") or now[1].startswith("mtime:"):
             print("  unknown  %s  (%s recorded only its modification time, which says nothing about its contents)"
