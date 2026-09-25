@@ -111,6 +111,8 @@ skills/vibe-to-engineering/
 │   ├── watched.py                   ignored files: watched, not saved
 │   ├── treeview.py                  the tree view
 │   ├── evidence.py                  runs a check and keeps its output, secrets masked
+│   ├── secretformats.py             reads each kind of secret file for evidence.py
+│   ├── secretforms.py               every form a secret value may be printed in
 │   └── render_pdf.py                HTML plan → PDF
 └── assets/plan-template.html        the plan's layout
 tests/                               conformance, renderer and protocol tests
