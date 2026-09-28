@@ -19,9 +19,11 @@ import bisect
 import codecs
 import json
 import re
+from urllib.parse import unquote
 
-from secretforms import (BARE, LIST, forms, interpolated, latin1, listed, node_dotenv, python_dotenv, qualified,  # noqa
-                         shell_word, token_like, trimmed)
+from envliteral import NotLiteral, assignments
+from secretforms import (BARE, LIST, SECRET_NAME, SETTING, forms, interpolated, latin1, listed,  # noqa
+                         qualified, token_like, trimmed)
 
 # A name given a value, anywhere on a line: NAME=VALUE, export NAME=VALUE, name: value, "name": "value", 'name' = …
 NAME = re.compile(r"""(?<![\w.-])(?:export\s+)?(["']?)([A-Za-z_][\w.-]*)\1\s*[=:]\s*""")
@@ -42,10 +44,13 @@ DOTENV_CLOSE = {'"': re.compile(r'(?:[^"\\]|\\.)*"', re.S), "'": re.compile(r"(?
 DOTENV_ESCAPE = re.compile(r"""\\(?:U(?:000[0-9a-fA-F]|0010)[0-9a-fA-F]{4}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|[0-7]{1,3}"""
                            r"""|[\\'"abfnrtv])""")   # each one decodes as Python decodes it, never failing
 # a reference to another value, not after a backslash: ${NAME}, ${NAME<op>word} for each of a shell's :- - := = :+ +
-# :? ?, and $NAME — or to one of a shell's special parameters ($1, $#, $$, $?, $!, $@, $*, $-, braced or not)
-REFERENCE = re.compile(r"(?<!\\)\$(?:\{(\w+|[#?$!@*-])(?:(:?[-=+?]|##?|%%?)([^}]*))?\}|([A-Za-z_]\w*|[0-9#?$!@*-]))")
+# :? ?, and $NAME — or to one of a shell's special parameters ($1, $#, $$, $?, $!, $@, $*, $-, braced or not) — and
+# ${#NAME}, the length of a value (group 5)
+REFERENCE = re.compile(r"(?<!\\)\$(?:\{(?!#(?:\w+|[#?@*])\})(\w+|[#?$!@*-])(?:(:?[-=+?]|##?|%%?)([^}]*))?\}"
+                       r"|([A-Za-z_]\w*|[0-9#?$!@*-])|\{#(\w+|[#?@*])\})")
 REFERENCE_TEXT = re.compile(r"(?<!\\)\$(?:\{[^}]*\}|[A-Za-z_]\w*|[0-9#?$!@*-])")   # the same, to split a value around
-INNERMOST = re.compile(r"(?<!\\)\$(?:\{(\w+|[#?$!@*-])(?:(:?[-=+?]|##?|%%?)([^}$]*))?\}|([A-Za-z_]\w*|[0-9#?$!@*-]))")
+INNERMOST = re.compile(r"(?<!\\)\$(?:\{(?!#(?:\w+|[#?@*])\})(\w+|[#?$!@*-])(?:(:?[-=+?]|##?|%%?)([^}$]*))?\}"
+                       r"|([A-Za-z_]\w*|[0-9#?$!@*-])|\{#(\w+|[#?@*])\})")
 # Java .properties: a key up to the first = : or space not escaped, the separator, an escape
 PROPERTIES_KEY = re.compile(r"(?:[^\\=: \t\f]|\\.)*")
 PROPERTIES_SEPARATOR = re.compile(r"[ \t\f]*[=:]?[ \t\f]*")
@@ -54,7 +59,7 @@ PROPERTIES_ESCAPE = re.compile(r"\\(u.{0,4}|.)")
 # value's words, the space and comments between flow members, and what may follow a value on its line
 YAML_KEY = re.compile(r"""(?![-?:](?:[ \t]|$))([^\s,\[\]{}#&*!|>'"%@`].*?)[ \t]*:(?:[ \t]+|$)""")
 YAML_HEADER = re.compile(r"[|>](?:([1-9])[+-]?|[+-]([1-9])?)?(?:[ \t]+#.*|[ \t]*)$")
-YAML_PREFIX = re.compile(r"(?:[&!][^\s,\[\]{}]*[ \t]*)+")
+YAML_PREFIX = re.compile(r"(?:(?:!<[^>\s]*>|[&!][^\s,\[\]{}]*)[ \t]*)+")
 ANCHOR = re.compile(r"&([^\s,\[\]{}]+)")
 YAML_CLOSE = {'"': re.compile(r'(?:[^"\\]|\\.)*"', re.S), "'": re.compile(r"(?:[^']|'')*'(?!')")}
 YAML_ESCAPES = {"0": "\0", "a": "\a", "b": "\b", "t": "\t", "\t": "\t", "n": "\n", "v": "\v", "f": "\f", "r": "\r",
@@ -66,6 +71,16 @@ FLOW_SPACE = re.compile(r"(?:[ \t\n]+(?:#[^\n]*)?)*")
 FLOW_BREAK = re.compile(r"[ \t]*\n(?:[ \t]*\n)*[ \t]*")
 AFTER_VALUE = re.compile(r"(?:[ \t]+#.*)?[ \t]*")
 DOCUMENT_MARK = re.compile(r"(?:---|\.\.\.)(?:[ \t]|$)")
+# A tag, as PyYAML resolves it: each document's handles (! and !!, then those its %TAG directives name), a node's tag
+# — verbatim !<…>, or a handle and a suffix — and one written flush against what follows it, which PyYAML reads on
+TAG_HANDLES = {"!": "!", "!!": "tag:yaml.org,2002:"}
+TAG_DIRECTIVE = re.compile(r"%TAG +(!(?:[0-9A-Za-z_-]*!)?) +([0-9A-Za-z;/?:@&=+$,_.!~*'()\[\]%-]+)(?: +(?:#.*)?)?")
+TAG = re.compile(r"!<[^>\s]*>|![^\s,\[\]{}]*")
+TAG_LAST = re.compile(r"(?:!<[^>\s]*>|![^\s,\[\]{}]*)$")
+# What of a YAML line is not its data: a quoted value (to the line's end when it goes on) and a comment; a template's
+# marker in what is left is template syntax, which PyYAML cannot read either
+YAML_NOT_DATA = re.compile(r"\"(?:[^\"\\]|\\.)*(?:\"|$)|'(?:[^']|'')*(?:'|$)|(?:^|(?<=[ \t]))#.*")
+TEMPLATE = re.compile(r"\{\{|\{%")
 # TOML: a bare key, a value that is not a string (as written), the four strings (opener, close, escapes), a comment
 TOML_KEY = re.compile(r"[A-Za-z0-9_-]+")
 TOML_SCALAR = re.compile(r"\d{4}-\d{2}-\d{2}(?:[Tt ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})?)?"
@@ -83,8 +98,8 @@ TELLING = re.compile(r"\w|\S.{2,}\S", re.S)  # a piece worth masking: a word or 
 
 class Unreadable(Exception):
     """What a reader could not understand in a secret file, and where (`line`, 0 when it names no line) — never the
-    file's text."""
-    line = 0
+    file's text. `final` when the file may not be read another way instead (evidence.py's template reading)."""
+    line, final = 0, False
 
 
 def unreadable(text, at, what):
@@ -223,8 +238,14 @@ def filled(form, values):
     nothing; ${NAME:-word} (and := :?) with the word when NAME is unset or empty, ${NAME-word} (and = ?) when it is
     unset — := and = also give NAME the word from then on, as the shell does; ${NAME:+word} with the word when NAME is
     set and not empty, ${NAME+word} when it is set, else nothing; ${NAME#pattern} ## % %% with the value trimmed as the
-    shell trims it; and a special parameter as a file being sourced sees it: $# and $? as 0, the others as nothing."""
+    shell trims it; ${#NAME} with the length of its value, in characters; and a special parameter as $# and $? as 0,
+    the others as nothing. The other readers' filling (python-dotenv's, Node's), from the file's own values; the shell's
+    own reading, which refuses what the file does not decide, is secretforms.evaluate."""
     def one(ref):
+        if ref.group(5) is not None:   # ${#NAME}: how long its value is
+            length = ref.group(5)
+            value = values.get(length) if re.match(r"[A-Za-z_]", length) else "0" if length in ("#", "?") else ""
+            return str(len(value or ""))
         name, operator, word = ref.group(1) or ref.group(4), ref.group(2) or "", ref.group(3) or ""
         if not re.match(r"[A-Za-z_]", name):
             return "0" if name in ("#", "?") else ""
@@ -246,58 +267,30 @@ def filled(form, values):
     return form
 
 
-def dotenv_values(text, label):
-    """(name, value) for every value in a .env file. A line is blank, a comment (#), an assignment — [export ]NAME=
-    or NAME: (a name may start with a digit) and its value — or a bare value, named after the file (bare). A value is
-    read as written: unquoted up to an inline comment (with and without it, cut at the first '#', each piece between
-    spaces, commas, semicolons, '#', brackets and quotes), or quoted with ", ' or ` until its closing quote, over
-    several lines (decoded as JSON and Python decode it, and a backslash before any character removed); and as each
-    standard reader reads it: python-dotenv, Node (util.parseEnv and npm dotenv) and a POSIX shell sourcing the file
-    (secretforms) — each also around its ${NAME} and $NAME references and with them filled in from the file's own
-    values (as they stand at that line and at the end of the file). A would-be name that is not written as a name (a
-    base64 token, cjMt…Nw==) makes the line a bare token: the token and all the line holds are named after the file. A
-    name with nothing after it is an empty setting and holds no value. A quote never closed, or text after it, is
-    Unreadable."""
-    found, resume, now, referring = [], 0, {}, []
-    for line in re.finditer(r"(?m)^.*$", text):
-        match, content = DOTENV.match(line.group()), line.group()
-        if line.start() < resume or not content.strip() or content.lstrip().startswith("#"):
-            continue
-        if not match:
-            found += bare(content, label)
-            continue
-        name, rest = next(group for group in match.groups() if group is not None), content[match.end():]
-        value, sign = rest.lstrip(), line.start() + match.end()     # sign: just after the '=' or ':'
-        at = sign + len(rest) - len(rest.lstrip())
-        if value[:1] in DOTENV_CLOSE:
-            close = DOTENV_CLOSE[value[0]].match(text, at + 1)
-            after = close and COMMENT_END.match(text, close.end())
-            if not after:
-                raise unreadable(text, at, "a quoted value that is never closed" if not close else
-                                 "text after a closing quote")
-            raw, resume = text[at + 1:close.end() - 1], after.end()
-            python = DOTENV_ESCAPE.sub(lambda one: codecs.decode(one.group(), "unicode-escape"), raw)
-            texts = [raw] + {'"': [decoded(raw), python,
-                                   re.sub(r"\\(.)", r"\1", raw), re.sub(r'\\(?:\n|([$`"\\]))', r"\1", raw)],
-                             "'": [re.sub(r"\\([\\'])", r"\1", raw)]}.get(value[0], [])
-            texts += [form.replace("\n", "") for form in texts if "\n" in form]   # Node drops every carriage return
-        else:
-            before = re.split(r"[ \t]#", rest)[0].strip()
-            texts = [before, rest.strip(), before.split("#")[0].strip(), re.sub(r"\\(.)", r"\1", before)] + [
-                piece for piece in re.split(r"[\s,;#\[\]{}\"'`]+", before) if TELLING.search(piece)]
-        read = python_dotenv(text, at)
-        texts += [form for form in [read] + node_dotenv(text, at) + [shell_word(text, sign)] if form is not None]
-        if token_like(name, rest):   # a base64 token, never a name: the line and all it holds are named after the file
-            found += bare(content, label) + [(label + BARE, form) for form in forms(*texts)]
-            continue
-        references = [form for form in texts if REFERENCE_TEXT.search(form)]
-        texts += [piece for form in references for piece in REFERENCE_TEXT.split(form)   # the literal text, words
-                  + [ref.group(3) or "" for ref in REFERENCE.finditer(form)] if TELLING.search(piece)]
-        texts += [filled(form, now) for form in references]
-        referring += [(name, form) for form in references]
-        now[name] = filled(texts[0] if read is None else read, now)
-        found += [(name, form) for form in forms(*texts)]
-    return found + [(name, form) for name, raw in referring for form in forms(filled(raw, now))]   # every value known
+def dotenv_values(text, label, written=None, environ=None):
+    """(name, value) for every value in a .env file — but only a file inside the v0.1 literal boundary
+    (envliteral.py; release decision A1, owner-approved 2026-09-27) is read at all. The boundary is a positive
+    grammar, proven against every claimed reader by the 2026-09-27 reader-compatibility experiment and re-proven
+    by the in-suite differential matrix: blank lines, '#' comments and literal [export ]NAME=VALUE assignments —
+    no references, interpolation or expansion anywhere. Anything else is Unreadable and stops the run before the
+    check (exit 2, nothing runs, no evidence), because the file's values could not be guaranteed masked. The
+    masked set for an admitted line is the line's single unanimous decode across the claimed readers — plus, for
+    a quoted-empty line, the two-character form ('' or "") dotenv 15.0.0 alone reads — each in every form a
+    check may print it in (forms). `written`, the file as written, decides the byte-order-mark and
+    carriage-return refusals (a shell sourcing the file reads both). `environ` keeps the call's shape and is no
+    longer consulted: under the boundary no reading depends on the environment."""
+    try:
+        parsed = assignments(text, written)
+    except NotLiteral as error:
+        at = sum(len(line) + 1 for line in text.split("\n")[:error.line - 1]) if error.line else 0
+        raise unreadable(text, at, error.reason)
+    found = []
+    for name, value, quoted_empty in parsed:
+        if value:
+            found += [(name, form) for form in forms(value)]
+        if quoted_empty:
+            found.append((name, quoted_empty))   # dotenv 15.0.0 alone reads ''/"" literally
+    return found
 
 
 def json_values(text, label):
@@ -355,17 +348,67 @@ def yaml_quoted(raw, double):
     return "".join(out)
 
 
+def yaml_binary(prefix, handles):
+    """True when a tag among a node's anchors and tags (`prefix`) is one PyYAML turns into bytes or a Python object
+    rather than text — tag:yaml.org,2002:binary, or python/… under it — however it is written: !!binary, through a
+    handle a %TAG directive names (!e!binary, or !binary for the ! handle), verbatim (!<tag:yaml.org,2002:binary>), or
+    with %-escaped letters (!!bin%61ry). A handle the document does not name resolves to nothing: PyYAML stops there."""
+    for tag in TAG.findall(prefix):
+        if tag.startswith("!<") and tag.endswith(">"):
+            full = unquote(tag[2:-1])
+        else:
+            second = tag.find("!", 1)
+            handle, suffix = (tag[:second + 1], tag[second + 1:]) if second > 0 else ("!", tag[1:])
+            full = handles[handle] + unquote(suffix) if handle in handles else ""
+        if full == "tag:yaml.org,2002:binary" or full.startswith("tag:yaml.org,2002:python/"):
+            return True
+    return False
+
+
 def yaml_values(text, label):
+    """yaml_document_values() — and when that cannot read the file, its Unreadable marked final, so that the file is
+    never read as a template's text instead (evidence.py), unless the line it stopped at holds a template's marker ({{
+    or {%) in its data, not in a quoted value or a comment: template syntax, which PyYAML cannot read either. Final
+    even then when a tag anywhere in the file may be one PyYAML decodes (yaml_decodes): the text reading decodes
+    none."""
+    try:
+        return yaml_document_values(text, label)
+    except Unreadable as error:
+        line = text.split("\n")[error.line - 1] if error.line else ""
+        if not TEMPLATE.search(YAML_NOT_DATA.sub("", line)) or yaml_decodes(text):
+            error.final = True
+        raise
+
+
+def yaml_decodes(text):
+    """True when a tag anywhere in a YAML file's data (not in a quoted value or a comment) may be one PyYAML decodes to
+    bytes or a Python object (yaml_binary) — with the ! and !! handles, or with any a %TAG directive in the file names
+    — or when such a directive cannot be read."""
+    declared = [dict(TAG_HANDLES)]
+    for line in text.split("\n"):
+        if re.match(r"%TAG(?:[ \t]|$)", line):
+            directive = TAG_DIRECTIVE.fullmatch(line.rstrip())
+            if not directive:
+                return True
+            declared.append({directive.group(1): unquote(directive.group(2))})
+    data = " ".join(YAML_NOT_DATA.sub("", line) for line in text.split("\n"))
+    return any(yaml_binary(data, handles) for handles in declared)
+
+
+def yaml_document_values(text, label):
     """(name, value) for every value in a YAML file, in the subset this reader understands: comments, document markers
-    and directives; mappings with plain or quoted keys; lists ('- ', nested, and at their key's own column); plain
-    values over several lines; quoted values with their escapes; block values (| and >, with an indentation digit,
-    chomping and a comment on the header); flow lists and mappings over several lines; anchors, tags and aliases. A
-    value is named after its nearest key. Anything else — an explicit '? ' key, a tab in the indentation, a quote or
-    bracket never closed, a plain value holding ': ', a line it cannot place — is Unreadable."""
+    and directives (%TAG naming a document's tag handles); mappings with plain or quoted keys; lists ('- ', nested, and
+    at their key's own column); plain values over several lines; quoted values with their escapes; block values (| and
+    >, with an indentation digit, chomping and a comment on the header); flow lists and mappings over several lines;
+    anchors, tags and aliases. A value is named after its nearest key. Anything else — an explicit '? ' key, a tab in
+    the indentation, a quote or bracket never closed, a plain value holding ': ', a line it cannot place, a tag that
+    PyYAML turns into bytes or a Python object (yaml_binary) or that it reads on into what follows it — is
+    Unreadable."""
     if re.search("[\x85\u2028\u2029]", text):
         raise Unreadable("a line break this reader does not read")
     lines, found, frames = text.split("\n"), [], []    # frames: [column, "map" or "seq", name, value still to come]
     anchors, pending = {}, []   # an anchor's forms; the anchors whose value is still to come: (anchor, mark, column)
+    handles, declared = dict(TAG_HANDLES), {}   # this document's tag handles; those named for the next one
     starts = [line.start() for line in re.finditer(r"(?m)^", text)]
 
     def row_of(at):
@@ -382,6 +425,17 @@ def yaml_values(text, label):
         if value is None:
             raise unreadable(text, at, "an escape this reader does not read")
         return close.end(), value, forms(value, raw)
+
+    def tagged(prefix, at):
+        """Refuses the node at `at` when a tag in its prefix is one PyYAML reads as bytes or a Python object, or is
+        written flush against what follows it (PyYAML reads that on as part of the tag) — for good: such a value is
+        never read as a template's text instead."""
+        binary = prefix is not None and yaml_binary(prefix.group(), handles)
+        if binary or (prefix and TAG_LAST.search(prefix.group()) and text[prefix.end():prefix.end() + 1] not in (
+                "", "\n")):
+            error = unreadable(text, at, "a binary value" if binary else "a tag this reader does not read")
+            error.final = True
+            raise error
 
     def flow(at, name):
         """Reads the [ ] or { } at `at`, over several lines when it goes on; returns the offset after it."""
@@ -421,8 +475,7 @@ def yaml_values(text, label):
         return read
 
     def flow_member(at, name, prefix):
-        if prefix and "!!binary" in prefix.group():
-            raise unreadable(text, at, "a binary value")
+        tagged(prefix, at)
         at = FLOW_SPACE.match(text, prefix.end()).end() if prefix else at
         char = text[at:at + 1]
         if prefix and char in (",", "]", "}", ""):
@@ -502,8 +555,7 @@ def yaml_values(text, label):
 
     def read_node(at, name, parent, prefix):
         row, end = row_of(at)
-        if prefix and "!!binary" in prefix.group():
-            raise unreadable(text, at, "a binary value")
+        tagged(prefix, at)
         at = prefix.end() if prefix else at
         rest = text[at:end]
         if not rest or rest.startswith("#"):
@@ -609,10 +661,20 @@ def yaml_values(text, label):
                 raise unreadable(text, starts[row], "a value on a document marker's line")
             del frames[:]
             close(-1)
+            if line.startswith("---"):   # a document starts: the directives before it name its tag handles
+                handles.clear()
+                handles.update(TAG_HANDLES)
+                handles.update(declared)
+                declared.clear()
             row, directives = row + 1, line.startswith("...")
         elif column == 0 and line.startswith("%"):
             if not directives:
                 raise unreadable(text, starts[row], "a directive inside a document")
+            if re.match(r"%TAG(?:[ \t]|$)", line):
+                directive = TAG_DIRECTIVE.fullmatch(line.rstrip())
+                if not directive:
+                    raise unreadable(text, starts[row], "a tag directive this reader does not read")
+                declared[directive.group(1)] = unquote(directive.group(2))
             row += 1
         else:
             close(column, re.match(r"-(?:[ \t]|$)", line[column:]) is not None)

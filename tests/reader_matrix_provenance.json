@@ -1,0 +1,470 @@
+{
+ "artifacts": {
+  "dotenv-0.4.0": {
+   "file": "dotenv/dotenv-0.4.0.tgz",
+   "sha256": "2f6cf1376d30ec4c2d81c5cfc260137a2bd1fdf3330c4811e517e0b2d6b04d23",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-0.4.0.tgz"
+  },
+  "dotenv-0.5.0": {
+   "file": "dotenv/dotenv-0.5.0.tgz",
+   "sha256": "cb6e8d87f2526934bc94ca5cd35e43ed91e71f406b56c08992066fbcf4147174",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-0.5.0.tgz"
+  },
+  "dotenv-0.5.1": {
+   "file": "dotenv/dotenv-0.5.1.tgz",
+   "sha256": "ee81faf8fa747d6bcbad2610977b9d26d8b0666bbe78d6522eee6c8a348ae6b6",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-0.5.1.tgz"
+  },
+  "dotenv-1.0.0": {
+   "file": "dotenv/dotenv-1.0.0.tgz",
+   "sha256": "a5e148a7d273e563ef71d71fbe4a87d01f2200cc5ced69ae079537eb4f40e7c1",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-1.0.0.tgz"
+  },
+  "dotenv-1.1.0": {
+   "file": "dotenv/dotenv-1.1.0.tgz",
+   "sha256": "0156b93e7f3f2acd6df5bdaff821bbca2822a4ca135f4143f03eea3e16308a42",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-1.1.0.tgz"
+  },
+  "dotenv-1.2.0": {
+   "file": "dotenv/dotenv-1.2.0.tgz",
+   "sha256": "9372e13e2aa84a1e9cabef2cf3bb081741ffc4c2c1a53b30e021956529334e84",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-1.2.0.tgz"
+  },
+  "dotenv-10.0.0": {
+   "file": "dotenv/dotenv-10.0.0.tgz",
+   "sha256": "2ae617288e298552899bd6f67973715434864b427d2c72f5e72a85e46a5135f3",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-10.0.0.tgz"
+  },
+  "dotenv-11.0.0": {
+   "file": "dotenv/dotenv-11.0.0.tgz",
+   "sha256": "fccf9edd6d40f67db6934a3087f037c0fa8f261cfec34540ed956525666bfd04",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-11.0.0.tgz"
+  },
+  "dotenv-12.0.0": {
+   "file": "dotenv/dotenv-12.0.0.tgz",
+   "sha256": "b2db0d7a2a88967a835ee5fedfcb48c79ef97c92a01d1de70f0bc9cecdfe70a1",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-12.0.0.tgz"
+  },
+  "dotenv-12.0.1": {
+   "file": "dotenv/dotenv-12.0.1.tgz",
+   "sha256": "b22a2ca5aa9377296475fd224628a9ca3bec2d7b647fc405855daeab839b756f",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-12.0.1.tgz"
+  },
+  "dotenv-12.0.2": {
+   "file": "dotenv/dotenv-12.0.2.tgz",
+   "sha256": "0d374bd4859eb7d5e2034990f5fb890d4eea185a0c05de3f0aabee23b51ba1c4",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-12.0.2.tgz"
+  },
+  "dotenv-12.0.3": {
+   "file": "dotenv/dotenv-12.0.3.tgz",
+   "sha256": "4be5799e00ec2622fcc1836b60c847cb908aa9f9f0ac99d192d17b06c1575f66",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-12.0.3.tgz"
+  },
+  "dotenv-12.0.4": {
+   "file": "dotenv/dotenv-12.0.4.tgz",
+   "sha256": "5c02b5d4165eea193c5644ae534e569d8834638062ba28be05754bb82dada097",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-12.0.4.tgz"
+  },
+  "dotenv-13.0.0": {
+   "file": "dotenv/dotenv-13.0.0.tgz",
+   "sha256": "c54d5ff2eba114d3d5046f86285c5b342e6a0e8b87837fde910dbdd794cccea9",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-13.0.0.tgz"
+  },
+  "dotenv-13.0.1": {
+   "file": "dotenv/dotenv-13.0.1.tgz",
+   "sha256": "9edfcb7beabaaf70adedf0b9673c6a58f156feff9609a9de77d43bf3f410a419",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-13.0.1.tgz"
+  },
+  "dotenv-14.0.0": {
+   "file": "dotenv/dotenv-14.0.0.tgz",
+   "sha256": "2acf2e6b759f84bed432ae2e655ecde7459f774dd71f259de83db13e8764278c",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-14.0.0.tgz"
+  },
+  "dotenv-14.0.1": {
+   "file": "dotenv/dotenv-14.0.1.tgz",
+   "sha256": "3e581070e034f877aa31199bc1fff4bbc36d66fa80730b0b9751fc4a755460e5",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-14.0.1.tgz"
+  },
+  "dotenv-14.1.0": {
+   "file": "dotenv/dotenv-14.1.0.tgz",
+   "sha256": "5a5e592b8340c0f080b36699c557a9895f04d23e43a03d36f2e8f6b34085bf6b",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-14.1.0.tgz"
+  },
+  "dotenv-14.1.1": {
+   "file": "dotenv/dotenv-14.1.1.tgz",
+   "sha256": "f01eb0bc398518b649c7eb635e64f82cc7057ab14144d0eed61a0940c6446e94",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-14.1.1.tgz"
+  },
+  "dotenv-14.2.0": {
+   "file": "dotenv/dotenv-14.2.0.tgz",
+   "sha256": "e88a0ac40c22cde4f5a2df301f0646861194a3a76b6d3ea85df08248e5e49a65",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-14.2.0.tgz"
+  },
+  "dotenv-14.3.0": {
+   "file": "dotenv/dotenv-14.3.0.tgz",
+   "sha256": "f71c9e8a61f8787242539b159aac4798e36326af2ac1a3889db19a05f52fd4ca",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-14.3.0.tgz"
+  },
+  "dotenv-14.3.1": {
+   "file": "dotenv/dotenv-14.3.1.tgz",
+   "sha256": "1309e5a2e56d67328f594256b2be4c2981c9f5c34ac1c68ed421996e74128804",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-14.3.1.tgz"
+  },
+  "dotenv-14.3.2": {
+   "file": "dotenv/dotenv-14.3.2.tgz",
+   "sha256": "f5ddcbe371c0116d9551cfb9d9bb2a641cb060a1a0fb4195ff7586920649d952",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-14.3.2.tgz"
+  },
+  "dotenv-15.0.0": {
+   "file": "dotenv/dotenv-15.0.0.tgz",
+   "sha256": "d4c0cda8006bb06b8bbca710850efa8ab9b346b2359a554b50bfac64790a0106",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-15.0.0.tgz"
+  },
+  "dotenv-15.0.1": {
+   "file": "dotenv/dotenv-15.0.1.tgz",
+   "sha256": "72323adf21a95e50c2969deee648760821219203fff41573eb3119432587cee0",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-15.0.1.tgz"
+  },
+  "dotenv-16.0.0": {
+   "file": "dotenv/dotenv-16.0.0.tgz",
+   "sha256": "138afd2988ee3e6f439b16930f0f0fd1167b7b41ab599768b3ef11c95af79ee4",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.0.0.tgz"
+  },
+  "dotenv-16.0.1": {
+   "file": "dotenv/dotenv-16.0.1.tgz",
+   "sha256": "e9fd9902209588c03f15cabda6fe0989f35b43d755ffb749f55a47fdff09ebf2",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.0.1.tgz"
+  },
+  "dotenv-16.0.2": {
+   "file": "dotenv/dotenv-16.0.2.tgz",
+   "sha256": "9d6bfc98e658ba7528bad75c91ed7c55d8504596d0738f863b04d12e95e0e3e6",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.0.2.tgz"
+  },
+  "dotenv-16.0.3": {
+   "file": "dotenv/dotenv-16.0.3.tgz",
+   "sha256": "d37785edd11f287925ea57eb340e3fa21c5033b6777e4da67313a7381ba53de1",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.0.3.tgz"
+  },
+  "dotenv-16.1.0": {
+   "file": "dotenv/dotenv-16.1.0.tgz",
+   "sha256": "82e8f59ca74fc6ce69d2afb2f4926164801ec5c1acef6e584a5e6bd5a9c73caa",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.1.0.tgz"
+  },
+  "dotenv-16.1.1": {
+   "file": "dotenv/dotenv-16.1.1.tgz",
+   "sha256": "5997d901cf2aa47fdc0d55ca3f7918160e74f8c06f345520ea7fd6fb28b41d50",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.1.1.tgz"
+  },
+  "dotenv-16.1.2": {
+   "file": "dotenv/dotenv-16.1.2.tgz",
+   "sha256": "6017084a4d8e73af4e669a7edb762ba1bfb06935e99340b0fc74bf065f9535ac",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.1.2.tgz"
+  },
+  "dotenv-16.1.3": {
+   "file": "dotenv/dotenv-16.1.3.tgz",
+   "sha256": "5f955a6d549e9dd6e6f2f58b50b4e50fd6a85be863b5120fc645fb18ba7f8701",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.1.3.tgz"
+  },
+  "dotenv-16.1.4": {
+   "file": "dotenv/dotenv-16.1.4.tgz",
+   "sha256": "ddcb961c90e83e70b80422626b4e2617fade9ff4515baf828d3223b61e04c28e",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.1.4.tgz"
+  },
+  "dotenv-16.2.0": {
+   "file": "dotenv/dotenv-16.2.0.tgz",
+   "sha256": "875578cf6a262b8eec0124cacf55f964d8fd56d300609eec516a9cc2c7e196c3",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.2.0.tgz"
+  },
+  "dotenv-16.3.0": {
+   "file": "dotenv/dotenv-16.3.0.tgz",
+   "sha256": "ae8864bccc07ccbf20d709ee95045fbd70b92d02de653d830421e42e16772bcc",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.3.0.tgz"
+  },
+  "dotenv-16.3.1": {
+   "file": "dotenv/dotenv-16.3.1.tgz",
+   "sha256": "2e4101233953ae94349e08a26df333a033972e8ba0abf5a80f4e441de188ca8b",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.3.1.tgz"
+  },
+  "dotenv-16.3.2": {
+   "file": "dotenv/dotenv-16.3.2.tgz",
+   "sha256": "b5ef3040404a10a8c063d9e535293981056f1c8a7764c6c9e1ce67af227a7775",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.3.2.tgz"
+  },
+  "dotenv-16.4.0": {
+   "file": "dotenv/dotenv-16.4.0.tgz",
+   "sha256": "125969c75ac2732bb0ec2adc3ef1e6eae2a943dd6780fce597f164af89f78449",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.4.0.tgz"
+  },
+  "dotenv-16.4.1": {
+   "file": "dotenv/dotenv-16.4.1.tgz",
+   "sha256": "534407196efb2de54fbf4ece386ffd3b548276c56de33b28d2c8f9a444af3d4d",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.4.1.tgz"
+  },
+  "dotenv-16.4.2": {
+   "file": "dotenv/dotenv-16.4.2.tgz",
+   "sha256": "80c2e4c555b8108a5b23cddd68256fda826b56f85b2b46faac52ee2dd732e214",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.4.2.tgz"
+  },
+  "dotenv-16.4.3": {
+   "file": "dotenv/dotenv-16.4.3.tgz",
+   "sha256": "29f92ca61c53da7afea8e953e80aeed32ad7e8db6ce8cd058d40e7b5b97a7958",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.4.3.tgz"
+  },
+  "dotenv-16.4.4": {
+   "file": "dotenv/dotenv-16.4.4.tgz",
+   "sha256": "c9766a695b092ce9a4b85527cf9658a76a51247ed9a0f896026940fb509a2718",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.4.4.tgz"
+  },
+  "dotenv-16.4.5": {
+   "file": "dotenv/dotenv-16.4.5.tgz",
+   "sha256": "0ae24e5b77e0346558b024ab2ee87bc4d42e3570147e7af755cf6e8671e96637",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.4.5.tgz"
+  },
+  "dotenv-16.4.6": {
+   "file": "dotenv/dotenv-16.4.6.tgz",
+   "sha256": "88f99284a85905e9dd0145547cd7f959498ec47aa14695af47ad135d372d1ff8",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.4.6.tgz"
+  },
+  "dotenv-16.4.7": {
+   "file": "dotenv/dotenv-16.4.7.tgz",
+   "sha256": "feafa398912235c4b812af721280a5dec7ddcb1e4812e1ec8fbc6e4fde4bc4d0",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.4.7.tgz"
+  },
+  "dotenv-16.5.0": {
+   "file": "dotenv/dotenv-16.5.0.tgz",
+   "sha256": "3f50cfadf7bd16fea3b533c7fbb0e2043a27ee6bc38e93de93f7caa1a20b0309",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.5.0.tgz"
+  },
+  "dotenv-16.6.0": {
+   "file": "dotenv/dotenv-16.6.0.tgz",
+   "sha256": "87e958b2f32c3a9866b2b8128c340ac15faad8ade9bedce6535db16141e58a46",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.6.0.tgz"
+  },
+  "dotenv-16.6.1": {
+   "file": "dotenv/dotenv-16.6.1.tgz",
+   "sha256": "7495c5d7f2182736e3c40d280a72486ee93c278463a94f901a47266dffb47a82",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.6.1.tgz"
+  },
+  "dotenv-17.0.0": {
+   "file": "dotenv/dotenv-17.0.0.tgz",
+   "sha256": "555fd43c1a3bc7350f18a9a53b3b68ee49653210604bb329c2c05d8aa341c291",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.0.0.tgz"
+  },
+  "dotenv-17.0.1": {
+   "file": "dotenv/dotenv-17.0.1.tgz",
+   "sha256": "ed25e29c758bd2abe9e107ed80c6a64cb0818a6aa5f3c31d8f7888ee16e368c6",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.0.1.tgz"
+  },
+  "dotenv-17.1.0": {
+   "file": "dotenv/dotenv-17.1.0.tgz",
+   "sha256": "73ae178cde2f79cfe645636021639a78667095e823b20195a5fd01177d34dda9",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.1.0.tgz"
+  },
+  "dotenv-17.2.0": {
+   "file": "dotenv/dotenv-17.2.0.tgz",
+   "sha256": "d4d7ef78799f730f8ed15f29dfa138289bd9bc08966925be15c055b098048866",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.2.0.tgz"
+  },
+  "dotenv-17.2.1": {
+   "file": "dotenv/dotenv-17.2.1.tgz",
+   "sha256": "c9f641980a1279e1b5cde38fee92792c09989c3e680d28aff4769acbcac552a9",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.2.1.tgz"
+  },
+  "dotenv-17.2.2": {
+   "file": "dotenv/dotenv-17.2.2.tgz",
+   "sha256": "9badae5fa2ec50cf6b2beb85a5134966da3e6addadaa36c6af07f57c316d16e8",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.2.2.tgz"
+  },
+  "dotenv-17.2.3": {
+   "file": "dotenv/dotenv-17.2.3.tgz",
+   "sha256": "87fb0f87b9a28cdbd75dc8833d42980797aba163a64362f0651e0f96b5c9a539",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.2.3.tgz"
+  },
+  "dotenv-17.2.4": {
+   "file": "dotenv/dotenv-17.2.4.tgz",
+   "sha256": "7c6f41c79d068fe3fe8005aefb13e0eaf2b08f0a06c61437db72271e3b8c8b7c",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.2.4.tgz"
+  },
+  "dotenv-17.3.0": {
+   "file": "dotenv/dotenv-17.3.0.tgz",
+   "sha256": "c8400ff331664090660d2c93af09cc3465a40436f781b89cf061e60ce586bdaa",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.3.0.tgz"
+  },
+  "dotenv-17.3.1": {
+   "file": "dotenv/dotenv-17.3.1.tgz",
+   "sha256": "9e526625417afeca42491e4d42e631651e63184b194172a1ff566168ed4b503b",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.3.1.tgz"
+  },
+  "dotenv-17.4.0": {
+   "file": "dotenv/dotenv-17.4.0.tgz",
+   "sha256": "b28c358bfd4a696990703a5e9f9be2b5e1f9d317835c4405f82eceda8dd3225d",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.4.0.tgz"
+  },
+  "dotenv-17.4.1": {
+   "file": "dotenv/dotenv-17.4.1.tgz",
+   "sha256": "6d711e87864d196e655fb21e16b599664fbfc95e8c07a5884504023d20ce88f3",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.4.1.tgz"
+  },
+  "dotenv-17.4.2": {
+   "file": "dotenv/dotenv-17.4.2.tgz",
+   "sha256": "8648852be8209110b34dca75dcc3ed12ce7fae9fcc8edd1ef9e180e708af1398",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-17.4.2.tgz"
+  },
+  "dotenv-18.0.0": {
+   "file": "dotenv/dotenv-18.0.0.tgz",
+   "sha256": "6845a9dc643bbc8ab511dd378b108362936f50fac04ae6ca513cec5ea03bdd09",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-18.0.0.tgz"
+  },
+  "dotenv-18.0.1": {
+   "file": "dotenv/dotenv-18.0.1.tgz",
+   "sha256": "b7ddcd6e66fdab8b73b913e4ad57648e6cf045e061e28095b5dae6454f9dc42b",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-18.0.1.tgz"
+  },
+  "dotenv-18.0.2": {
+   "file": "dotenv/dotenv-18.0.2.tgz",
+   "sha256": "d212a6dfe193d71e6997fdd853a5413ee0e26969166697c1bebaf91440934c2d",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-18.0.2.tgz"
+  },
+  "dotenv-18.0.3": {
+   "file": "dotenv/dotenv-18.0.3.tgz",
+   "sha256": "f168be78bf83b24be30344e6adbea8e7a0d8708eeb55ef3f968e2f83eb4f0dbd",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-18.0.3.tgz"
+  },
+  "dotenv-18.0.4": {
+   "file": "dotenv/dotenv-18.0.4.tgz",
+   "sha256": "346f61b7a147ca5b06b732137e4fe06f3dc3fb0d4574be0bd836abcb80f32a66",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-18.0.4.tgz"
+  },
+  "dotenv-2.0.0": {
+   "file": "dotenv/dotenv-2.0.0.tgz",
+   "sha256": "a6962c5b31018558c71ba6598dc9aa5a9feece9230d300b73bb1dfab2bccc789",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-2.0.0.tgz"
+  },
+  "dotenv-3.0.0": {
+   "file": "dotenv/dotenv-3.0.0.tgz",
+   "sha256": "2d501e0a212cad459adca840a47a3e4fc5d15a11a2c6eeecf042f12ef2b292c7",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-3.0.0.tgz"
+  },
+  "dotenv-4.0.0": {
+   "file": "dotenv/dotenv-4.0.0.tgz",
+   "sha256": "811af006e79733e5f06a82710c43e5d564a0d07f7a9a8d6f245901faf17cd3ab",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-4.0.0.tgz"
+  },
+  "dotenv-5.0.0": {
+   "file": "dotenv/dotenv-5.0.0.tgz",
+   "sha256": "85f774c584e40ed834da368e1d887c456c756b9ed2e7baf3ad689ace6f8ccb7f",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-5.0.0.tgz"
+  },
+  "dotenv-5.0.1": {
+   "file": "dotenv/dotenv-5.0.1.tgz",
+   "sha256": "fd77c9411a4d52efb09c50a5aeccba4ecc07434331476cbb979bcac13bce8607",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-5.0.1.tgz"
+  },
+  "dotenv-6.0.0": {
+   "file": "dotenv/dotenv-6.0.0.tgz",
+   "sha256": "1e659d542389d6c2d506f7c850d3985e47b2b1cc82960cacb26644f52d716e30",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-6.0.0.tgz"
+  },
+  "dotenv-6.1.0": {
+   "file": "dotenv/dotenv-6.1.0.tgz",
+   "sha256": "f9d1247ff6f2d5d0ef6c42cc05856c708e0acd350478b24005e629cb75878b04",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-6.1.0.tgz"
+  },
+  "dotenv-6.2.0": {
+   "file": "dotenv/dotenv-6.2.0.tgz",
+   "sha256": "1d2d1c5f1d2bfdbf3730b26f3b21ba69273001db4418322884c7a233739631b9",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-6.2.0.tgz"
+  },
+  "dotenv-7.0.0": {
+   "file": "dotenv/dotenv-7.0.0.tgz",
+   "sha256": "d6300415ad28e3d5b570bea31bf33603be73cad7b2cdaff1965db5db283227e7",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-7.0.0.tgz"
+  },
+  "dotenv-8.0.0": {
+   "file": "dotenv/dotenv-8.0.0.tgz",
+   "sha256": "cbfe4478f3800adb866878d3aa6188616cb521223382ed10f6eb438cb2ca7c2e",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-8.0.0.tgz"
+  },
+  "dotenv-8.1.0": {
+   "file": "dotenv/dotenv-8.1.0.tgz",
+   "sha256": "93b101a40a9a6e5ea32bed732c5c9302c0c08b3551f08239f139196dc8ff7f1e",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-8.1.0.tgz"
+  },
+  "dotenv-8.2.0": {
+   "file": "dotenv/dotenv-8.2.0.tgz",
+   "sha256": "f329ca207a61daea23e1fad39f30122b68e7cff2d3f689a71637500ba24c64a5",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-8.2.0.tgz"
+  },
+  "dotenv-8.3.0": {
+   "file": "dotenv/dotenv-8.3.0.tgz",
+   "sha256": "359b85959bc13fb384c13cb55133c4a6b5aa5f091a8d84e60d67f733d00690bb",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-8.3.0.tgz"
+  },
+  "dotenv-8.4.0": {
+   "file": "dotenv/dotenv-8.4.0.tgz",
+   "sha256": "d0d7b0b2b5a5f89f281cb53aa8752cb30cf4a69b376dbb4fb42469098dddc813",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-8.4.0.tgz"
+  },
+  "dotenv-8.5.0": {
+   "file": "dotenv/dotenv-8.5.0.tgz",
+   "sha256": "b7c320a32b9e6db7dba28a91cca689c8429c734e1d797e5e5d99d7c48a4bbbff",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-8.5.0.tgz"
+  },
+  "dotenv-8.5.1": {
+   "file": "dotenv/dotenv-8.5.1.tgz",
+   "sha256": "b60a70b6a0665cf31a2bcd9ec566069da2ca9048c9bd4eb7ad9953a74b639bd4",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-8.5.1.tgz"
+  },
+  "dotenv-8.6.0": {
+   "file": "dotenv/dotenv-8.6.0.tgz",
+   "sha256": "9e50f0b8006cc937b99e97b9791da14b1db2b8843fb9a627ced6bf69a06dc1a2",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-8.6.0.tgz"
+  },
+  "dotenv-9.0.0": {
+   "file": "dotenv/dotenv-9.0.0.tgz",
+   "sha256": "f164f1a92bc43d528af26cb86bf5849b435e6be41a067b4498d098bb193538b0",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-9.0.0.tgz"
+  },
+  "dotenv-9.0.1": {
+   "file": "dotenv/dotenv-9.0.1.tgz",
+   "sha256": "c6ffd26611ba689e70b279f669ff58cf814cd02caf01fef3be869bfaa2022a84",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-9.0.1.tgz"
+  },
+  "dotenv-9.0.2": {
+   "file": "dotenv/dotenv-9.0.2.tgz",
+   "sha256": "5ed4ca9289f9fb4448e88d7a7e157876811627449a4d0d6f929a6af5789f146e",
+   "url": "https://registry.npmjs.org/dotenv/-/dotenv-9.0.2.tgz"
+  },
+  "node-v20.7.0": {
+   "file": "node/node-v20.7.0.tar.gz",
+   "sha256": "08aa09792f30a86e8904e334ba6d348ad73e926b5e441ed9abcdcbea651dc926",
+   "url": "https://nodejs.org/dist/v20.7.0/node-v20.7.0-darwin-arm64.tar.gz"
+  },
+  "node-v22.0.0": {
+   "file": "node/node-v22.0.0.tar.gz",
+   "sha256": "ea96d349cfaa67aa87ceeaa3e5b52c9167f7ac302fd8d1ff162d0785e9dc0785",
+   "url": "https://nodejs.org/dist/v22.0.0/node-v22.0.0-darwin-arm64.tar.gz"
+  },
+  "node-v22.16.0": {
+   "file": "node/node-v22.16.0.tar.gz",
+   "sha256": "1d7f34ec4c03e12d8b33481e5c4560432d7dc31a0ef3ff5a4d9a8ada7cf6ecc9",
+   "url": "https://nodejs.org/dist/v22.16.0/node-v22.16.0-darwin-arm64.tar.gz"
+  },
+  "node-v24.21.0": {
+   "file": "node/node-v24.21.0.tar.gz",
+   "sha256": "bed7eea5325e1108f32ce5228ddd6a5f0f08a499ee42aa7442aea583702f6057",
+   "url": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-darwin-arm64.tar.gz"
+  },
+  "node-v26.10.0": {
+   "file": "node/node-v26.10.0.tar.gz",
+   "sha256": "751fdf7439f115d87ee2a8f3f18c065b6151852068e3e666ac60ac2996f75ac9",
+   "url": "https://nodejs.org/dist/v26.10.0/node-v26.10.0-darwin-arm64.tar.gz"
+  },
+  "python-dotenv-1.2.3": {
+   "file": "python_dotenv-1.2.3-py3-none-any.whl",
+   "sha256": "904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9",
+   "url": "https://files.pythonhosted.org/packages/0d/17/c5c6b53ddc18f297992099b3d9ec16c855c0ccc83263a21fe4d1c625ec6c/python_dotenv-1.2.3-py3-none-any.whl"
+  }
+ },
+ "note": "Expected sha256 of every reader artifact the differential matrix (tests/test_literal_matrix.py) runs, taken from the 2026-09-27 reader-compatibility experiment's PROVENANCE.md (measured at fetch time; publisher digests - npm shasum, PyPI sha256 - verified there). The claimed npm dotenv range is 0.4.0-18.0.4; 0.1.1-0.3.0 diverge on legitimate literal values (second-'=' truncation, quote stripping). Node v20.20.2 and bash 3.2 (/bin/sh) are local readers, no fetch."
+}

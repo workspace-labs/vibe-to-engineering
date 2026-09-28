@@ -16,6 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = Path(os.environ.get("V2E_EVIDENCE", ROOT / "skills" / "vibe-to-engineering" / "scripts" / "evidence.py"))
+import enrolled  # noqa: E402 — the isolated HOME with the suite's runners enrolled (A2)
 SECRETS = ("hunter2-not-real", "abcd1234efgh5678", "sk_live_ABCDEFGH12345678", "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC",
            "hunter22", "zzzz9999")
 CHECK = r"""
@@ -42,16 +43,64 @@ class Evidence(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def run_tool(self, out, *command, env=()):
+    def run_tool(self, out, *command, env=(), without=()):   # without: names taken out of the tool's environment
         settings = [part for setting in env for part in ("--env", setting)]
+        parent = {name: value for name, value in os.environ.items() if name not in without}
+        if "HOME" not in without:
+            parent["HOME"] = str(enrolled.enrolled_home())   # the isolated enrolled registry (A2)
         done = subprocess.run([sys.executable, str(TOOL), "--project", str(self.project), "--out", str(out)] + settings
-                              + ["--"] + list(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                              + ["--"] + list(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              env=parent)
         return done.returncode, done.stdout.decode("utf-8", "replace"), done.stderr.decode("utf-8", "replace")
+
+    def refused_run(self, name, files, secrets, blamed, reader="print('ran')", env=()):
+        """The shared refusal contract: a secret file outside the literal grammar stops the run before the
+        check — exit code 2, the check's ran-marker absent, no evidence file, the report naming the file and
+        saying it cannot be masked, and no secret word in the report or on the screen."""
+        with self.subTest(name):
+            project = self.tmp / re.sub(r"\W+", "-", name)
+            (project / ".vibe-to-engineering").mkdir(parents=True)
+            for file, content in files.items():
+                (project / file).parent.mkdir(parents=True, exist_ok=True)
+                (project / file).write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
+            (project / "check.py").write_text("from pathlib import Path\nPath('check-ran').write_text('ran')\n"
+                                              + reader + "\n")
+            self.project = project
+            out = project / ".vibe-to-engineering" / "evidence" / "check.txt"
+            code, printed, report = self.run_tool(out, sys.executable, "-B", "check.py", env=env)
+            self.assertEqual(code, 2, report)
+            self.assertFalse((project / "check-ran").exists())      # the check never ran
+            self.assertFalse(out.exists())
+            self.assertIn(blamed, report)
+            self.assertIn("cannot be masked", report)
+            for secret in secrets:
+                self.assertNotIn(secret, report + printed)
+            return printed
+
+    def admitted_run(self, name, files, reader, env=()):
+        """The shared run contract for a file the grammar reclassifies as ordinary assignments: the check
+        runs — exit code 0 and the check's ran-marker present. Returns the project, the check's output below
+        the header, the saved evidence, and the report."""
+        with self.subTest(name):
+            project = self.tmp / re.sub(r"\W+", "-", name)
+            (project / ".vibe-to-engineering").mkdir(parents=True)
+            for file, content in files.items():
+                (project / file).parent.mkdir(parents=True, exist_ok=True)
+                (project / file).write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
+            (project / "check.py").write_text("from pathlib import Path\nPath('check-ran').write_text('ran')\n"
+                                              + reader + "\n")
+            self.project = project
+            out = project / ".vibe-to-engineering" / "evidence" / "check.txt"
+            code, printed, report = self.run_tool(out, sys.executable, "-B", "check.py", env=env)
+            self.assertEqual(code, 0, report)
+            self.assertTrue((project / "check-ran").exists())
+            return project, printed.split("\n\n", 1)[1], out.read_text(encoding="utf-8"), report
 
     def test_no_secret_value_reaches_the_evidence_file_or_the_screen(self):
         out = self.folder / "00-baseline" / "tests.txt"
         code, printed, report = self.run_tool(out, sys.executable, "-c", CHECK)
-        self.assertEqual(code, 3, report)                                  # the check's own exit code
+        self.assertEqual(code, 0, report)   # the check ran and its evidence was saved (R2-F6: the wrapper's
+        self.assertIn("the check exited 3", report)   # status is its own; the check's exit 3 is recorded data)
         saved = out.read_text(encoding="utf-8")
         for secret in SECRETS:
             self.assertNotIn(secret, saved)
@@ -67,7 +116,27 @@ class Evidence(unittest.TestCase):
                                          "import os; print('DB at', os.environ['DB_PATH'])",
                                          env=["DB_PATH=%s" % throwaway])
         self.assertEqual(code, 0)
-        self.assertIn("DB at %s" % throwaway, printed)
+        # D4 rule 4 (NEW-5 stage 1): a declared value is sensitive from admission, so the evidence masks it — the
+        # redirection itself (the check read the throwaway path, nothing else) is unchanged
+        self.assertIn("DB at <masked DB_PATH>", printed)
+        self.assertNotIn(str(throwaway), printed)
+
+    def test_a_name_the_env_flag_gives_the_check_never_stops_the_run(self):
+        # round 8 (B6): a .env name the environment the check inherits already holds stops the run, because
+        # python-dotenv's load_dotenv() keeps that value over the file's — but a name --env gives is this tool's own
+        # setting for the check, written in the evidence's header: pointing a check at throwaway data still works.
+        # Stage 1 (D4 rules 4–5): the exclusion mechanism round 8 did this with is superseded — the declared name
+        # joins the precedence analysis, the reading it wins is determinable from the constructed environment, and
+        # the declared value is masked as the winner, never refused, never shown
+        (self.project / ".env").write_text("DB_PASSWORD=Horse9137Staple\n")
+        code, printed, report = self.run_tool(self.folder / "check.txt", sys.executable, "-c",
+                                              "import os; print('uses', os.environ['DB_PASSWORD'])",
+                                              env=["DB_PASSWORD=throwaway-4471"])
+        self.assertEqual(code, 0, report)
+        self.assertIn("uses <masked DB_PASSWORD>", printed)
+        for text in (printed, report, (self.folder / "check.txt").read_text(encoding="utf-8")):
+            self.assertNotIn("throwaway-4471", text)
+            self.assertNotIn("Horse9137Staple", text)
 
     def test_evidence_is_written_only_inside_the_evidence_folder(self):
         outside = self.tmp / "outside"
@@ -92,12 +161,6 @@ class Evidence(unittest.TestCase):
         outside = self.tmp / "linked-value.env"
         outside.write_text("SECRET_KEY=%s\n" % token)
         cases = {   # the independent review's five leaks (2026-09-24), and the forms an agent meets
-            "an inline comment after the value": (
-                (".env", "SECRET_KEY=%s # fixture-only comment\n" % token),
-                "print(open('.env').read().split('=',1)[1].split('#')[0].strip())"),
-            "an inline comment after a value with spaces": (
-                (".env", "SECRET_KEY=quorble zaxtic wembly # fixture-only comment\n"),
-                "print(open('.env').read().split('=',1)[1].split('#')[0].strip())"),
             "a JSON credentials file": (
                 ("credentials.json", '{"password": "%s"}' % token),
                 "import json; print(json.load(open('credentials.json'))['password'])"),
@@ -121,12 +184,21 @@ class Evidence(unittest.TestCase):
                 out = project / ".vibe-to-engineering" / "evidence" / "check.txt"
                 code, printed, report = self.run_tool(out, sys.executable, "-c", check)
                 self.assertEqual(code, 0, report)
-                secret = ("xyz" if "three" in name else 'abc"def-98765' if "escaped" in name
-                          else "quorble zaxtic wembly" if "spaces" in name else token)
+                secret = "xyz" if "three" in name else 'abc"def-98765' if "escaped" in name else token
                 for word in secret.split():                 # no part of the value survives, not only the whole
                     self.assertNotIn(word, printed.split("\n\n", 1)[1])   # (the header repeats the check's code)
                     self.assertNotIn(word, out.read_text(encoding="utf-8").split("\n\n", 1)[1])
                     self.assertNotIn(word, report)
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): "an inline comment after the value" and "an inline comment
+        # after a value with spaces" expected the run to go ahead with each value masked as python-dotenv reads it;
+        # the grammar admits no unquoted '#' and no interior whitespace in an unquoted value (readers disagree: a
+        # shell cuts the value there, python-dotenv keeps it) — and the second file also assigns SECRET_KEY twice
+        # (dotenv 0.1.1 takes the first, every other reader the last) — so each file now refuses before launch.
+        self.refused_run("an inline comment after the value",
+                         {".env": "SECRET_KEY=%s # fixture-only comment\n" % token}, (token,), ".env")
+        self.refused_run("an inline comment after a value with spaces",
+                         {".env": "SECRET_KEY=quorble zaxtic wembly # fixture-only comment\nSECRET_KEY=quorble\n"},
+                         ("quorble", "zaxtic", "wembly"), ".env")
 
     def test_a_value_in_any_written_form_is_masked_and_a_secret_file_that_is_not_text_stops_the_run(self):
         token = "roundtwo-synthetic-value-93715"
@@ -150,9 +222,6 @@ class Evidence(unittest.TestCase):
             "a YAML folded value over two lines": (
                 "secrets.yaml", "password: >\n  %s\n  second-synthetic-line-8802\n" % token,
                 "print(open('secrets.yaml').read().splitlines()[2].strip())", (token, "second-synthetic-line-8802")),
-            "a quoted .env value over two lines": (
-                ".env", 'PASSWORD="first-line\n%s"\n' % token,
-                "print(open('.env').read().splitlines()[1].rstrip(chr(34)))", (token,)),
             "one line of a private key's body": (
                 "id_rsa", "-----BEGIN PRIVATE KEY-----\n%s\n-----END PRIVATE KEY-----\n" % token,
                 "print(open('id_rsa').read().splitlines()[1])", (token,)),
@@ -195,6 +264,13 @@ class Evidence(unittest.TestCase):
                 self.assertIn("not text this tool can read", report)
                 self.assertNotIn(token, report)
                 self.assertFalse(out.exists())
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): "a quoted .env value over two lines" expected the run with
+        # the value masked as python-dotenv reads it across the lines; the grammar admits a quoted value only closed
+        # on its own line (a line break inside quotes refuses — readers disagree on where the value ends), so the
+        # run now stops before the check, naming the file.
+        printed = self.refused_run("a quoted .env value over two lines",
+                                   {".env": 'PASSWORD="first-line\n%s"\n' % token}, (token,), ".env")
+        self.assertNotIn("ran", printed)
 
     def test_a_value_is_masked_completely_in_every_format_the_tool_reads_or_the_file_stops_the_run(self):
         token, other, body = "r3-synthetic-value-58392", "r3-second-value-81724", "cjMtc3ludGhldGljLWtleS1wYWRkaW5nLQ=="
@@ -245,8 +321,6 @@ class Evidence(unittest.TestCase):
                 "print(open('.env').read().split('=', 1)[1].strip().strip(chr(34)))", (token,)),
             "a quoted value printed with its quotes": (
                 ".env", 'PASSWORD="%s"\n' % token, "print(open('.env').read().split('=', 1)[1].strip())", (token,)),
-            "an empty value, then a bare line": (
-                ".env", "NAME=\n%s\n" % token, "print(open('.env').read().splitlines()[1])", (token,)),
             "pretty UTF-16 JSON with a byte order mark": (
                 "credentials.json", json.dumps({"password": token}, indent=2).encode("utf-16"), load_json, (token,)),
             "a JSON value holding regular-expression signs": (
@@ -272,6 +346,11 @@ class Evidence(unittest.TestCase):
             "a YAML explicit key": ("secrets.yaml", "? password\n: %s\n" % token),
             "a YAML flow list never closed": ("credentials.yaml", 'passwords: ["%s", "%s"\n' % (token, other)),
             "a .env quote never closed": (".env", 'PASSWORD="%s\n' % token),
+            # SUPERSEDED (A1 literal boundary, 2026-09-27): "an empty value, then a bare line" expected the run with
+            # the bare line's token masked (round 8: a shell runs the bare line as a command); the grammar admits
+            # no bare line (a line is blank, a '#' comment, or NAME=VALUE) and no name assigned twice (dotenv 0.1.1
+            # takes the first, every other reader the last), so the file now refuses before launch.
+            "an empty value, then a bare line": (".env", "NAME=\n%s\nNAME=\n" % token),
         }
         for name, (file, content) in refused.items():
             with self.subTest(name):
@@ -289,7 +368,10 @@ class Evidence(unittest.TestCase):
         # value (R1), a bare token line (R2), a data-format extension before a .env name (R4), a mask whose name would
         # hold a value from any secret file (R5), a .env value as Node, a shell or an interpolating reader reads it
         # (R6), Java .properties (R7), a Helm template (R8), a stripped value (R9); and an INI file with an option
-        # before any [section], which stops the run (R3)
+        # before any [section], which stops the run (R3).
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): the R2 bare-token-in-.env, R4 .env.local and R6 reader cases
+        # rested on files outside the literal grammar — they are refusal cases below, except the two '='-padding
+        # lines the grammar reads as ordinary assignments, also below.
         slash = chr(92)
         padded, single = "cjMtZW52LXBhZGRlZC10b2tlbi00Nw==", "cjMtZW52LXNpbmdsZS1wYWQtNDgwMTE="
         commented = "cjMtZW52LXBhZC1jb21tZW50LTM1MDE="
@@ -330,36 +412,10 @@ class Evidence(unittest.TestCase):
                 "cs = open('.env').read().split('=', 1)[1].strip().strip(chr(34)); "
                 "parts = dict(p.split('=', 1) for p in cs.split(';') if p); print('with', parts['Password'])",
                 ("r3-mssql-env-5001",), "<masked SQL_CONN>"),
-            "R1 a password= parameter in an unquoted .env URL": (
-                {".env": "DATABASE_URL=postgres://db/app?user=app&password=r3-pg-5101\n"},
-                "print(open('.env').read().split('password=', 1)[1].strip())", ("r3-pg-5101",), "<masked DATABASE_URL>"),
             "R1 a PIN in a list entry under an ordinary name": (
                 {"secrets.yaml": "environment:\n  - DB_PIN=4821\n"},
                 value_of % ("secrets.yaml", "DB_PIN") + "print('pin', line.split('=', 1)[1])", ("4821",),
                 "<masked secret in environment>"),
-            "R1 a double-quoted .env value as a shell reads it": (
-                {".env": 'PASSWORD="r3' + slash + '$dollar-4401"\n'},
-                "print(open('.env').read().split(chr(34))[1].replace(chr(92) + '$', '$'))",
-                ("r3$dollar-4401", "$dollar-4401"), "<masked PASSWORD>"),
-            "R2 a bare .env token with == padding": (   # a lone = is never a value: every other = stays readable
-                {".env": "APP_NAME=demo\n%s\n" % padded},
-                "print(open('.env').read().splitlines()[1]); print('x = y == z')", (padded, padded.rstrip("=")),
-                "<masked .env>", "x = y == z"),
-            "R2 a bare .env token with one = of padding": (
-                {".env": "APP_NAME=demo\n%s\n" % single},
-                "print(open('.env').read().splitlines()[1]); print('x = y == z')", (single, single.rstrip("=")),
-                "<masked .env>", "x = y == z"),
-            "R2 a bare .env token and its inline comment": (
-                {".env": "%s # rotated\n" % commented}, "print(open('.env').read().split()[0])",
-                (commented, commented.rstrip("=")), "<masked .env>"),
-            "R2 a bare .env token with a comment glued on, as Node reads it": (   # never the token as a mask's name
-                {".env": "APP_NAME=demo\n%s#rotated\n" % glued},
-                "line = open('.env').read().splitlines()[1]; print(line.split('#')[0]); print(line)",
-                (glued, glued.rstrip("=")), "<masked .env>"),
-            "R2 a bare .env token with one = and a comment glued on": (
-                {".env": "APP_NAME=demo\n%s#rotated\n" % glued_one},
-                "line = open('.env').read().splitlines()[1]; print(line.split('#')[0]); print(line)",
-                (glued_one, glued_one.rstrip("=")), "<masked .env>"),
             "R2 a padded token with a comment glued on, in a text secret file": (
                 {"secret.txt": "%s#old\n" % glued_text}, "print(open('secret.txt').read().split('#')[0].strip())",
                 (glued_text, glued_text.rstrip("=")), "<masked secret.txt>"),
@@ -391,10 +447,6 @@ class Evidence(unittest.TestCase):
                 {".env.properties": "db.password=r3-envprop-" + slash + "u0043-2301\n"},
                 java % ".env.properties" + "print(values['db.password'])", ("r3-envprop-C-2301",),
                 "<masked db.password>"),
-            "R4 a .env.local file read as Node reads a .env file": (
-                {".env.local": "DB_PASSWORD=r3node-local-2401#tail-2402\n"},
-                "print(open('.env.local').read().split('=', 1)[1].split('#')[0])", ("r3node-local-2401",),
-                "<masked DB_PASSWORD>"),
             "R5 a key that holds another file's value": (   # only a mask's name could show the .env value
                 {".env": "TOKEN=r3-inlabel-longer-value-9301\n",
                  "secrets.yaml": "r3-inlabel-longer-value-9301-backup: v-9302x\n"},
@@ -411,21 +463,6 @@ class Evidence(unittest.TestCase):
                 {".env": "TOKEN=r3-namefile-7777\n", "r3-namefile-7777-secret.txt": "r3-filenamed-line-7778\n"},
                 "print(open('r3-namefile-7777-secret.txt').read().strip())",
                 ("r3-namefile-7777", "r3-filenamed-line-7778"), "<masked secret file>"),
-            "R6 a .env name starting with a digit": (
-                {".env": "2FA_SECRET=r3-twofactor-4601\n"}, "print(open('.env').read().split('=', 1)[1].strip())",
-                ("r3-twofactor-4601",), "<masked 2FA_SECRET>"),
-            "R6 a .env value Node ends at #": (
-                {".env": "DB_PASSWORD=r3node-4501#tail-4502\n"},
-                "print(open('.env').read().split('=', 1)[1].split('#')[0])", ("r3node-4501",), "<masked DB_PASSWORD>"),
-            "R6 a .env value after its NAME reference is filled in": (
-                {".env": 'SALT_PART=r3-salt-part-4901\nPASSWORD="r3-literal-lead-${SALT_PART}"\n'},
-                "print('r3-literal-lead-' + open('.env').read().split('=', 1)[1].split(chr(10))[0])",
-                ("r3-literal-lead", "r3-salt-part-4901"), "<masked PASSWORD>"),
-            "R6 a .env value whose bare reference names a later line": (
-                {".env": "PASSWORD=r3-lit-$SUFFIX_PART\nSUFFIX_PART=r3-suffix-5601\n"},
-                "lines = open('.env').read().splitlines(); "
-                "print(lines[0].split('=', 1)[1].split('$')[0] + lines[1].split('=', 1)[1])",
-                ("r3-lit-", "r3-suffix-5601"), "<masked PASSWORD>"),
             "R7 a Java .properties value written with escapes": (
                 {"secrets.properties": "db.password=r3-prop-" + slash + "u0041" + slash + "u0042-9701\n"
                                        "api.key = r3-prop-plain-9702\n"},
@@ -471,6 +508,52 @@ class Evidence(unittest.TestCase):
                 self.assertIn(mask, saved)
                 for text in kept:
                     self.assertIn(text, shown)
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): each of these .env cases expected the run with its value
+        # masked as one reader reads it; every fixture is outside the literal grammar, so the run now refuses
+        # before launch — "R1 a password= parameter in an unquoted .env URL": '&' is outside the probed unquoted
+        # set; "R1 a double-quoted .env value as a shell reads it": a '$' in a value (interpolation — bash expands
+        # it, dotenv 0.3–1.2 even inside single quotes); the three R2 comment cases and "R6 a .env value Node ends
+        # at #": an unquoted '#' (readers disagree on cut vs keep); "R4 a .env.local file read as Node reads a .env
+        # file": '.env.local' matches '.env.*' and its unquoted '#' refuses the same way; "R6 a .env name starting
+        # with a digit": a NAME is [A-Za-z_][A-Za-z0-9_]*, a shell's name; both R6 reference cases: a '$' in a
+        # value, even inside single quotes.
+        refused = {   # name: ({file: text}, the values and pieces that must not be seen, the file the report names)
+            "R1 a password= parameter in an unquoted .env URL": (
+                {".env": "DATABASE_URL=postgres://db/app?user=app&password=r3-pg-5101\n"}, ("r3-pg-5101",), ".env"),
+            "R1 a double-quoted .env value as a shell reads it": (
+                {".env": 'PASSWORD="r3' + slash + '$dollar-4401"\n'}, ("r3$dollar-4401", "$dollar-4401"), ".env"),
+            "R2 a bare .env token and its inline comment": (
+                {".env": "%s # rotated\n" % commented}, (commented, commented.rstrip("=")), ".env"),
+            "R2 a bare .env token with a comment glued on, as Node reads it": (
+                {".env": "APP_NAME=demo\n%s#rotated\n" % glued}, (glued, glued.rstrip("=")), ".env"),
+            "R2 a bare .env token with one = and a comment glued on": (
+                {".env": "APP_NAME=demo\n%s#rotated\n" % glued_one}, (glued_one, glued_one.rstrip("=")), ".env"),
+            "R4 a .env.local file read as Node reads a .env file": (
+                {".env.local": "DB_PASSWORD=r3node-local-2401#tail-2402\n"}, ("r3node-local-2401",), ".env.local"),
+            "R6 a .env name starting with a digit": (
+                {".env": "2FA_SECRET=r3-twofactor-4601\n"}, ("r3-twofactor-4601",), ".env"),
+            "R6 a .env value Node ends at #": (
+                {".env": "DB_PASSWORD=r3node-4501#tail-4502\n"}, ("r3node-4501",), ".env"),
+            "R6 a .env value after its NAME reference is filled in": (
+                {".env": 'SALT_PART=r3-salt-part-4901\nPASSWORD="r3-literal-lead-${SALT_PART}"\n'},
+                ("r3-literal-lead", "r3-salt-part-4901"), ".env"),
+            "R6 a .env value whose bare reference names a later line": (
+                {".env": "PASSWORD='r3-lit-$SUFFIX_PART'\nSUFFIX_PART=r3-suffix-5601\n"},
+                ("r3-lit-", "r3-suffix-5601"), ".env"),
+        }
+        for name, (files, secrets, blamed) in refused.items():
+            self.refused_run(name, files, secrets, blamed)
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): "R2 a bare .env token with == padding" and "... with one = of
+        # padding" expected the whole line masked as a bare token ("<masked .env>"); the grammar reads each line as
+        # an ordinary assignment every claimed reader decodes alike (a NAME over A-Za-z0-9, '=', then a value of '='
+        # signs or empty), so the line stays readable and every other = is untouched.
+        for name, bare in (("R2 a bare .env token with == padding", padded),
+                           ("R2 a bare .env token with one = of padding", single)):
+            _, shown, _, _ = self.admitted_run(name, {".env": "APP_NAME=demo\n%s\n" % bare},
+                                               "print(open('.env').read().splitlines()[1]); print('x = y == z')")
+            self.assertIn(bare, shown)                  # an ordinary assignment: its name is not a secret
+            self.assertIn("x = y == z", shown)          # a lone = is never a value: every other = stays readable
+            self.assertNotIn("<masked", shown)
         project = self.tmp / "settings-in-a-list"   # a number in a list entry under ordinary names stays readable
         (project / ".vibe-to-engineering").mkdir(parents=True)
         (project / "secrets.yaml").write_text("environment:\n  - PORT=8000\n  - API_TOKEN=r3-list-token-8803\n")
@@ -499,7 +582,10 @@ class Evidence(unittest.TestCase):
         # empty value is a setting that holds nothing, so the net for named values still masks NAME=value printed at
         # run time, while a would-be name that is not a name is a bare token (R2'); a name found inside a value is
         # never a mask's name, nor a setting unless given with '=' to a setting's name (R1', R5'); YAML data holding {{ is read as
-        # YAML (R8'); the parts of a value (R13); and a value as each standard reader of its format reads it (R14)
+        # YAML (R8'); the parts of a value (R13); and a value as each standard reader of its format reads it (R14).
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): the R2'/R13/R14 cases whose .env fixtures are outside the
+        # literal grammar are refusal cases below; the padded-token line the grammar reads as an ordinary assignment
+        # is below too.
         slash, quote, apostrophe = chr(92), chr(34), chr(39)
         glued, padded = "cjMtcjE4LWdsdWVkLXNpbmdsZS1wYWQteHg=", "cjMtcjE4LWVudi1wYWRkZWQtbmFtZS14eA=="
         ini_token, prop_token = "cjMtcjE4LWluaS1wYWRkZWQtY29tbWVudA==", "cjMtcjE4LXByb3AtcGFkZGVkLXRva2VueA=="
@@ -509,22 +595,12 @@ class Evidence(unittest.TestCase):
             "R2' an empty setting in .env.example leaves the net for named values on": (
                 {".env.example": "API_KEY=\nDEBUG=false\n", "runtime/fetched.txt": "r3-r18-fetched-1101\n"},
                 fetched + "print('API_KEY=' + fetched)", ("r3-r18-fetched-1101",), "API_KEY=<masked>"),
-            "R2' a password written as #... in .env leaves the net for named values on": (
-                {".env": "DB_PASSWORD=#r3-r18-hash-1102\n", "runtime/fetched.txt": "r3-r18-fetched-1103\n"},
-                fetched + "print('DB_PASSWORD=' + fetched)", ("r3-r18-fetched-1103",), "DB_PASSWORD=<masked>"),
             "R2' an INI option with nothing after it leaves the net for named values on": (
                 {"credentials.ini": "[api]\napi_key =\n", "runtime/fetched.txt": "r3-r18-fetched-1104\n"},
                 fetched + "print('api_key = ' + fetched)", ("r3-r18-fetched-1104",), "api_key = <masked>"),
             "R2' a list of field names leaves the net for named values on": (
                 {".env": "LOG_REDACT_FIELDS=password,secret,token\n", "runtime/fetched.txt": "r3-r18-fetched-1105\n"},
                 fetched + "print('token=' + fetched)", ("r3-r18-fetched-1105",), "=<masked>"),
-            "R2' a token with one = and a comment glued on, printed as python-dotenv reads its value": (
-                {".env": glued + "#r3-r18-note-1201\n"}, "print(open('.env').read().strip().split('=', 1)[1])",
-                ("r3-r18-note-1201", glued.rstrip("=")), "<masked .env>"),
-            "R2' a padded token printed as the name a .env reader sees": (
-                {".env": padded + "\nPORT=8000\n"},
-                "for line in open('.env'):\n    print('setting', line.strip().split('=', 1)[0])",
-                (padded.rstrip("="),), None, "setting PORT"),
             "R2' a padded token and a comment in an INI file with no extension": (
                 {"credentials": "[default]\n" + ini_token + " ; rotated\n"},
                 "for line in open('credentials'):\n    print(line.strip())\n    print(line.split()[0])",
@@ -571,10 +647,6 @@ class Evidence(unittest.TestCase):
                 "from urllib.parse import urlsplit; "
                 "print('password', urlsplit(open('backend.env').read().split('=', 1)[1].strip()).password)",
                 ("r3-r18-redis-1701",), None),
-            "R13 a percent-encoded query value": (
-                {".env": "DATABASE_URL=postgres://db/app?user=app&password=r3%21r18%21pct-1801\n"},
-                "from urllib.parse import urlsplit, parse_qs; url = open('.env').read().split('=', 1)[1].strip(); "
-                "print(parse_qs(urlsplit(url).query)['password'][0])", ("r3!r18!pct-1801",), "<masked DATABASE_URL>"),
             "R13 each member of a YAML value": (
                 {"secrets.yaml": "api_keys: r3-r18-yc-1901,r3-r18-yc-1902\n"},
                 "print(*open('secrets.yaml').read().split(': ', 1)[1].strip().split(','))",
@@ -591,30 +663,8 @@ class Evidence(unittest.TestCase):
                 {"credentials.ini": "[db]\npassword = r3-r18-iw-2201 r3-r18-iw-2202\n"},
                 "import configparser; c = configparser.ConfigParser(); c.read('credentials.ini'); "
                 "print(c['db']['password'].split()[0])", ("r3-r18-iw-2201",), "<masked password>"),
-            "R14 a .env value as python-dotenv reads it (only its own escapes)": (
-                {".env": "DB_PASSWORD=" + quote + "r3-r18-mix-" + slash + "t" + slash + "101-2301" + quote + "\n"},
-                "print(open('.env').read().split(chr(34))[1].replace(chr(92) + 't', chr(9)))",
-                ("r3-r18-mix-" + chr(9) + slash + "101-2301", slash + "101-2301"), "<masked DB_PASSWORD>"),
-            "R14 a .env value as Node reads it (a line break for each backslash-n)": (
-                {".env": "DB_PASSWORD=" + quote + "r3-r18-left-2401" + slash * 2 + "nr3-r18-right-2402" + quote + "\n"},
-                "print(open('.env').read().split(chr(34))[1].replace(chr(92) + 'n', chr(10)))",
-                ("r3-r18-left-2401", "r3-r18-right-2402"), "<masked DB_PASSWORD>"),
-            "R14 a single-quoted .env value as Node ends it": (
-                {".env": "API_SECRET=" + apostrophe + "r3-r18-sq-2501" + slash + apostrophe + "r3-r18-sq-2502"
-                         + apostrophe + "\n"},
-                "print(open('.env').read().split(chr(39))[1])", ("r3-r18-sq-2501",), "<masked API_SECRET>"),
-            "R14 a .env value a shell continues on the next line": (
-                {".env": "API_TOKEN=r3-r18-cont" + slash + "\ninued-2601\n"},
-                "print(open('.env').read().split('=', 1)[1].replace(chr(92) + chr(10), '').strip())",
-                ("r3-r18-continued-2601", "r3-r18-cont"), "<masked API_TOKEN>"),
-            "R14 a .env value in a shell's C quotes": (
-                {".env": "API_TOKEN=$" + apostrophe + "r3-r18-" + slash + "x41nsi-2701" + apostrophe + "\n"},
-                "print(open('.env').read().split(chr(39))[1].replace(chr(92) + 'x41', 'A'))", ("r3-r18-Ansi-2701",),
-                "<masked API_TOKEN>"),
-            "R14 a .env value a shell joins from quoted parts": (
-                {".env": "SECRET=r3" + apostrophe + "z!" + apostrophe + "q7\n"},
-                "print(open('.env').read().split('=', 1)[1].strip().replace(chr(39), ''))", ("r3z!q7", "r3z!"),
-                "<masked SECRET>"),
+            # "R14 a single-quoted .env value as Node ends it" stops the run since round 9: /bin/sh never finds its
+            # last quote closed (test_a_quote_the_shell_never_finds_closed_stops_the_run, test_evidence_readings.py)
             "R14 an INI value as configparser fills in its references": (
                 {"credentials.ini": "[DEFAULT]\nport = 8443\nyear = 2031\n[api]\npin = %(port)s%(year)s\n"},
                 "import configparser; c = configparser.ConfigParser(); c.read('credentials.ini'); "
@@ -660,26 +710,69 @@ class Evidence(unittest.TestCase):
                 self.assertIn(mask or "<masked", saved)
                 for text in kept:
                     self.assertIn(text, shown)
-        project = self.tmp / "empty-setting-and-an-env-flag"   # the net for named values also masks the --env header
-        (project / ".vibe-to-engineering").mkdir(parents=True)
-        (project / ".env").write_text("APP=demo\n")
-        (project / ".env.example").write_text("API_KEY= # set me\n")
-        self.project = project
-        out = project / ".vibe-to-engineering" / "evidence" / "check.txt"
-        code, printed, report = self.run_tool(out, sys.executable, "-c", "print('ok')",
-                                              env=["API_KEY=r3-r18-flag-3001"])
-        self.assertEqual(code, 0, report)
-        self.assertIn("with API_KEY=<masked>", printed)
-        for text in (printed, report, out.read_text(encoding="utf-8")):
-            self.assertNotIn("r3-r18-flag-3001", text)
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): each of these .env cases expected the run with its value
+        # masked as one standard reader reads it (R13, R14) or with the net for named values left on (R2'); every
+        # fixture is outside the literal grammar, so the run now refuses before launch — "R2' a password written as
+        # #..." and "R2' a token with one = and a comment glued on": an unquoted '#' (readers disagree on cut vs
+        # keep); "R13 a percent-encoded query value": '&' is outside the probed unquoted set; both R14 escape cases:
+        # a backslash in a double-quoted value (bash keeps it, dotenv decodes it — readers disagree on every
+        # escape); "R14 ... a shell continues on the next line" and "... joins from quoted parts": a backslash or
+        # quote inside an unquoted value; "R14 ... a shell's C quotes": a '$' in a value (interpolation).
+        refused = {   # name: ({file: text}, the values and pieces that must not be seen, the file the report names)
+            "R2' a password written as #... in .env leaves the net for named values on": (
+                {".env": "DB_PASSWORD=#r3-r18-hash-1102\n", "runtime/fetched.txt": "r3-r18-fetched-1103\n"},
+                ("r3-r18-hash-1102", "r3-r18-fetched-1103"), ".env"),
+            "R2' a token with one = and a comment glued on, printed as python-dotenv reads its value": (
+                {".env": glued + "#r3-r18-note-1201\n"}, ("r3-r18-note-1201", glued.rstrip("=")), ".env"),
+            "R13 a percent-encoded query value": (
+                {".env": "DATABASE_URL=postgres://db/app?user=app&password=r3%21r18%21pct-1801\n"},
+                ("r3!r18!pct-1801", "r3%21r18%21pct-1801"), ".env"),
+            "R14 a .env value as python-dotenv reads it (only its own escapes)": (
+                {".env": "DB_PASSWORD=" + quote + "r3-r18-mix-" + slash + "t" + slash + "101-2301" + quote + "\n"},
+                ("r3-r18-mix", "101-2301"), ".env"),
+            "R14 a .env value as Node reads it (a line break for each backslash-n)": (
+                {".env": "DB_PASSWORD=" + quote + "r3-r18-left-2401" + slash * 2 + "nr3-r18-right-2402" + quote + "\n"},
+                ("r3-r18-left-2401", "r3-r18-right-2402"), ".env"),
+            "R14 a .env value a shell continues on the next line": (
+                {".env": "API_TOKEN=r3-r18-cont" + slash + "\ninued-2601\n"}, ("r3-r18-cont", "inued-2601"), ".env"),
+            "R14 a .env value in a shell's C quotes": (
+                {".env": "API_TOKEN=$" + apostrophe + "r3-r18-" + slash + "x41nsi-2701" + apostrophe + "\n"},
+                ("r3-r18-", "nsi-2701"), ".env"),
+            "R14 a .env value a shell joins from quoted parts": (
+                {".env": "SECRET=r3" + apostrophe + "z!" + apostrophe + "q7\n"}, ("r3z!q7", "r3z!"), ".env"),
+        }
+        for name, (files, secrets, blamed) in refused.items():
+            self.refused_run(name, files, secrets, blamed)
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): "R2' a padded token printed as the name a .env reader sees"
+        # expected the token masked even as the would-be name a reader sees; the grammar reads the line as an
+        # ordinary assignment (a NAME over A-Za-z0-9, '=', a value of '=' signs — every claimed reader agrees), and
+        # a name is never a secret — masks are named by them — so the name prints readably beside PORT.
+        _, shown, _, _ = self.admitted_run(
+            "R2' a padded token printed as the name a .env reader sees",
+            {".env": padded + "\nPORT=8000\n"},
+            "for line in open('.env'):\n    print('setting', line.strip().split('=', 1)[0])")
+        self.assertIn("setting " + padded.rstrip("="), shown)   # a name is never a secret: the mask names it
+        self.assertIn("setting PORT", shown)
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): this block's .env.example held "API_KEY= # set me" and
+        # expected the run with the --env value kept out of the header; whitespace and '#' after '=' are outside the
+        # grammar (readers disagree on cut vs keep), so the run now refuses before launch — an --env flag does not
+        # bypass the boundary. The header rule itself still stands, proven by
+        # test_a_name_the_env_flag_gives_the_check_never_stops_the_run and the pinned-value block in
+        # test_masking_one_value_never_hides_another_and_each_reading_the_checkers_found_is_masked.
+        self.refused_run("empty-setting-and-an-env-flag",
+                         {".env": "APP=demo\n", ".env.example": "API_KEY= # set me\n"},
+                         ("r3-r18-flag-3001",), ".env.example", env=["API_KEY=r3-r18-flag-3001"])
 
     def test_masking_one_value_never_hides_another_and_each_reading_the_checkers_found_is_masked(self):
         # the second round of lens checks (2026-09-25) and the leader's repair: every match is found in the output as
         # printed before any is replaced, so a masked name, word or member never hides NAME=value from the net for
         # named values; a name found inside a value is never a mask's name; a list's numbers are never settings; and
-        # the readings they found — shell parameters, python-dotenv's spaces and quoted names, Node's carriage
-        # returns, YAML aliases, configparser's [DEFAULT] in each section, Java reading a JSON-shaped file, a URL's
-        # password holding '@', a query value holding ';', a base32 token
+        # the readings they found — YAML aliases, configparser's [DEFAULT] in each section, Java reading a
+        # JSON-shaped file, a URL's password holding '@', a query value holding ';'
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): the .env readings this round found — shell parameters,
+        # python-dotenv's spaces and quoted names, Node's carriage returns, a base32 token as a bare line — rested
+        # on files outside the literal grammar; they are refusal cases below, except the two the grammar reads as
+        # ordinary assignments (the padded base32 line, the number after a token), also below.
         slash, fetched = chr(92), "v = open('runtime/fetched.txt').read().strip(); "   # a value no secret file holds
         shell = ("import subprocess; print(subprocess.run(['/bin/sh', '-c', 'set -a; . ./.env; printf %s "
                  + '"$DB_PASSWORD"' + "'], stdout=subprocess.PIPE).stdout.decode())")
@@ -710,9 +803,6 @@ class Evidence(unittest.TestCase):
                 {"secrets.yaml": "recovery_codes:\n  - 48213377\n  - 90517264\npins: [4821, 9934]\n"},
                 "print('codes', *open('secrets.yaml').read().split()[2:5:2]); print('pins 4821 9934')",
                 ("48213377", "90517264", "4821", "9934")),
-            "a base32 token with its padding": (
-                {".env": "APP=demo\nJBSWY3DPINXHE2LOMFXGG5DPKE======\n"}, "print(open('.env').read().split()[1])",
-                ("JBSWY3DPINXHE2LOMFXGG5DPKE",)),
             "a URL's password holding @, and a query value holding ;": (
                 {".env": "DATABASE_URL=postgres://app:r3-l4-at@tail-0105x@db:5432/app\n",
                  "secrets.yaml": 'dsn: "postgres://db/app?password=r3;l4-semi-0106&sslmode=require"\n'},
@@ -720,22 +810,6 @@ class Evidence(unittest.TestCase):
                 "print('pw', urlsplit(open('.env').read().split('=', 1)[1].strip()).password); "
                 "url = open('secrets.yaml').read().split(chr(34))[1]; "
                 "print('pw', parse_qs(urlsplit(url).query)['password'][0])", ("r3-l4-at", "tail-0105x", "l4-semi-0106")),
-            "a shell's positional parameter inside a value": (
-                {".env": "DB_PASSWORD=r3-l4-dol$1lar-0107\n"}, shell, ("r3-l4-dollar-0107", "lar-0107")),
-            "a shell's ${NAME:=word}, the default it assigns": (
-                {".env": "DB_PASSWORD=${R3_L4_UNSET:=r3-l4-assign-0108}\n"}, shell, ("r3-l4-assign-0108",)),
-            "a shell's ${NAME:+word}, the alternate it gives": (
-                {".env": "R3_L4_SET=x1\nDB_PASSWORD=${R3_L4_SET:+r3-l4-alt-0109}\n"}, shell, ("r3-l4-alt-0109",)),
-            "python-dotenv: a no-break space before a quote": (
-                {".env": "DB_PASSWORD=" + chr(0xa0) + '"r3-l4-nb' + slash + 'tsp-0110"\n'},
-                "print(open('.env').read().split(chr(34))[1].replace(chr(92) + 't', chr(9)))",
-                ("r3-l4-nb" + chr(9) + "sp-0110",)),
-            "python-dotenv: a quoted name holding =": (
-                {".env": "'DB_PASSWORD=old'=r3-l4-qk-0111\n"}, "print(open('.env').read().split('=')[-1].strip())",
-                ("r3-l4-qk-0111",)),
-            "Node: a carriage return inside a quoted PIN": (
-                {".env": b'PIN="48\r21"\n'}, "print(open('.env', 'rb').read().split(b'\"')[1].replace(b'\\r', b'').decode())",
-                ("4821",)),
             "a YAML alias under a secret name": (
                 {"secrets.yaml": "defaults: &d 4821\npin: *d\ncodes: &c [4822, 4823]\nrecovery_keys: *c\n"},
                 "print('pin', open('secrets.yaml').read().split()[2]); print([4822, 4823])", ("4821", "4822", "4823")),
@@ -747,9 +821,6 @@ class Evidence(unittest.TestCase):
                 {"credentials.properties": '{"password": "r3-l4-j' + slash + 'b-0112"}\n'},
                 "print(open('credentials.properties').read().split(': ', 1)[1].replace(chr(92), '').strip())",
                 ("r3-l4-jb-0112",)),
-            "a bare number line in .env": (
-                {".env": "482193\nAPI_KEY=r3-l4-bare-0114\n"}, "print('code', open('.env').read().split()[0])",
-                ("482193",)),
             "a short value inside another file's key": (
                 {".env": "PIN=QXZ\n", "secrets.yaml": "backupQXZkey: r3-l4-short-0115\n"},
                 "print('value', open('secrets.yaml').read().split(': ')[1].strip())", ("QXZ", "r3-l4-short-0115")),
@@ -757,15 +828,6 @@ class Evidence(unittest.TestCase):
                 {"secrets.toml": "[pin]\nvalue = 0x12D5\n", "credentials.json": '{"pin": {"code": 4822}}',
                  "secrets.yaml": "credentials:\n  code: 4823\n", "credentials.ini": "[pin]\ncode = 4824\n"},
                 "print(4821, 4822, 4823, 4824)", ("4821", "4822", "4823", "4824")),
-            "a URL whose user is a token, and a token in a URL's fragment": (
-                {".env": "GIT_URL=https://r3l4tok0116x@git.example.test/repo\n"
-                         "CALLBACK=https://app.test/cb#access_token=r3%2Fl4-frag-0117&state=x\n"},
-                "from urllib.parse import urlsplit, parse_qs; lines = open('.env').read().split(); "
-                "print(urlsplit(lines[0].split('=', 1)[1]).username); "
-                "print(parse_qs(urlsplit(lines[1].split('=', 1)[1]).fragment)['access_token'][0])",
-                ("r3l4tok0116x", "r3/l4-frag-0117", "l4-frag-0117")),
-            "a shell trimming a prefix from a value": (
-                {".env": "WHOLE=pre-r3-l4-trim-0118\nDB_PASSWORD=${WHOLE#pre-}\n"}, shell, ("r3-l4-trim-0118",)),
             "a Helm template's quoted value with a YAML escape": (
                 {"chart/templates/secret.yaml": "stringData:\n  password: {{ .Values.password | quote }}\n"
                                                 "{{- if .Values.extra }}\n  apikey: " + '"r3-l4-helm-' + slash
@@ -778,9 +840,6 @@ class Evidence(unittest.TestCase):
             "an all-digit password glued to a token": (
                 {".env": "SF_PASSWORD=48213377\nSF_SECURITY_TOKEN=Zq8vLmN3pRtWx9Yk\n"},
                 "print('login as app with 48213377Zq8vLmN3pRtWx9Yk')", ("48213377", "Zq8vLmN3pRtWx9Yk")),
-            "a name that says secret right after a value ending in a letter outside ASCII": (
-                {".env": "USER_NAME=Gr" + chr(252) + "sse77\n"},
-                "print('Gr' + chr(252) + 'sse77_TOKEN=r3l4B01aa1')", ("r3l4B01aa1",)),
             "a token shape glued to a value": (
                 {".env": "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENGbPxRfiCYzz99\n"},
                 "print('AKIAIOSFODNN7EXAMPLE' + 'wJalrXUtnFEMIK7MDENGbPxRfiCYzz99')", ("AKIAIOSFODNN7EXAMPLE",)),
@@ -788,39 +847,13 @@ class Evidence(unittest.TestCase):
                 {"credentials.json": '{"ghp_ZyXwVuTsRqPoNmLkJiHgFeDc98": "deploy-bot-r3l4", "a' + slash + 'u0000b": 8123}'},
                 "print('ghp_ZyXwVuTsRqPoNmLkJiHgFeDc98 -> deploy-bot-r3l4'); print('port 8123')",
                 ("ghp_ZyXwVuTsRqPoNmLkJiHgFeDc98", "deploy-bot-r3l4")),
-            "a number after a token on a .env line": (
-                {".env": "cjMtZW52LXRva2VuLXAzMw=4841\n"}, "print('code 4841')", ("4841",)),
             "a YAML flow mapping under a name that says secret": (
                 {"secrets.yaml": "pin: {value: 9272}\nsecret: {code: 9170}\ncredentials: [{port: 5434}]\n"},
                 "print(9272, 9170, 5434)", ("9272", "9170", "5434")),
-            "a shell's nested reference, a pattern from another value, and a POSIX class": (
-                {".env": "DB_BASE=g9HorseBattery9137Staple\nTOKEN_PREFIX=g9pre\nAPI_TOKEN=g9preOrchid9141Lamp\n"
-                         "DB_SECRET=Cobalt-Lynx9146\nDB_PASSWORD=${UNSET_X:-${DB_BASE#g9}}\n"
-                         "API_KEY=${API_TOKEN#$TOKEN_PREFIX}\nDB_PIN=${DB_SECRET%%[![:alpha:]]*}\n"},
-                "import subprocess\nfor name in ('DB_PASSWORD', 'API_KEY', 'DB_PIN'):\n"
-                "    print(subprocess.run(['/bin/sh', '-c', 'set -a; . ./.env; printf %s \"$' + name + '\"'], "
-                "stdout=subprocess.PIPE).stdout.decode())", ("HorseBattery9137Staple", "Orchid9141Lamp", "Cobalt")),
-            "a shell's := giving a later line its value, $#, a tilde and arithmetic": (
-                {".env": "SEED=${UNSET_SEED:=Kq4}\nDB_PASSWORD=${UNSET_SEED}Zr8\nAPI_SECRET=Kq7$#Zr8\n"
-                         "API_TOKEN=g9Horse9144:~\nPIN=$((9000+147))\n"},
-                "import subprocess\nfor name in ('DB_PASSWORD', 'API_SECRET', 'API_TOKEN', 'PIN'):\n"
-                "    print(subprocess.run(['/bin/sh', '-c', 'set -a; . ./.env; printf %s \"$' + name + '\"'], "
-                "stdout=subprocess.PIPE).stdout.decode())", ("Kq4Zr8", "Kq70Zr8", "g9Horse9144", "9147")),
-            "names python-dotenv takes that are not written as names": (
-                {".env": "DB_PASSWORD[0]=g9Zeb9150Qa\nAPI_KEY!=g9Bg9265Qw\nDB_PASSWORD+=g9Pl9266Zx\n"},
-                "print(*[line.split('=', 1)[1] for line in open('.env').read().split()])",
-                ("g9Zeb9150Qa", "g9Bg9265Qw", "g9Pl9266Zx")),
-            "Node deleting a lone carriage return inside an unquoted PIN": (
-                {".env": b"PIN=48\r21\n"}, "print(open('.env', 'rb').read().split(b'=')[1].replace(b'\\r', b'').decode())",
-                ("4821",)),
             "a [DEFAULT] option read in a section named secret": (
                 {"credentials.ini": "[DEFAULT]\nbase = 9215\n[secret]\nhost = db\n"},
                 "import configparser; c = configparser.ConfigParser(); c.read('credentials.ini'); print(c['secret']['base'])",
                 ("9215",)),
-            "a query parameter whose name is percent-encoded": (
-                {".env": "CALLBACK=https://app.test/cb?p%69n=4821&x=1\n"},
-                "from urllib.parse import urlsplit, parse_qs; "
-                "print(parse_qs(urlsplit(open('.env').read().split('=', 1)[1].strip()).query)['pin'][0])", ("4821",)),
             "a URL whose user is a token beside a password": (
                 {".env": "REPO_URL=https://g9Tok9234Abc:x-oauth-basic@github.com/org/repo.git\n"},
                 "from urllib.parse import urlsplit; print(urlsplit(open('.env').read().split('=', 1)[1]).username)",
@@ -840,7 +873,7 @@ class Evidence(unittest.TestCase):
                 self.project = project
                 out = project / ".vibe-to-engineering" / "evidence" / "check.txt"
                 code, printed, report = self.run_tool(out, sys.executable, "-B", "check.py")
-                self.assertEqual(code, 0, report)
+                self.assertEqual(code, 0, report)   # the constructed environment holds HOME whatever the parent's
                 self.assertTrue((project / "check-ran").exists())
                 self.assertTrue(printed.startswith("$ "))            # a lone $ is never masked, the header's included
                 self.assertNotIn(chr(0), printed + report)            # no reader's mark ever reaches a mask's name
@@ -850,15 +883,98 @@ class Evidence(unittest.TestCase):
                     self.assertNotIn(secret, report)                # the summary of settings too
                     self.assertNotIn(secret, saved)
                 self.assertIn("<masked", shown)
-        project = self.tmp / "a-pin-glued-to-a-token-in-the-env-header"   # the --env header is masked the same way
-        (project / ".vibe-to-engineering").mkdir(parents=True)
-        (project / ".env").write_text("API_TOKEN=Zq8vLmN3pRtW\nPIN=4821\n")
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): each of these .env cases expected the run with the reading
+        # the named checker finds masked; every fixture is outside the literal grammar, so the run now refuses
+        # before launch — the two ${NAME:-word}/${NAME:+word} cases, "a shell trimming a prefix", "a shell's nested
+        # reference" and "a shell's := giving a later line its value, arithmetic, and a tilde over the file's HOME":
+        # a '$' or '{', '}' in a value (interpolation, brace expansion — Codex's reproduced bash case), arithmetic
+        # expansion, a '~' at a value's start (bash expands it through the account database); "python-dotenv: a
+        # no-break space before a quote": a non-ASCII byte and a backslash (the unquoted set is the probed ASCII
+        # set); "python-dotenv: a quoted name holding =" and "names python-dotenv takes that are not written as
+        # names": a NAME is [A-Za-z_][A-Za-z0-9_]*, a shell's name; both carriage-return cases: the boundary is
+        # LF-only (bash keeps a '\r' in the value); "a bare number line in .env": a bare line is never an
+        # assignment; "a URL whose user is a token, and a token in a URL's fragment" and "a query parameter whose
+        # name is percent-encoded": '#' and '&' are outside the probed unquoted set; "a name that says secret right
+        # after a value ending in a letter outside ASCII": a non-ASCII byte in an unquoted value.
+        refused = {   # name: ({file: text or bytes}, what the check would print, the values and pieces that must
+            #               not be seen, the file the report names) — the check must never run
+            "a shell's ${NAME:=word}, the default it assigns": (
+                {".env": "R3_L4_UNSET=\nDB_PASSWORD=${R3_L4_UNSET:=r3-l4-assign-0108}\n"}, shell,
+                ("r3-l4-assign-0108",), ".env"),
+            "a shell's ${NAME:+word}, the alternate it gives": (
+                {".env": "R3_L4_SET=x1\nDB_PASSWORD=${R3_L4_SET:+r3-l4-alt-0109}\n"}, shell, ("r3-l4-alt-0109",),
+                ".env"),
+            "python-dotenv: a no-break space before a quote": (
+                {".env": "DB_PASSWORD=" + chr(0xa0) + '"r3-l4-nb' + slash + 'tsp-0110"\n'},
+                "print(open('.env').read())", ("r3-l4-nb", "sp-0110"), ".env"),
+            "python-dotenv: a quoted name holding =": (
+                {".env": "'DB_PASSWORD=old'=r3-l4-qk-0111\n"}, "print(open('.env').read())", ("r3-l4-qk-0111",),
+                ".env"),
+            "Node: a carriage return inside a quoted PIN": (
+                {".env": b'PIN="48\r21"\n'}, "print(open('.env', 'rb').read())", ("4821",), ".env"),
+            "a bare number line in .env": (
+                {".env": "482193\nAPI_KEY=r3-l4-bare-0114\n"}, "print(open('.env').read())",
+                ("482193", "r3-l4-bare-0114"), ".env"),
+            "a URL whose user is a token, and a token in a URL's fragment": (
+                {".env": "GIT_URL=https://r3l4tok0116x@git.example.test/repo\n"
+                         "CALLBACK=https://app.test/cb#access_token=r3%2Fl4-frag-0117&state=x\n"},
+                "print(open('.env').read())",
+                ("r3l4tok0116x", "r3/l4-frag-0117", "r3%2Fl4-frag-0117", "l4-frag-0117"), ".env"),
+            "a shell trimming a prefix from a value": (
+                {".env": "WHOLE=pre-r3-l4-trim-0118\nDB_PASSWORD=${WHOLE#pre-}\n"}, shell, ("r3-l4-trim-0118",),
+                ".env"),
+            "a name that says secret right after a value ending in a letter outside ASCII": (
+                {".env": "USER_NAME=Gr" + chr(252) + "sse77\n"}, "print(open('.env').read())",
+                ("r3l4B01aa1", "Gr" + chr(252) + "sse77"), ".env"),
+            "a shell's nested reference, a pattern from another value, and a POSIX class": (
+                {".env": "UNSET_X=\nDB_BASE=g9HorseBattery9137Staple\nTOKEN_PREFIX=g9pre\n"
+                         "API_TOKEN=g9preOrchid9141Lamp\n"
+                         "DB_SECRET=Cobalt-Lynx9146\nDB_PASSWORD=${UNSET_X:-${DB_BASE#g9}}\n"
+                         "API_KEY=${API_TOKEN#$TOKEN_PREFIX}\nDB_PIN=${DB_SECRET%%[![:alpha:]]*}\n"},
+                "print(open('.env').read())", ("HorseBattery9137Staple", "Orchid9141Lamp", "Cobalt"), ".env"),
+            "a shell's := giving a later line its value, arithmetic, and a tilde over the file's HOME": (
+                {".env": "UNSET_SEED=\nSEED=${UNSET_SEED:=Kq4}\nDB_PASSWORD=${UNSET_SEED}Zr8\n"
+                         "API_TOKEN=g9Horse9144:tail\nPIN=$((9000+147))\nHOME=/r3-l4-home\nTILDE_PIN=~/tail9137\n"},
+                "print(open('.env').read())", ("Kq4Zr8", "g9Horse9144", "9147", "tail9137"), ".env"),
+            "names python-dotenv takes that are not written as names": (
+                {".env": "DB_PASSWORD[0]=g9Zeb9150Qa\nAPI_KEY!=g9Bg9265Qw\nDB_PASSWORD+=g9Pl9266Zx\n"},
+                "print(open('.env').read())", ("g9Zeb9150Qa", "g9Bg9265Qw", "g9Pl9266Zx"), ".env"),
+            "Node deleting a lone carriage return inside an unquoted PIN": (
+                {".env": b"PIN=48\r21\n"}, "print(open('.env', 'rb').read())", ("4821",), ".env"),
+            "a query parameter whose name is percent-encoded": (
+                {".env": "CALLBACK=https://app.test/cb?p%69n=4821&x=1\n"}, "print(open('.env').read())", ("4821",),
+                ".env"),
+        }
+        for name, (files, reader, secrets, blamed) in refused.items():
+            self.refused_run(name, files, secrets, blamed, reader=reader)
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): "a base32 token with its padding" expected the whole bare
+        # line masked, token included; the grammar reads the line as an ordinary assignment every claimed reader
+        # decodes alike (NAME=JBSWY3DPINXHE2LOMFXGG5DPKE, a value of '=' padding), so the name stays readable and
+        # the padding alone is masked.
+        _, shown, saved, _ = self.admitted_run("a base32 token with its padding",
+                                               {".env": "APP=demo\nJBSWY3DPINXHE2LOMFXGG5DPKE======\n"},
+                                               "print(open('.env').read().split()[1])")
+        self.assertEqual(shown, "JBSWY3DPINXHE2LOMFXGG5DPKE=<masked>\n")   # the name is never a secret
+        self.assertIn("JBSWY3DPINXHE2LOMFXGG5DPKE=<masked>", saved)
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): "a number after a token on a .env line" expected the number
+        # masked as part of a token reading; the grammar reads the line as an ordinary assignment (NAME over
+        # A-Za-z0-9, '=', value 4841), and a number under a name holding no secret word is a setting left readable
+        # — the same rule test_a_number_or_a_yes_no_word_under_an_ordinary_name_stays_readable_and_is_named proves.
+        _, shown, _, report = self.admitted_run("a number after a token on a .env line",
+                                                {".env": "cjMtZW52LXRva2VuLXAzMw=4841\n"}, "print('code 4841')")
+        self.assertIn("code 4841", shown)
+        self.assertIn("settings left readable: cjMtZW52LXRva2VuLXAzMw", report)
+        project = self.tmp / "a-pin-glued-to-a-token-in-the-env-header"   # D4 rule 4: the header records the
+        (project / ".vibe-to-engineering").mkdir(parents=True)            # --env name only, so a declared value
+        (project / ".env").write_text("API_TOKEN=Zq8vLmN3pRtW\nPIN=4821\n")   # never reaches it, glued or not
         self.project = project
         code, printed, report = self.run_tool(project / ".vibe-to-engineering" / "evidence" / "check.txt",
                                               sys.executable, "-c", "print('ok')", env=["MIX=Zq8vLmN3pRtW4821"])
         self.assertEqual(code, 0, report)
-        self.assertNotIn("4821", printed)
-        self.assertIn("with MIX=<masked API_TOKEN><masked PIN>", printed)
+        self.assertIn("  with MIX\n", printed)
+        for text in (printed, report, (project / ".vibe-to-engineering" / "evidence" / "check.txt").read_text(
+                encoding="utf-8")):
+            self.assertNotIn("Zq8vLmN3pRtW4821", text)
         project = self.tmp / "a-yaml-key-outside-the-subset-beside-a-template"   # no {{ on the line it stops at
         (project / ".vibe-to-engineering").mkdir(parents=True)
         (project / "secrets.yml").write_text("? complex_key\n: v\nvault_pw: " + '"r3-l4-av-' + slash + 'x41-0113"\n'
@@ -872,6 +988,55 @@ class Evidence(unittest.TestCase):
         self.assertFalse((project / "check-ran").exists())
         self.assertFalse(out.exists())
         self.assertIn("secrets.yml", report)
+
+    def test_a_padded_token_a_fragment_parameter_and_a_json_list_in_env_each_stay_masked(self):
+        # three protections the round-4 mutation run found no test for (the independent re-review, 2026-09-25): two
+        # '=' of padding make a bare .env line a token even when its would-be name holds a secret word (KEYA====); a URL
+        # fragment's parameters are read, split at ';' too, under the name each is given (#%70in=4821); and a .env file
+        # that is one JSON document is read as JSON as well. Each value leaks when its protection is taken out.
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): the first and third protections rested on reader modeling —
+        # KEYA==== is an ordinary assignment under the grammar (below), and a .env file holding one JSON document is
+        # not a literal assignment, so it refuses (below). The second protection stands, unchanged, in the case above.
+        cases = {   # name: ({file: text}, what the check prints, the value and its pieces, the one mask it shows)
+            "a PIN among a URL fragment's parameters split at ';'": (
+                {"credentials.json": json.dumps({"url": "#%70in=4821;other=x"})},
+                "import json; from urllib.parse import unquote; frag = json.load(open('credentials.json'))['url'][1:]; "
+                "print(dict((unquote(k), v) for k, v in (p.split('=', 1) for p in frag.split(';')))['pin'])",
+                ("4821",), "<masked secret in url>"),
+        }
+        for name, (files, reader, secrets, label) in cases.items():
+            with self.subTest(name):
+                project = self.tmp / re.sub(r"\W+", "-", name)
+                (project / ".vibe-to-engineering").mkdir(parents=True)
+                for file, content in files.items():
+                    (project / file).write_text(content)
+                (project / "check.py").write_text("from pathlib import Path\nPath('check-ran').write_text('ran')\n"
+                                                  + reader + "\n")
+                self.project = project
+                out = project / ".vibe-to-engineering" / "evidence" / "check.txt"
+                code, printed, report = self.run_tool(out, sys.executable, "-B", "check.py")
+                self.assertEqual(code, 0, report)
+                self.assertTrue((project / "check-ran").exists())
+                shown, saved = printed.split("\n\n", 1)[1], out.read_text(encoding="utf-8")
+                self.assertEqual(re.sub(r"<masked(?: [^>\n]*)?>|\s+", "", shown), "")   # not a piece of it is left
+                self.assertEqual(set(re.findall(r"<masked[^>]*>", shown)), {label})  # and no mask shows secret text
+                for secret in secrets:
+                    for text in (shown, saved, report):
+                        self.assertNotIn(secret, text)
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): "a base32 token whose would-be name holds a secret word"
+        # expected the whole KEYA==== line masked as a bare token, its name hidden too; the grammar reads the line
+        # as an ordinary assignment every claimed reader decodes alike (NAME=KEYA, a value of '=' padding), and a
+        # name is never a secret — the mask is named by it — so KEYA stays readable and only the padding is masked.
+        _, shown, saved, _ = self.admitted_run("a base32 token whose would-be name holds a secret word",
+                                               {".env": "KEYA====\n"}, "print(open('.env').read().strip())")
+        self.assertEqual(shown, "KEYA=<masked>\n")       # not a piece of the value is left
+        self.assertEqual(set(re.findall(r"<masked[^>]*>", saved)), {"<masked>"})
+        # SUPERSEDED (A1 literal boundary, 2026-09-27): "a JSON list with an escape, in a .env file" expected the
+        # file read as JSON as well as .env, masked both ways; the grammar admits only literal assignments, and a
+        # JSON document is not one (no NAME=VALUE line), so the file now refuses before launch.
+        self.refused_run("a JSON list with an escape, in a .env file", {".env": '["r4-json-\\u0056alue-59274"]\n'},
+                         ("r4-json-Value-59274", "Value-59274", "r4-json-" + chr(92) + "u0056alue-59274"), ".env",
+                         reader="import json; print(json.load(open('.env'))[0])")
 
     def test_a_number_or_a_yes_no_word_under_an_ordinary_name_stays_readable_and_is_named(self):
         (self.project / ".env").write_text("PORT=8000\nDEBUG=true\nSECRET_KEY=abcd1234efgh5678\nPIN=1234\n")

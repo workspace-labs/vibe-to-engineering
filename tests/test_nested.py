@@ -292,6 +292,56 @@ class Nested(Fixture):
                 self.assertEqual(identities(p / ".git"), before, "git wrote into the project's repository")
                 self.assertIn("the project's git repository at %s keeps a sparse index" % (p / ".git"), err)
 
+    def test_a_split_index_is_refused_before_git_reads_it_nested_ignored_or_the_projects_own(self):
+        # the round-4 re-review (2026-09-25): git rewrites the time of a split index's shared index file every time it
+        # reads the index, so every command that read one changed that repository; each is now refused first
+        def untouched(git_dir):   # every name under it: inode, time, bytes and mode
+            return identities(git_dir), {os.path.relpath(os.path.join(folder, name), git_dir):
+                                         os.lstat(os.path.join(folder, name)).st_mode
+                                         for folder, dirs, names in os.walk(git_dir) for name in dirs + names}
+
+        def split(repository, version=2):
+            if version == 3:   # git writes version 3 only for an entry with an extended flag
+                self.git(repository, "update-index", "--skip-worktree", "keep.txt")
+            self.git(repository, "update-index", "--index-version=%d" % version)
+            self.git(repository, "update-index", "--split-index")
+            shared = list((repository / ".git").glob("sharedindex.*"))
+            self.assertEqual(len(shared), 1)
+            os.utime(shared[0], ns=(10**18, 10**18))   # an old time, so that git touching it shows
+
+        def refused(p, repository, command, reason):
+            before = untouched(repository / ".git")
+            _, err = self.tool(p, *command, expect=1)
+            self.assertEqual(untouched(repository / ".git"), before, "git wrote into the repository it only reads")
+            self.assertIn(reason, err)
+            self.assertIn("split index", err)
+
+        for object_format, version in (("sha1", 2), ("sha1", 3), ("sha1", 4), ("sha256", 2), ("sha256", 3),
+                                       ("sha256", 4)):
+            with self.subTest(object_format=object_format, index_version=version):
+                p = self.git_project("split-%s-%d" % (object_format, version))
+                module = p / "module"
+                write(module / "keep.txt", b"kept\n")
+                self.git(module, "init", "-q", "--object-format=" + object_format)
+                self.git(module, "add", "keep.txt")
+                self.git(module, "commit", "-qm", "committed")
+                self.tool(p, "create", "00-clean")
+                split(module, version)
+                refused(p, module, ("create", "01-after"), "module/ keeps a split index")
+        for place in ("nested", "ignored", "own"):
+            p = self.git_project("split-" + place)
+            if place == "ignored":
+                write(p / ".gitignore", (p / ".gitignore").read_bytes() + b"module/\n")
+            repository = p if place == "own" else self.repository(p / "module", {"keep.txt": b"kept\n"})
+            self.tool(p, "create", "00-clean")
+            split(repository)
+            reason = ("the project's git repository at %s keeps a split index" % (p / ".git") if place == "own"
+                      else "cannot tell whether the nested repository module/")
+            for command in (("create", "01-after"), ("diff", "00-clean"), ("restore", "00-clean"),
+                            ("restore", "00-clean", "--apply")) + ((("tree", "--current"),) if place == "own" else ()):
+                with self.subTest(place=place, command=" ".join(command)):
+                    refused(p, repository, command, reason)
+
     def test_a_sparse_checkout_without_a_sparse_index_is_still_inspected(self):
         p = self.git_project()
         module = self.repository(p / "module", {"included/a.txt": b"included\n", "excluded/b.txt": b"excluded\n"})

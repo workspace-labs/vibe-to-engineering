@@ -3,7 +3,7 @@
 A checkpoint does not save them: their own git keeps their committed work. So a checkpoint is refused while one
 holds work its commits do not, and the check asks git only for lists — never to read a file, which would run a
 filter program the git settings name (G11). A repository git cannot list without changing it — a partial clone on a
-git older than 2.46, or one that keeps a sparse index — is refused before git runs anything else there.
+git older than 2.46, or one that keeps a sparse or a split index — is refused before git runs anything else there.
 """
 
 import os
@@ -50,7 +50,8 @@ def nested_work(folder, name):
 
     Right after git has said which repository it opens there, and before it runs anything else in it, a repository
     it cannot list without changing is refused (G11): a partial clone on a git older than 2.46, which fetches what it
-    lacks, and a sparse index, which git expands — writing objects, and fetching them first on a partial clone."""
+    lacks, a sparse index, which git expands — writing objects, and fetching them first on a partial clone — and a
+    split index, whose shared index file git touches each time it reads the index."""
     where = git(["rev-parse", "--show-toplevel", "--absolute-git-dir"], cwd=folder).stdout.splitlines()
     if len(where) != 2 or not os.path.samefile(os.fsdecode(where[0]), str(folder)):
         raise Fail("git opens another repository there, not the one in %s" % name)

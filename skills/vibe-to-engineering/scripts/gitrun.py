@@ -3,8 +3,8 @@ the checkpoint tool.
 
 Every git call goes through git(): argument lists, never a shell; hooks, file-system monitors and lazy fetching
 off; the environment variables that would point git elsewhere dropped (G11). One question is answered without git,
-because asking git would change the repository: whether its index is a sparse index. The platform helpers keep the
-operating-system differences in one place, as references/recovery.md section 4 promises.
+because asking git would change the repository: whether its index is a sparse or a split index. The platform helpers
+keep the operating-system differences in one place, as references/recovery.md section 4 promises.
 """
 
 import hashlib
@@ -254,35 +254,46 @@ def read_index(data, oid_size):
         return None
 
 
-def sparse_index(git_dir, shared=None):
-    """Whether the index git keeps in `git_dir` — or, for a split index, the shared index it names — is a sparse
-    index: one where an entry stands for a whole folder outside a sparse checkout. False when there is no index. Read
-    here, byte by byte, because asking git expands it. An index this tool cannot read is not inspected (Fail)."""
+def index_readings(git_dir, shared=None):
+    """What the index git keeps in `git_dir` holds — or the shared index a split index names — as read_index reads
+    it for each length of object id; [] when there is no index. Read here, byte by byte, because asking git changes
+    the repository. An index this tool cannot read is not inspected (Fail)."""
     path = os.path.join(str(git_dir), "index" if shared is None else "sharedindex." + shared)
     try:
         with open(path, "rb") as handle:
             data = handle.read()
     except FileNotFoundError:
         if shared is None:
-            return False
+            return []
         raise Fail("cannot read git's index at %s: the file is missing" % path)
     except OSError as error:
         raise Fail("cannot read git's index at %s (%s)" % (path, error.strerror or error))
     readings = [reading for reading in (read_index(data, 20), read_index(data, 32)) if reading is not None]
     if not readings:
         raise Fail("cannot read git's index at %s: it is not in a form this tool knows" % path)
+    return readings
+
+
+def sparse_index(git_dir, shared=None):
+    """Whether the index git keeps in `git_dir` — or, for a split index, the shared index it names — is a sparse
+    index: one where an entry stands for a whole folder outside a sparse checkout. False when there is no index."""
     return any(sparse or (link is not None and shared is None and sparse_index(git_dir, link))
-               for sparse, link in readings)
+               for sparse, link in index_readings(git_dir, shared))
 
 
 def refuse_sparse_index(git_dir, name):
     """git expands a sparse index to list a repository's files — writing tree objects there, and on a partial clone
-    fetching them from its remote first — so such a repository is refused before git runs any command that reads its
+    fetching them from its remote first — and it rewrites the time of a split index's shared index file every time it
+    reads the index; so a repository whose index is either is refused before git runs any command that reads its
     index (G11)."""
     if sparse_index(git_dir):
         raise Fail("%s keeps a sparse index, which git expands just to list its files — writing new objects into that "
                    "repository, and on a partial clone fetching them from its remote — so it cannot be inspected "
                    "without changing it, and turning the sparse index off there is the human's decision" % name)
+    if any(link is not None for _, link in index_readings(git_dir)):
+        raise Fail("%s keeps a split index, and git rewrites the time of its shared index file every time it reads "
+                   "the index — so it cannot be inspected without changing it, and turning the split index off there "
+                   "is the human's decision" % name)
 
 
 def blob_id(data, oid_length):
