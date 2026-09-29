@@ -47,7 +47,23 @@ retention, identity and mode are judged on it alone, "still at its path" is an l
 against it, the root string must name the folder just made or the run is refused, and the held
 descriptor is proven closed exactly once on every path. Each finding has a regression that fails
 on 87709ab and passes now.
-A3 is **delivered for independent re-review — not yet reviewed or owner-accepted**.
+
+**A3's history:** `569c8f9` (implementation), then `9204241`, `cc5b862`, `87709ab`, and
+`46114bc`, which was **reviewer-accepted on 2026-09-29**: the independent re-review found A3
+ACCEPTED on the review side — Q1 and Q2 close, every earlier finding (F1–F5, N1–N5, P1–P5)
+stays closed, the must-be-unchanged list holds, and the suite is 329 tests, OK, no skips.
+
+**The owner has not pressed Accept.** His decision: the skill must be completely clean first —
+fix R1–R3 before A3 closes.
+
+## Open items for tomorrow (2026-09-30)
+
+- R1 (Low): retain calls verify_base() before _ROOTS.pop (childenv.py:417-418), so a failed verify_base leaves the held descriptor open and registered until the process exits. Pop first, or close it in finally.
+- R2 (Low): the Q2 refusal (and any Fail after the root's mkdir in scratch_root, around childenv.py:363) leaves a real root in the base that is unregistered and unreported. Name its path in the refusal message.
+- R3 (Low, tests): the Q1 test errors on 87709ab via an uncaught Fail instead of reaching its mode assertion. tests/test_final_review_r1.py:148 pops an _ROOTS entry without closing its held descriptor. Add regression tests for R1 and R2.
+
+**Tomorrow's rules:** each R item gets a regression test that fails on 46114bc and passes
+after, then the full suite with the isolated-HOME command, then an independent review.
 
 **The whole skill is still in development.** This state is not a v0.1.0 release or approval
 for use on real projects. A4, the documentation sweep, the regression re-verification and
