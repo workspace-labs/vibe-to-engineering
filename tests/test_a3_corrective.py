@@ -29,6 +29,19 @@ below fail on 9204241 and pass after:
   N5  the evidence header still said "kept after the run … mode 0700" even when the root was gone —
       it now points at the stderr retention report without claiming it
 
+The third review (of cc5b862) closed N2–N5, found N1 only half-closed and four more defects; the P
+tests below fail on cc5b862 and pass after, every injection hook asserting it actually fired (P5):
+
+  P1  the base levels were opened by full path — a swap of .vibe-to-engineering after it was judged
+      redirected the root into a stranger: levels are now chained by descriptor (dir_fd), the base
+      descriptor stays open, and the root is created with mkdir(dir_fd=) and registered from fstat
+  P2  a foreign real folder moved in as home/ or tmp/ was chmodded, no race needed: home/ and tmp/
+      are registered by device and inode at creation, and only a matching inner descriptor is fchmodded
+  P3  a check stripping its own root's read permission got "did not make" and exit 3 where 9204241
+      restored it and exited 0: identity confirmed by lstat, permission restored never through a link,
+      the root re-opened and re-verified
+  P4  fstat calls sat outside the OSError handling — a failure escaped raw: both are wrapped into Fail
+
 Run from the repository root:  python3 -m unittest discover -s tests -p test_a3_corrective.py -v
 """
 
@@ -218,10 +231,11 @@ class A3Corrective(unittest.TestCase):
     # ------------------------------------------------------- N1: no swap between check and chmod (re-review)
 
     def test_a_swap_between_identity_and_chmod_never_touches_the_stranger(self):
-        # the re-reviewer's reproduction: a swap injected right after retain's identity lstat put a link
-        # to a foreign folder at the root's path, and the by-path chmods landed on the stranger. The
-        # descriptor-pinned retain has no such window. The hook fires only when the caller is retain
-        # itself (realpath's own lstat must not trip it); a refusal is a safe outcome too.
+        # the re-reviewer's reproduction (N1), re-hooked per the P5 review note — the old lstat hook
+        # could never fire on the descriptor-pinned retain, so the test passed vacuously. Now the swap
+        # fires when retain performs its chmod — os.chmod by path on 9204241 (follows the link onto the
+        # stranger) or os.fchmod on the descriptor-pinned corrective (harmless: the descriptor pins the
+        # real root). The hook MUST fire, or the test proves nothing.
         with mock.patch.dict(os.environ, {"HOME": str(self.tmp)}):
             root = childenv.scratch_root()
             foreign = self.tmp / "foreign"
@@ -230,22 +244,33 @@ class A3Corrective(unittest.TestCase):
             for folder in (foreign, foreign / "home", foreign / "tmp"):
                 os.chmod(str(folder), 0o755)
             moved = self.tmp / "moved-root"
-            real_lstat, fired = os.lstat, []
+            fired = []
 
-            def swapping(path, *args, **kwargs):
-                result = real_lstat(path, *args, **kwargs)
-                if not fired and str(path) == str(root) \
-                        and sys._getframe(1).f_code.co_name == "retain":
+            def swap_now():
+                if not fired:
                     fired.append(True)
-                    os.rename(str(root), str(moved))       # the injected swap: right after the identity
-                    os.symlink(str(foreign), str(root))    # check, before the by-path chmods
-                return result
+                    os.rename(str(root), str(moved))       # the injected swap: the root away, a link to
+                    os.symlink(str(foreign), str(root))    # the stranger at its path
+
+            real_chmod, real_fchmod = os.chmod, os.fchmod
+
+            def chmod_hook(path, mode, *args, **kwargs):
+                if sys._getframe(1).f_code.co_name == "retain":
+                    swap_now()
+                return real_chmod(path, mode, *args, **kwargs)
+
+            def fchmod_hook(fd, mode, *args, **kwargs):
+                if sys._getframe(1).f_code.co_name == "retain":
+                    swap_now()
+                return real_fchmod(fd, mode, *args, **kwargs)
 
             try:
-                with mock.patch.object(childenv.os, "lstat", swapping):
+                with mock.patch.object(childenv.os, "chmod", chmod_hook), \
+                        mock.patch.object(childenv.os, "fchmod", fchmod_hook):
                     childenv.retain(root)
             except Fail:
                 pass   # refusing the swapped object is safe too — what matters is the stranger stands
+            self.assertTrue(fired, "the swap hook never fired — the test proves nothing (P5)")
             for folder in (foreign, foreign / "home", foreign / "tmp"):
                 self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o755, str(folder))
 
@@ -327,6 +352,94 @@ class A3Corrective(unittest.TestCase):
         self.assertIsNotNone(saved)                          # … and so does the evidence …
         self.assertNotIn("kept after the run", saved)        # … but it never claimed the root was kept
         self.assertIn("its retention is reported on stderr", saved)
+
+    # ------------------------------------------- P1: the base levels are chained by descriptor (third review)
+
+    def test_a_swap_between_base_levels_cannot_redirect_the_root(self):
+        # the third reviewer's reproduction: after level 1 was judged and closed, .vibe-to-engineering
+        # becomes a link to a foreign folder holding a 0755 runs/. On cc5b862 the next level was opened
+        # by re-walking the path — the root landed inside the stranger and the stranger's runs became
+        # 0700. The descriptor-chained base ignores the swapped path entirely. The hook MUST fire.
+        with mock.patch.dict(os.environ, {"HOME": str(self.tmp)}):
+            foreign = self.tmp / "foreign"
+            (foreign / "runs").mkdir(parents=True)
+            os.chmod(str(foreign / "runs"), 0o755)
+            chain = self.tmp / ".vibe-to-engineering"
+            moved = self.tmp / "chain-moved"
+            real_close, fired = os.close, []
+
+            def close_hook(fd):
+                if not fired and sys._getframe(1).f_code.co_name in ("scratch_base", "open_base"):
+                    fired.append(True)
+                    os.rename(str(chain), str(moved))      # level 1 was judged and closed; the path now
+                    os.symlink(str(foreign), str(chain))   # becomes a link into the stranger
+                return real_close(fd)
+
+            with mock.patch.object(childenv.os, "close", close_hook):
+                childenv.scratch_root()
+            self.assertTrue(fired, "the swap hook never fired — the test proves nothing (P5)")
+            self.assertEqual(os.listdir(str(foreign / "runs")), [])        # no root inside the stranger
+            self.assertEqual(stat.S_IMODE((foreign / "runs").stat().st_mode), 0o755)   # never chmodded
+
+    # ------------------------------------------- P2: a foreign folder as home/ is a stranger too
+
+    def test_a_foreign_folder_moved_in_as_home_is_never_chmodded(self):
+        # the third reviewer's reproduction: the check moves its home/ aside and a foreign 0755 folder
+        # in as home/ — no race needed. Since 9204241 the stranger was chmodded; only an inner
+        # descriptor whose fstat matches the registered identity may be fchmodded.
+        home = self.fresh_home("foreign home")
+        project = self.project("foreign home")
+        foreign = project / "foreign"
+        foreign.mkdir()
+        (foreign / "data.txt").write_text("precious-a3p2\n")
+        os.chmod(str(foreign), 0o755)
+        code, printed, saved, report = self.run_tool(
+            project, [SH, "-c", "mv \"$HOME\" \"$HOME-aside\" && mv foreign \"$HOME\""], home)
+        self.assertEqual(code, 0, report)
+        root = Path(re.search(r"scratch root is retained at (\S+)", report).group(1))
+        moved_in = root / "home"
+        self.assertEqual(stat.S_IMODE(moved_in.stat().st_mode), 0o755)     # the stranger stands as found
+        self.assertEqual((moved_in / "data.txt").read_text(), "precious-a3p2\n")
+        self.assertTrue((root / "home-aside").is_dir())                    # the run's own home, untouched
+
+    # ------------------------------------------- P3: an unreadable own root is restored, not blamed
+
+    def test_a_check_making_its_own_root_unreadable_is_restored_not_blamed(self):
+        # the third reviewer's reproduction: chmod 300 on the root — 9204241 restored it and exited 0;
+        # cc5b862 reported a stranger ("did not make") with exit 3 and left the root d-wx------.
+        home = self.fresh_home("unreadable root")
+        project = self.project("unreadable root")
+        code, printed, saved, report = self.run_tool(project, [SH, "-c", "chmod 300 \"$HOME/..\""], home)
+        self.assertEqual(code, 0, report)
+        root = Path(re.search(r"scratch root is retained at (\S+)", report).group(1))
+        self.assertEqual(stat.S_IMODE(root.stat().st_mode), 0o700)         # restored, not left d-wx
+        self.assertIsNotNone(saved)
+
+    # ------------------------------------------- P4: an fstat failure is a governed Fail
+
+    def test_an_fstat_failure_is_a_governed_fail_never_a_raw_error(self):
+        # P4: an fstat failing inside scratch_base or retain must surface as Fail — a raw OSError in
+        # main's finally would be a traceback and exit 1. The hook MUST fire in both halves.
+        with mock.patch.dict(os.environ, {"HOME": str(self.tmp)}):
+            root = childenv.scratch_root()
+            real_fstat, fired = os.fstat, []
+
+            def boom(fd, *args, **kwargs):
+                caller = sys._getframe(1).f_code.co_name
+                if caller in ("retain", "scratch_base", "open_base"):
+                    fired.append(caller)
+                    raise PermissionError(13, "Permission denied")
+                return real_fstat(fd, *args, **kwargs)
+
+            with mock.patch.object(childenv.os, "fstat", boom):
+                with self.assertRaises(Fail):
+                    childenv.retain(root)
+            self.assertIn("retain", fired)
+            fired.clear()
+            with mock.patch.object(childenv.os, "fstat", boom):
+                with self.assertRaises(Fail):
+                    childenv.scratch_base()
+            self.assertTrue(fired)
 
 
 if __name__ == "__main__":

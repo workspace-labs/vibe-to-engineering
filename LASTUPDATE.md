@@ -32,6 +32,14 @@ creating the base folders (N4), and the evidence header claiming retention it ha
 home/ or tmp/ is skipped, containment is judged by device and inode, check_base runs inside
 construct after every validation, and the header only points at the stderr retention report.
 Each finding has a regression that fails on 9204241 and passes now.
+The third review (of cc5b862) closed N2–N5 and all F findings, found N1 only half-closed and
+four more defects, and the third corrective is implemented: the base levels and the root itself
+are created and validated through one descriptor chain (dir_fd throughout — a swapped base level
+cannot redirect the root into a stranger, P1), home/ and tmp/ are registered by identity at
+creation and only a matching descriptor is fchmodded (a foreign folder moved in is a stranger,
+P2), a root the check made unreadable is identity-confirmed and restored instead of misreported
+as a stranger (P3), and no fstat failure can escape raw (P4); every injection hook in the tests
+asserts it actually fired (P5). Each finding has a regression that fails on cc5b862 and passes now.
 A3 is **delivered for independent re-review — not yet reviewed or owner-accepted**.
 
 **The whole skill is still in development.** This state is not a v0.1.0 release or approval
@@ -75,6 +83,11 @@ Development branch: `fix/f03-f06-f08-new1`.
   0700 on the verified root — identity matched with fstat on the root's own open descriptor
   (O_DIRECTORY|O_NOFOLLOW), the mode set with fchmod on it, home/ and tmp/ opened through it
   with dir_fd, a missing one skipped — so no swap between check and chmod can touch a stranger.
+  The chain itself is built the same way: levels opened through their parent's descriptor, the
+  base descriptor held open, the root created with mkdir(dir_fd=) and registered from fstat —
+  home/ and tmp/ registered by identity too, so a foreign folder moved in as one is a stranger
+  skipped untouched, and a root the check made unreadable is identity-confirmed and restored,
+  never misreported.
   The retained path
   is in the evidence header (`scratch … its retention is reported on stderr; may hold
   sensitive output`) and the stderr summary; SKILL.md records it in the

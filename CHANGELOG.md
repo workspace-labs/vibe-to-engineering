@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+- 2026-09-29 — A3 third corrective (third review P1–P5), delivered for independent re-review:
+  the third review of cc5b862 closed N2–N5 and all F findings but found N1 only half-closed and
+  four more defects. (P1) The base levels were opened by full path, so a swap of
+  `.vibe-to-engineering` after it was judged redirected the root into a stranger and chmodded it:
+  the levels are now chained by descriptor (each opened through its parent's descriptor with
+  dir_fd, created with mkdir(dir_fd=) when missing), the base descriptor stays open, and the
+  scratch root itself is created with mkdir(dir_fd=base), opened with O_NOFOLLOW and registered
+  from fstat. (P2) A foreign real folder moved in as home/ or tmp/ was chmodded without any
+  race: home/ and tmp/ are now registered by device and inode at creation, and only an inner
+  descriptor whose fstat matches is fchmodded — anything else is a stranger, skipped untouched.
+  (P3) A check stripping its own root's read permission was misreported as "did not make" with
+  exit 3 (9204241 restored it and exited 0): identity is now confirmed by lstat, the owner's
+  permission restored never through a link (follow_symlinks=False), and the root re-opened and
+  re-verified. (P4) Two fstat calls sat outside the OSError handling: both are wrapped into
+  Fail, so no raw error can escape into main's finally. (P5) The N1 swap test passed vacuously
+  on the descriptor-pinned retain — its lstat hook could never fire: it now hooks the chmod
+  itself and every injection hook asserts it fired. The no-deletion rule, the device+inode
+  identity proof, the 0/1/2/3 statuses, both refusal rules, the ledger instruction, header
+  masking, all accepted F/N behavior and zero-descriptor-leak error paths are unchanged. The
+  four new regressions fail on cc5b862 (3 failures, 1 error) and pass after.
+
 - 2026-09-29 — A3 second corrective (re-review N1–N5), delivered for independent re-review:
   the re-review of 9204241 closed F1–F5 on their reproductions but found five more defects
   inside the corrective itself. (N1) The identity check and the chmod were two path operations

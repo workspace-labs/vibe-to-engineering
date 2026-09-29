@@ -12,10 +12,12 @@ the human's act. R2-F1 is closed by construction. The first A3 review (of 569c8f
 for F1–F5 (a check tampering with the scratch base), and the re-review of that corrective
 (9204241) reopened it again for N1–N5 (a swap window between identity check and chmod, an
 exit-3 regression on a removed $TMPDIR, a letter-case route past the project-containment check,
-an early refusal creating the base, a header claiming unconfirmed retention). Both correctives
-are implemented — descriptor-pinned identity and chmod throughout, containment by device and
-inode, check_base inside construct after validation, an honest header — each with
-fail-on-the-reviewed-commit regressions, and the second is **delivered for independent
+an early refusal creating the base, a header claiming unconfirmed retention), and the third
+review (of cc5b862) for P1–P5 (base levels opened by re-walking paths, a foreign folder
+chmodded as home/, an unreadable own root misreported as a stranger, raw fstat failures, a
+vacuous swap test). All three correctives are implemented — one descriptor chain from base to
+root to home/tmp, identity registered and matched at every level, an honest header — each with
+fail-on-the-reviewed-commit regressions, and the third is **delivered for independent
 re-review, not accepted**. Next after acceptance is **A4: macOS-only platform
 refusal at the
 execution boundary**, then the documentation sweep, the regression re-verification and the macOS
