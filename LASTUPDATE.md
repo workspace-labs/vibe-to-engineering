@@ -12,8 +12,17 @@ review, and F3-R1 closes its remaining ambiguous-option leak.
 every run-owned scratch root is confirmed by the R1 identity proof and left standing,
 mode 0700, its path recorded in the evidence header and on stderr, and — per the updated
 protocol — in the project ledger; deletion stays the human's act. R2-F1 is closed by
-construction: a tool that never deletes can never delete data the run did not make. A3 is
-implemented and suite-verified, **not yet independently reviewed or owner-accepted**.
+construction: a tool that never deletes can never delete data the run did not make.
+The first independent A3 review (of 569c8f9) **reopened A3** for three blocking defects
+and two minor ones — a check tampering with the scratch base, a state the original tests
+never created: a base failure after launch crashed unmasked with exit 1 (F1), the base
+chain was followed through a link (F2), the recorded "mode 0700" was never enforced (F3),
+plus a umask gap (F4) and a stale wording (F5). The corrective is implemented: retention
+creates and changes nothing at the base (lstat-only `verify_base`), the chain is validated
+level by level at construction (never a link, a non-directory or another user's; never
+inside the project), the 0700 is re-asserted on the verified root, and each finding has a
+regression test that fails on 569c8f9 and passes now (`tests/test_a3_corrective.py`).
+A3 is **delivered for independent re-review — not yet reviewed or owner-accepted**.
 
 **The whole skill is still in development.** This state is not a v0.1.0 release or approval
 for use on real projects. A4, the documentation sweep, the regression re-verification and
@@ -49,11 +58,14 @@ Development branch: `fix/f03-f06-f08-new1`.
   identity proof (registered, run-prefixed, directly inside the one base, matched by device and
   inode) and leaves it standing — a moved, swapped or linked-over root is still exit 3, and
   whatever stands at its path is left exactly as found. The scratch base moved from `/tmp`,
-  which the OS reaps on its own schedule, to `~/.vibe-to-engineering/runs/` (created and
-  re-asserted mode 0700), so deletion really is the human's act alone. The retained path is in
-  the evidence header (`scratch … retained after the run, mode 0700, may hold sensitive
-  output`) and the stderr summary; SKILL.md records it in the project ledger with each check's
-  numbers. Enrollment's probe root is retained too. Exit statuses are unchanged; a refusal
+  which the OS reaps on its own schedule, to `~/.vibe-to-engineering/runs/` — so deletion
+  really is the human's act alone. The chain is made once at construction, each level a real
+  directory owned by this user (never a link, never inside the project), every level mode
+  0700 whatever the umask; retention only inspects it (lstat) and re-asserts the recorded
+  0700 on the verified root and its home/ and tmp/, never through a link. The retained path
+  is in the evidence header (`scratch … kept after the run and reported on stderr; mode
+  0700, may hold sensitive output`) and the stderr summary; SKILL.md records it in the
+  project ledger with each check's numbers. Enrollment's probe root is retained too. Exit statuses are unchanged; a refusal
   before construction still leaves nothing, a refusal past it retains its check-free root.
   Corrective tests cover retention survival with contents, a foreign sentinel moved inside the
   root untouched, refusal of non-run-owned paths and links, retained roots on refusals past

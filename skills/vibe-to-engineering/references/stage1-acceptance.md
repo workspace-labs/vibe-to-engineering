@@ -89,7 +89,12 @@ retention, A4 platform refusal) and the wider release checklist stay separate wo
 7. `childenv.retain(scratch)` runs in a `finally`, confirming the run's own scratch root still stands where
    the run made it and leaving it there — nothing is ever deleted (A3, the retained R2-F1 obligation): the
    object at the path must be the very folder the run made, matched by device and inode — a check can move
-   its root away or put a foreign folder, link or file in its place, and retention will never touch it. A
+   its root away or put a foreign folder, link or file in its place, and retention will never touch it.
+   The base chain is made once, at construction — each level a real directory owned by this user, never
+   a link, mode 0700 whatever the umask, never inside the project — and retention only inspects it
+   (lstat): a base that is missing, unreadable, a link, a non-directory or another user's is the same
+   governed exit 3, never a traceback (A3 corrective, F1/F2). The recorded mode 0700 is re-asserted on
+   the verified root and its home/ and tmp/ — never through a link (F3). A
    retention that cannot confirm the root is an **integrity failure after the run: exit 3** (R1, F6) — the
    check ran and its outcome stands; exit 2 is reserved for refusals where nothing ran and no evidence
    exists. A confirmed root's path goes to the evidence header and the stderr summary: it may hold sensitive

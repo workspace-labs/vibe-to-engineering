@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+- 2026-09-29 — A3 corrective, delivered for independent re-review: the first A3 review
+  (569c8f9) reproduced three blocking defects and two minor ones, all in states the original
+  tests never created — a check tampering with the scratch BASE, not only its own root.
+  (F1) A base failure after the launch crashed with a traceback, exit 1 and an unmasked
+  emission: retention no longer creates or changes anything at the base (`verify_base`,
+  lstat only; the chain is made once, at construction), and every OSError there is a governed
+  Fail — exit 3 with the recoverable record still emitted. (F2) `scratch_base` followed a
+  link at `runs`: the chain is now validated level by level — a link, a non-directory or
+  another user's folder is refused before any root is made, chmod never passes through a
+  link, and `check_base` refuses a base that would stand inside the project. (F3) The
+  recorded "mode 0700" was never checked: retention re-asserts it on the VERIFIED root and
+  its home/ and tmp/ (lstat first, never through a link), and the evidence header no longer
+  words retention as already confirmed. (F4) Under umask 000 the intermediate level could be
+  left 0777: each level is created and re-asserted 0700. (F5) FIX-FIRST's "strictly scoped
+  cleanup" wording updated. The no-deletion rule, the device+inode identity proof, the
+  0/1/2/3 statuses, the refusal contracts, the ledger instruction and header masking are
+  unchanged. Each finding has a regression in `tests/test_a3_corrective.py` that fails (or
+  errors) on 569c8f9 and passes after — 6 failures and 1 error there, all passing now.
+
 - 2026-09-29 — A3, scratch retention (the retained R2-F1 obligation, owner decisions of 2026-09-29):
   the tool no longer deletes anything. The check's run-owned scratch root — and the enrollment probe's —
   is retained when the run ends instead of removed: `childenv.cleanup` is gone, replaced by
