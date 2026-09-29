@@ -22,6 +22,16 @@ creates and changes nothing at the base (lstat-only `verify_base`), the chain is
 level by level at construction (never a link, a non-directory or another user's; never
 inside the project), the 0700 is re-asserted on the verified root, and each finding has a
 regression test that fails on 569c8f9 and passes now (`tests/test_a3_corrective.py`).
+The re-review of that corrective (9204241) closed F1–F5 on their reproductions but **reopened A3
+again** for five defects inside the corrective itself: a swap window between the identity check
+and the chmod (N1), a check removing its own $TMPDIR getting exit 3 where 569c8f9 gave 0 (N2),
+a letter-case route past the inside-the-project string comparison (N3), an early refusal still
+creating the base folders (N4), and the evidence header claiming retention it had not confirmed
+(N5). The second corrective is implemented: identity and chmod now happen through one descriptor
+(open O_DIRECTORY|O_NOFOLLOW, fstat, fchmod; home/ and tmp/ through it with dir_fd), a missing
+home/ or tmp/ is skipped, containment is judged by device and inode, check_base runs inside
+construct after every validation, and the header only points at the stderr retention report.
+Each finding has a regression that fails on 9204241 and passes now.
 A3 is **delivered for independent re-review — not yet reviewed or owner-accepted**.
 
 **The whole skill is still in development.** This state is not a v0.1.0 release or approval
@@ -62,9 +72,12 @@ Development branch: `fix/f03-f06-f08-new1`.
   really is the human's act alone. The chain is made once at construction, each level a real
   directory owned by this user (never a link, never inside the project), every level mode
   0700 whatever the umask; retention only inspects it (lstat) and re-asserts the recorded
-  0700 on the verified root and its home/ and tmp/, never through a link. The retained path
-  is in the evidence header (`scratch … kept after the run and reported on stderr; mode
-  0700, may hold sensitive output`) and the stderr summary; SKILL.md records it in the
+  0700 on the verified root — identity matched with fstat on the root's own open descriptor
+  (O_DIRECTORY|O_NOFOLLOW), the mode set with fchmod on it, home/ and tmp/ opened through it
+  with dir_fd, a missing one skipped — so no swap between check and chmod can touch a stranger.
+  The retained path
+  is in the evidence header (`scratch … its retention is reported on stderr; may hold
+  sensitive output`) and the stderr summary; SKILL.md records it in the
   project ledger with each check's numbers. Enrollment's probe root is retained too. Exit statuses are unchanged; a refusal
   before construction still leaves nothing, a refusal past it retains its check-free root.
   Corrective tests cover retention survival with contents, a foreign sentinel moved inside the

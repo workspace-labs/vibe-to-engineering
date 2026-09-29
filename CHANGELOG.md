@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+- 2026-09-29 — A3 second corrective (re-review N1–N5), delivered for independent re-review:
+  the re-review of 9204241 closed F1–F5 on their reproductions but found five more defects
+  inside the corrective itself. (N1) The identity check and the chmod were two path operations
+  with a swap window between them — an injected swap chmodded a stranger through a link:
+  everything is now done through one descriptor (open with O_DIRECTORY|O_NOFOLLOW, fstat for
+  the device+inode match, fchmod), home/ and tmp/ opened through it with dir_fd, and
+  scratch_base's levels likewise. (N2) A check removing its own $TMPDIR got exit 3 — a
+  regression from 569c8f9's exit 0: a missing or non-directory home/ or tmp/ is skipped; only
+  a failure on the verified root itself is the integrity failure. (N3) The inside-the-project
+  check compared strings and a different letter case walked past it on a case-insensitive
+  filesystem: containment is now judged by device and inode, walking the base's ancestors
+  against the project's stat. (N4) check_base ran before --env/--with-path validation, so an
+  early refusal still created the base folders: it now runs inside construct, after every
+  validation, just before the root. (N5) The evidence header still claimed "kept after the
+  run … mode 0700" when the root was gone: it now reads "its retention is reported on
+  stderr", claiming nothing itself. The no-deletion rule, the device+inode identity proof,
+  the 0/1/2/3 statuses, the refusal contracts, the ledger instruction, header masking and all
+  accepted F1–F5 behavior are unchanged. Each finding has a regression in
+  `tests/test_a3_corrective.py` that fails on 9204241 (6 failures there, including the header
+  wording the N5 fix supersedes) and passes after.
+
 - 2026-09-29 — A3 corrective, delivered for independent re-review: the first A3 review
   (569c8f9) reproduced three blocking defects and two minor ones, all in states the original
   tests never created — a check tampering with the scratch BASE, not only its own root.

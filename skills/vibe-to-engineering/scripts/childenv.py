@@ -30,9 +30,12 @@ registered, this tool's own prefix, directly inside the one scratch base) is ref
 object standing at a registered path when it is not the very folder the run made — the check can move
 its root away or put another object in its place, so the object is matched by device and inode. A
 mismatch is reported as an integrity failure and whatever stands there is left exactly as found — a
-foreign object moved inside the root is as untouchable as one standing at its path. On the verified
-root the 0700 the evidence records is re-asserted (the check can loosen its own root during the run),
-its home/ and tmp/ too — never through a link, so a swapped folder carries no chmod onto a stranger.
+foreign object moved inside the root is as untouchable as one standing at its path. The identity match
+itself is made on an open descriptor (O_DIRECTORY|O_NOFOLLOW, fstat), and the 0700 the evidence records
+is re-asserted with fchmod on that same descriptor (the check can loosen its own root during the run),
+so no swap between check and chmod can carry it onto a stranger; home/ and tmp/ are opened through that
+descriptor the same way, and a missing or non-directory one is simply skipped — only a failure on the
+root itself is the integrity failure.
 The retained root
 may hold sensitive output (a pin-copy runner's launched bytes, anything the check wrote to its HOME
 or TMPDIR), so the launch path records its path in the evidence and on stderr; listing it is allowed,
@@ -66,6 +69,7 @@ the run (R2-F4).
 Standard library only. Every refusal is a gitrun.Fail, the refusal the launch path already raises.
 """
 
+import errno
 import os
 import re
 import stat
@@ -207,6 +211,11 @@ def with_path(raw, secrets=()):
 
 
 BASE_LEVELS = (".vibe-to-engineering", "runs")   # the scratch base's chain under the user's home
+DIR_FLAGS = getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)   # open a directory pinned by
+                                                  # descriptor: a link fails, and no swap can take the object's
+                                                  # place between check and fchmod (A3-N1). Absent on Windows —
+                                                  # the documented structural fallback there opens without them
+                                                  # (never run natively).
 
 
 def scratch_base():
@@ -215,31 +224,38 @@ def scratch_base():
     schedule, and a retained root's deletion is the human's act alone (A3), so the base lives beside the
     runner registry. Construction is the ONLY place the chain is made or changed: each missing level is
     created and every level re-asserted mode 0700, so the umask never loosens one (A3-F4) — and each level
-    must be a real directory owned by this user, never a link or another object (lstat): a link could point
-    the base anywhere, inside the project included, and a mkdir or chmod would then act on a stranger
-    (A3-F2). Every failure here is a governed refusal (Fail), never a raw error."""
+    is opened by descriptor (O_DIRECTORY|O_NOFOLLOW) and judged by fstat: a real directory owned by this
+    user, never a link or another object — a link could point the base anywhere, inside the project
+    included — and no swap between check and fchmod can carry the chmod onto a stranger (A3-N1). Every
+    failure here is a governed refusal (Fail), never a raw error."""
     path = os.path.expanduser("~")
     for level in BASE_LEVELS:
         path = os.path.join(path, level)
         try:
-            standing = os.lstat(path)
+            fd = os.open(path, os.O_RDONLY | DIR_FLAGS)
         except FileNotFoundError:
             try:
                 os.mkdir(path, stat.S_IRWXU)
+                fd = os.open(path, os.O_RDONLY | DIR_FLAGS)
             except OSError as error:
                 raise Fail("cannot create the scratch base (%s) — %s" % (path, error.strerror or error))
-            standing = os.lstat(path)
         except OSError as error:
+            if error.errno in (errno.ELOOP, errno.ENOTDIR):
+                raise Fail("the scratch base's %s is not a real directory — a link could point the base "
+                           "anywhere, and any other object cannot hold it; refused" % path)
             raise Fail("cannot inspect the scratch base (%s) — %s" % (path, error.strerror or error))
-        if not stat.S_ISDIR(standing.st_mode):
-            raise Fail("the scratch base's %s is not a real directory — a link could point the base "
-                       "anywhere, and any other object cannot hold it; refused" % path)
-        if standing.st_uid != os.getuid():
-            raise Fail("the scratch base's %s is owned by another user — refused" % path)
         try:
-            os.chmod(path, stat.S_IRWXU)   # a real, owned directory: the contract is 0700 (F4's umask too)
-        except OSError as error:
-            raise Fail("cannot make the scratch base private (%s) — %s" % (path, error.strerror or error))
+            standing = os.fstat(fd)
+            if not stat.S_ISDIR(standing.st_mode) or standing.st_uid != os.getuid():
+                raise Fail("the scratch base's %s is not a real directory owned by this user — refused"
+                           % path)
+            try:
+                os.fchmod(fd, stat.S_IRWXU)   # the descriptor pins the object: the 0700 lands on the
+            except OSError as error:          # very directory just judged (F4's umask too)
+                raise Fail("cannot make the scratch base private (%s) — %s"
+                           % (path, error.strerror or error))
+        finally:
+            os.close(fd)
     return Path(os.path.realpath(path))
 
 
@@ -266,12 +282,20 @@ def verify_base():
 def check_base(project):
     """The construction-time base contract for a run over `project`: the chain is created and validated
     (scratch_base), and the base may never stand inside the project — a scratch root there would sit in the
-    very tree the run guards (A3-F2). The launch path calls this before construction, so such a run is
-    refused before its root exists."""
+    very tree the run guards (A3-F2). Containment is judged by identity, never by string comparison: the
+    base's ancestors are walked, and any that IS the project (same device and inode) refuses the run — a
+    different letter case on a case-insensitive filesystem, or a link in the path, cannot launder the
+    comparison (A3-N3)."""
     base = scratch_base()
-    inside = os.path.realpath(str(project))
-    if str(base) == inside or str(base).startswith(inside + os.sep):
-        raise Fail("the scratch base (%s) stands inside the project — the run is refused" % (base,))
+    target = os.stat(str(project))
+    current = base
+    while True:
+        standing = os.stat(str(current))
+        if (standing.st_dev, standing.st_ino) == (target.st_dev, target.st_ino):
+            raise Fail("the scratch base (%s) stands inside the project — the run is refused" % (base,))
+        if current.parent == current:
+            break
+        current = current.parent
     return base
 
 
@@ -300,13 +324,15 @@ def retain(root):
     run made: a path this process did not register as a scratch root (the path checks stand too: directly
     inside the scratch base, run-prefixed) is refused, and so is — even at a registered path — an object
     that is not the very folder this run made. A check runs with the root as its HOME and TMPDIR and can
-    move it away or put another folder, a link or a file in its place: the object at the path is matched by
-    device and inode against the run's own root, and a mismatch is reported by the launch path as an
-    integrity failure — whatever stands there is left exactly as found, and a foreign object moved inside
-    the root is as untouchable as one standing at its path. On the VERIFIED root the 0700 the evidence
-    records is re-asserted — the check can loosen its own root during the run (A3-F3) — and on its home/
-    and tmp/ when they still stand as real directories: never through a link, so a swapped folder carries
-    no chmod onto a stranger. The retained root may hold sensitive output:
+    move it away or put another folder, a link or a file in its place: the root is opened by descriptor
+    (O_RDONLY|O_DIRECTORY|O_NOFOLLOW) and matched with fstat against the run's own device and inode, so no
+    swap between check and chmod can take the object's place (A3-N1) — a mismatch is reported by the
+    launch path as an integrity failure, and whatever stands there is left exactly as found, a foreign
+    object moved inside the root as untouchable as one standing at its path. The 0700 the evidence records
+    is re-asserted with fchmod on that same descriptor — the check can loosen its own root during the run
+    (A3-F3) — and on home/ and tmp/ opened through it (dir_fd, O_NOFOLLOW): a missing or non-directory one
+    is simply skipped, because only a failure on the verified root itself is the integrity failure (A3-N2).
+    The retained root may hold sensitive output:
     listing it is allowed, deleting it is the human's own act."""
     real = Path(os.path.realpath(str(root)))
     base = verify_base()
@@ -315,22 +341,36 @@ def retain(root):
         raise Fail("retention is limited to a run's own scratch root (%s* directly inside %s) — refusing %s"
                    % (SCRATCH_PREFIX, base, root))
     try:
-        standing = os.lstat(str(root))
-    except OSError:
-        del _ROOTS[str(real)]
+        fd = os.open(str(root), os.O_RDONLY | DIR_FLAGS)   # the object at the path AS GIVEN — a link is
+    except FileNotFoundError:                              # never followed (O_NOFOLLOW) — pinned by
+        del _ROOTS[str(real)]                              # descriptor: no swap can take its place (N1)
         raise Fail("the run's scratch root is no longer at its path (the check moved or removed it) — "
                    "nothing else was touched")
-    if not stat.S_ISDIR(standing.st_mode) or (standing.st_dev, standing.st_ino) != owned:
+    except OSError:
         raise Fail("the scratch root's path now holds something this run did not make — left exactly as "
                    "found, nothing touched")
     try:
-        os.chmod(str(real), stat.S_IRWXU)   # the verified root itself: the 0700 the evidence records (F3)
-        for name in ("home", "tmp"):        # the run's own folders too — lstat first, and never through
-            folder = real / name            # a link: a swapped folder carries no chmod onto a stranger
-            if stat.S_ISDIR(os.lstat(str(folder)).st_mode):
-                os.chmod(str(folder), stat.S_IRWXU)
-    except OSError as error:
-        raise Fail("cannot re-assert the scratch root's private mode — %s" % (error.strerror or error))
+        standing = os.fstat(fd)
+        if not stat.S_ISDIR(standing.st_mode) or (standing.st_dev, standing.st_ino) != owned:
+            raise Fail("the scratch root's path now holds something this run did not make — left exactly "
+                       "as found, nothing touched")
+        try:
+            os.fchmod(fd, stat.S_IRWXU)   # the 0700 the evidence records, on the verified root itself (F3)
+        except OSError as error:
+            raise Fail("cannot re-assert the scratch root's private mode — %s" % (error.strerror or error))
+        for name in ("home", "tmp"):        # through the root's own descriptor, never through a swapped
+            try:                            # link; a missing or non-directory folder is simply skipped —
+                inner = os.open(name, os.O_RDONLY | DIR_FLAGS, dir_fd=fd)   # only a failure on the root
+            except OSError:                                                 # itself is exit 3 (N2)
+                continue
+            try:
+                os.fchmod(inner, stat.S_IRWXU)
+            except OSError:
+                pass
+            finally:
+                os.close(inner)
+    finally:
+        os.close(fd)
     return str(real)
 
 
@@ -350,18 +390,23 @@ def profile(root, extra_paths=(), systemroot=None):
     return env
 
 
-def construct(extra_paths=(), settings=()):
+def construct(extra_paths=(), settings=(), project=None):
     """The whole child environment for one run, built once — the mapping that governs both the preflight
     analysis and the launch (the D4 invariant) — the run's scratch root, retained when the run ends, and
     the validated --with-path entries, retained: what the launch path records is exactly what the child
     received, never a mutable original argument resolved again after the run (R2-F4). The --env settings
     and --with-path folders are validated first — and on Windows the SystemRoot is resolved
-    before the root exists — so a refusal leaves nothing behind. Refusal diagnostics are redacted against the
+    before the root exists — so a refusal leaves nothing behind. Only then is the base chain made:
+    check_base(project), when a project is given, creating and validating the chain and refusing a base
+    inside the project, just before the root itself (A3-N4 — a refusal on the settings or folders creates
+    not even the base). Refusal diagnostics are redacted against the
     settings admitted so far: a declared value embedded in a --with-path argument is never shown (D4 rule 4)."""
     values = declared(settings)
     extras = [with_path(raw, values.values()) for raw in extra_paths]
     systemroot = system_root() if WINDOWS else None   # before the root exists: a failure leaves nothing
-    root = scratch_root()
+    if project is not None:
+        check_base(project)   # after every validation, just before the root: the chain and the
+    root = scratch_root()     # containment contract (A3-F2/N3), so an early refusal creates nothing
     env = profile(root, extras, systemroot)
     env.update(values)
     return env, root, extras

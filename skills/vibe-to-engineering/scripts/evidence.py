@@ -911,9 +911,8 @@ def main(argv=None):
     try:
         project = resolve_project(args.project)
         out = evidence_path(project, args.out)
-        childenv.check_base(project)   # A3-F2: the scratch base never stands inside the project, and its
-        env, scratch, paths = childenv.construct(args.with_path, args.env)   # chain is validated before
-    except Fail as error:                                                     # any root is made
+        env, scratch, paths = childenv.construct(args.with_path, args.env, project)   # the base chain is
+    except Fail as error:   # made inside, after --env/--with-path validation, just before the root (N4)
         note(str(error))
         return finish(emission.REFUSED)
     except (OSError, ValueError, RuntimeError) as error:
@@ -950,8 +949,8 @@ def main(argv=None):
                     "".join("  path %s\n" % folder for folder in paths),   # --with-path entry the child
                     "%s %s sha256:%s mode:%s — the enrolled identity launched"   # actually received,
                     % (runner, enrolled["path"], enrolled["sha256"], enrolled["pin"]),   # retained (R2-F4)
-                    "%s — the run's scratch root: kept after the run and reported on stderr; mode 0700, "
-                    "may hold sensitive output (A3)" % scratch)
+                    "%s — the run's scratch root; its retention is reported on stderr; may hold "
+                    "sensitive output (A3)" % scratch)
                 text, masked = mask(header + "\n" + done.stdout.decode("utf-8", "replace"), values,
                                     frozenset(secrets))   # a declared value is masked wherever it appears (R1)
                 text = context.scrub(text if text.endswith("\n") else text + "\n")   # newline included

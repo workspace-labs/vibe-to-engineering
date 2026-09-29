@@ -94,7 +94,11 @@ retention, A4 platform refusal) and the wider release checklist stay separate wo
    a link, mode 0700 whatever the umask, never inside the project — and retention only inspects it
    (lstat): a base that is missing, unreadable, a link, a non-directory or another user's is the same
    governed exit 3, never a traceback (A3 corrective, F1/F2). The recorded mode 0700 is re-asserted on
-   the verified root and its home/ and tmp/ — never through a link (F3). A
+   the verified root and its home/ and tmp/ — the root is opened by descriptor
+   (O_DIRECTORY|O_NOFOLLOW), identity matched with fstat and the mode set with fchmod, home/ and tmp/
+   opened through it with dir_fd and a missing or non-directory one simply skipped, so no swap between
+   check and chmod can touch a stranger and only a failure on the root itself is exit 3 (re-review
+   N1/N2). A
    retention that cannot confirm the root is an **integrity failure after the run: exit 3** (R1, F6) — the
    check ran and its outcome stands; exit 2 is reserved for refusals where nothing ran and no evidence
    exists. A confirmed root's path goes to the evidence header and the stderr summary: it may hold sensitive

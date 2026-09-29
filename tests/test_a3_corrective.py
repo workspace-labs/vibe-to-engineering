@@ -14,6 +14,21 @@ Each test fails (or errors) on 569c8f9 and passes after the corrective.
       header does not word retention as already confirmed
   F4  under umask 000 the first use still leaves every base level at 0700
 
+The re-review of that corrective (9204241) found five more, inside the corrective itself; the N tests
+below fail on 9204241 and pass after:
+
+  N1  the identity check and the chmod were two path operations with a swap window between them —
+      everything is now done through one descriptor: open (O_DIRECTORY|O_NOFOLLOW), fstat, fchmod,
+      and home//tmp/ opened through it (dir_fd); scratch_base's levels likewise
+  N2  a check removing its own $TMPDIR got exit 3 (a regression from 569c8f9's exit 0): a missing or
+      non-directory home/ or tmp/ is skipped — only a failure on the verified root itself is exit 3
+  N3  the inside-the-project check compared strings and a different letter case walked past it —
+      containment is now judged by device and inode, walking the base's ancestors
+  N4  check_base ran before --env/--with-path validation, so an early refusal still created the base
+      folders — it now runs inside construct, after every validation, just before the root
+  N5  the evidence header still said "kept after the run … mode 0700" even when the root was gone —
+      it now points at the stderr retention report without claiming it
+
 Run from the repository root:  python3 -m unittest discover -s tests -p test_a3_corrective.py -v
 """
 
@@ -184,7 +199,7 @@ class A3Corrective(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o700, str(folder))
         self.assertEqual((root / "home" / "out").read_text(), "tok-a3f3\n")   # the contents stand either way
         self.assertNotIn("retained after the run", saved)        # the header does not pre-claim retention
-        self.assertIn("kept after the run and reported on stderr", saved)
+        self.assertIn("its retention is reported on stderr", saved)
 
     # ------------------------------------------------------------------ F4: the umask never loosens a level
 
@@ -199,6 +214,119 @@ class A3Corrective(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(chain.stat().st_mode), 0o700)        # the intermediate level too
         self.assertEqual(stat.S_IMODE((chain / "runs").stat().st_mode), 0o700)
         self.assertEqual(base, Path(os.path.realpath(str(chain / "runs"))))
+
+    # ------------------------------------------------------- N1: no swap between check and chmod (re-review)
+
+    def test_a_swap_between_identity_and_chmod_never_touches_the_stranger(self):
+        # the re-reviewer's reproduction: a swap injected right after retain's identity lstat put a link
+        # to a foreign folder at the root's path, and the by-path chmods landed on the stranger. The
+        # descriptor-pinned retain has no such window. The hook fires only when the caller is retain
+        # itself (realpath's own lstat must not trip it); a refusal is a safe outcome too.
+        with mock.patch.dict(os.environ, {"HOME": str(self.tmp)}):
+            root = childenv.scratch_root()
+            foreign = self.tmp / "foreign"
+            (foreign / "home").mkdir(parents=True)
+            (foreign / "tmp").mkdir()
+            for folder in (foreign, foreign / "home", foreign / "tmp"):
+                os.chmod(str(folder), 0o755)
+            moved = self.tmp / "moved-root"
+            real_lstat, fired = os.lstat, []
+
+            def swapping(path, *args, **kwargs):
+                result = real_lstat(path, *args, **kwargs)
+                if not fired and str(path) == str(root) \
+                        and sys._getframe(1).f_code.co_name == "retain":
+                    fired.append(True)
+                    os.rename(str(root), str(moved))       # the injected swap: right after the identity
+                    os.symlink(str(foreign), str(root))    # check, before the by-path chmods
+                return result
+
+            try:
+                with mock.patch.object(childenv.os, "lstat", swapping):
+                    childenv.retain(root)
+            except Fail:
+                pass   # refusing the swapped object is safe too — what matters is the stranger stands
+            for folder in (foreign, foreign / "home", foreign / "tmp"):
+                self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o755, str(folder))
+
+    def test_a_link_swapped_in_before_retention_is_refused_and_never_opened(self):
+        # the companion guard: with the root already replaced by a link when retain starts, the
+        # O_NOFOLLOW open itself refuses — the stranger is never even opened, let alone chmodded
+        with mock.patch.dict(os.environ, {"HOME": str(self.tmp)}):
+            root = childenv.scratch_root()
+            foreign = self.tmp / "foreign"
+            foreign.mkdir()
+            (foreign / "data.txt").write_text("precious-a3n1\n")
+            os.chmod(str(foreign), 0o755)
+            moved = self.tmp / "moved-root"
+            os.rename(str(root), str(moved))
+            os.symlink(str(foreign), str(root))
+            try:
+                with self.assertRaises(Fail):
+                    childenv.retain(root)
+                self.assertEqual(stat.S_IMODE(foreign.stat().st_mode), 0o755)
+                self.assertEqual((foreign / "data.txt").read_text(), "precious-a3n1\n")
+            finally:
+                os.unlink(str(root))
+                moved.rename(root)
+
+    # ------------------------------------------------------- N2: a missing home/ or tmp/ is not a failure
+
+    def test_a_check_removing_its_own_tmpdir_is_not_an_integrity_failure(self):
+        # the re-reviewer's reproduction: rmdir $TMPDIR gave exit 3 on 9204241 — a regression from
+        # 569c8f9's exit 0. The root was confirmed; a missing home/ or tmp/ is simply skipped
+        home = self.fresh_home("removed tmpdir")
+        project = self.project("removed tmpdir")
+        code, printed, saved, report = self.run_tool(project, [SH, "-c", "rmdir \"$TMPDIR\""], home)
+        self.assertEqual(code, 0, report)
+        self.assertIn("scratch root is retained at", report)
+        self.assertIsNotNone(saved)
+        with self.subTest("a non-directory in its place is skipped the same way"):
+            home = self.fresh_home("file tmpdir")
+            project = self.project("file tmpdir")
+            code, printed, saved, report = self.run_tool(
+                project, [SH, "-c", "rmdir \"$TMPDIR\" && : > \"$TMPDIR\""], home)
+            self.assertEqual(code, 0, report)
+
+    # ------------------------------------------------------- N3: containment is judged by identity
+
+    def test_a_base_inside_the_project_is_refused_even_in_another_letter_case(self):
+        # the re-reviewer's reproduction: HOME=…/PROJ2/sub with project …/Proj2 slipped past the string
+        # comparison on this case-insensitive filesystem — the run exited 0 with the root in the project
+        upper = self.tmp / "PROJ2" / "sub"
+        upper.mkdir(parents=True)
+        if os.stat(str(self.tmp / "PROJ2")).st_ino != os.stat(str(self.tmp / "Proj2")).st_ino:
+            self.skipTest("a case-sensitive filesystem keeps these distinct — nothing to launder")
+        with mock.patch.dict(os.environ, {"HOME": str(upper)}):
+            with self.assertRaises(Fail):
+                childenv.check_base(self.tmp / "Proj2")
+
+    # ------------------------------------------------------- N4: an early refusal creates nothing
+
+    def test_a_refusal_on_the_arguments_creates_not_even_the_base(self):
+        # the re-reviewer's reproduction: --with-path /nonexistent on a fresh HOME gave exit 2 but left
+        # ~/.vibe-to-engineering/runs behind on 9204241, because check_base ran before the validation
+        home = self.tmp / "home-fresh"
+        home.mkdir()
+        project = self.project("fresh home refusal")
+        code, printed, saved, report = self.run_tool(project, [SH, "-c", "echo never-a3n4"], home,
+                                                     extra=["--with-path", "/nonexistent-a3n4"])
+        self.assertEqual(code, 2, report)
+        self.assertFalse((home / ".vibe-to-engineering").exists())   # nothing — not even the base chain
+
+    # ------------------------------------------------------- N5: the header never claims retention
+
+    def test_the_evidence_header_reports_retention_not_claims_it(self):
+        # the re-reviewer's reproduction: a check that moves its root away exits 3, but the evidence
+        # still said "kept after the run … mode 0700". The header now points at the stderr report
+        home = self.fresh_home("header honesty")
+        project = self.project("header honesty")
+        code, printed, saved, report = self.run_tool(
+            project, [SH, "-c", "R=$(cd \"$HOME/..\" && pwd) && mv \"$R\" moved-scratch"], home)
+        self.assertEqual(code, 3, report)                    # the integrity failure stands …
+        self.assertIsNotNone(saved)                          # … and so does the evidence …
+        self.assertNotIn("kept after the run", saved)        # … but it never claimed the root was kept
+        self.assertIn("its retention is reported on stderr", saved)
 
 
 if __name__ == "__main__":

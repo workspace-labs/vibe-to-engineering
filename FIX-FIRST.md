@@ -9,10 +9,14 @@ the tool never deletes — every run-owned scratch root is retained under
 `~/.vibe-to-engineering/runs/` (mode 0700), confirmed by the R1 identity proof, its path recorded
 in the evidence header, on stderr and — per the protocol — in the project ledger; deletion stays
 the human's act. R2-F1 is closed by construction. The first A3 review (of 569c8f9) reopened it
-for F1–F5 (a check tampering with the scratch base); the corrective — lstat-only base
-verification at retention, a validated chain at construction, the recorded 0700 re-asserted on
-the verified root — is implemented with fail-on-569c8f9 regressions and is **delivered for
-independent re-review, not accepted**. Next after acceptance is **A4: macOS-only platform
+for F1–F5 (a check tampering with the scratch base), and the re-review of that corrective
+(9204241) reopened it again for N1–N5 (a swap window between identity check and chmod, an
+exit-3 regression on a removed $TMPDIR, a letter-case route past the project-containment check,
+an early refusal creating the base, a header claiming unconfirmed retention). Both correctives
+are implemented — descriptor-pinned identity and chmod throughout, containment by device and
+inode, check_base inside construct after validation, an honest header — each with
+fail-on-the-reviewed-commit regressions, and the second is **delivered for independent
+re-review, not accepted**. Next after acceptance is **A4: macOS-only platform
 refusal at the
 execution boundary**, then the documentation sweep, the regression re-verification and the macOS
 workflow exam. Whole-skill release and NEW-5 closure are still pending.
