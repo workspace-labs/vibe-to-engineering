@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+- 2026-09-29 — A3, scratch retention (the retained R2-F1 obligation, owner decisions of 2026-09-29):
+  the tool no longer deletes anything. The check's run-owned scratch root — and the enrollment probe's —
+  is retained when the run ends instead of removed: `childenv.cleanup` is gone, replaced by
+  `childenv.retain`, which keeps the R1 identity proof (registered, run-prefixed, directly inside the one
+  scratch base, matched by device and inode) and leaves the root standing; a moved, replaced or linked-over
+  root is still reported as a post-launch integrity failure (exit 3), and whatever stands there is left
+  exactly as found. A tool that never deletes can never delete data the run did not make, closing R2-F1 by
+  construction rather than by a race-proofed deletion. The scratch base moves from `/tmp` — which the
+  operating system reaps on its own schedule, so deletion would not be the human's act — to
+  `~/.vibe-to-engineering/runs/`, created and re-asserted mode 0700 beside the runner registry. The
+  retained root's path is recorded in the evidence header and on the stderr summary, with the warning that
+  it may hold sensitive output; listing is allowed, deletion stays the human's own act, and the protocol
+  (SKILL.md) records the path in the project ledger with each check's numbers. Exit statuses are unchanged:
+  2 still means nothing ran and no evidence; a refusal past construction now retains its (check-free) root
+  like any other run. Corrective tests: retention survival with contents, a foreign sentinel moved inside
+  the root untouched, refusal of every non-run-owned path and of links, retained roots on pre-launch
+  refusals past construction, the R1 swap/link/moved-root integrity battery re-pointed at retention, and
+  the evidence-level proof that both a successful and a refused run keep their roots with the header and
+  stderr records. Previously accepted A1/A2/R2 mechanisms and tests preserved. Not a release; NEW-5 and the
+  remaining release gates (A4, documentation sweep, regression re-verification, workflow exam, fresh-user
+  exam) stand.
+
 - 2026-09-29 — Record the owner's acceptance of F3-R1 after Kimi's independent re-review:
   both original refusal leaks and independent variants are protected; all 307 tests passed in
   that review, including all four required reader-matrix tests, with no skips or errors.

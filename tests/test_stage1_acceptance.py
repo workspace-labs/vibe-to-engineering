@@ -24,7 +24,13 @@ sys.path.insert(0, str(ROOT / "skills" / "vibe-to-engineering" / "scripts"))
 import childenv  # noqa: E402
 import enrolled  # noqa: E402 — the isolated HOME with the suite's runners enrolled (A2)
 
-SCRATCH_BASE = os.path.realpath(childenv.SCRATCH_BASE)
+
+def scratch_base():
+    """The scratch base the tool under test uses: inside the suite's isolated enrolled HOME — the base is
+    per-user now (~/.vibe-to-engineering/runs, A3), never /tmp, which the OS reaps on its own schedule."""
+    base = Path(str(enrolled.enrolled_home())) / ".vibe-to-engineering" / "runs"
+    base.mkdir(parents=True, exist_ok=True)
+    return base
 SYNTHESIZED = ["HOME", "LANG", "LC_ALL", "PATH", "TMPDIR", "TZ"] + sorted(childenv.PINNED)
 SEED = 20260927   # fixed: the property tests are counterexample-seeking, not flaky
 
@@ -38,7 +44,7 @@ class Acceptance(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def scratch_roots(self):
-        return {name for name in os.listdir(SCRATCH_BASE) if name.startswith(childenv.SCRATCH_PREFIX)}
+        return {name for name in os.listdir(str(scratch_base())) if name.startswith(childenv.SCRATCH_PREFIX)}
 
     def run_tool(self, name, body, files=(), env=(), with_path=(), parent=None, out_inside=True, command=None):
         """A check run the way an agent runs it, over a project holding `files`, the check marking that it ran
@@ -182,7 +188,10 @@ class Acceptance(unittest.TestCase):
             self.assertFalse(ran)
             self.assertIsNone(saved)
             self.assertIn("supported set", report)
-        self.assertEqual(self.scratch_roots(), before)
+        left = self.scratch_roots() - before   # A3: a refusal PAST construction retains its root — the three
+        self.assertEqual(len(left), 4)         # unreadable secret files and the unsupported runner here; the
+        for name in left:                      # earlier refusals stop before a root exists, so none appears
+            self.assertTrue((scratch_base() / name).is_dir())
 
     # ------------------------------------------------------ real-reader exercises (version-bounded)
 

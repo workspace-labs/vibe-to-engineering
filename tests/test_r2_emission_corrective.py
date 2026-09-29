@@ -175,17 +175,17 @@ class CorrectiveCLI(unittest.TestCase):
             if value=='no-collision948':
                 self.assertIn('exited 7',got[2]);self.assertIn('the check ran',got[2]);self.assertIn('was not written',got[2])
 
-    def test_spawn_failure_and_cleanup_failure_keep_distinct_states(self):
+    def test_spawn_failure_and_retention_failure_keep_distinct_states(self):
         p,out=self.case()
         got=self.in_process(p,out,[],mock.patch.object(evidence.subprocess,'run',side_effect=OSError(13,'Permission denied')))
         self.assertEqual(got[0],1,got[2]);self.assertFalse(got[4]);self.assertIsNone(got[3])
         self.facts(got[2],1,False,False,None)
         p,out=self.case('import sys\nsys.exit(3)\n')
-        cleanup=evidence.childenv.cleanup
-        def clean_then_fail(root):
-            cleanup(root)
+        retain=evidence.childenv.retain
+        def retain_then_fail(root):
+            retain(root)
             raise evidence.Fail('integrity-fixture')
-        got=self.in_process(p,out,[],mock.patch.object(evidence.childenv,'cleanup',side_effect=clean_then_fail))
+        got=self.in_process(p,out,[],mock.patch.object(evidence.childenv,'retain',side_effect=retain_then_fail))
         self.assertEqual(got[0],3,got[2]);self.assertTrue(got[4]);self.assertIsNotNone(got[3])
         self.facts(got[2],3,True,True,{'exit':3})
 

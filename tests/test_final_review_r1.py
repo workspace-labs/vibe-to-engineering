@@ -2,17 +2,17 @@
 test that fails against the reviewed candidate and passes only after the underlying correction — plus the nearby
 variants, not only the reviewer's reproductions.
 
-  F1  cleanup matches the scratch root by identity (device, inode), never by the path alone — a check can move
-      its root away or put a foreign folder, link or file in its place, and nothing the run did not make is
-      ever deleted
+  F1  retention matches the scratch root by identity (device, inode), never by the path alone — a check can
+      move its root away or put a foreign folder, link or file in its place, and nothing the run did not make
+      is ever touched; A3 takes the last step: nothing is ever deleted at all, the root is retained
   F2  every admitted --env value is masked wherever the check prints it — short, numeric, single-character,
       embedded — and a value of only whitespace and '=' is refused at admission (it could not be masked)
   F3  no diagnostic shows a declared value, even inside another argument (a --with-path folder, the --out path)
   F4  a --with-path folder never holds the PATH separator: one folder enters PATH as exactly one entry
   F5  the supported-runner gate resolves the executable under the launch's own working directory and probes the
       resolved runner against its profile — a file's name alone proves nothing
-  F6  an integrity failure after the run (the scratch root not safely removable) is exit 3, never exit 2: exit 2
-      always means nothing ran and no evidence exists
+  F6  an integrity failure after the run (the scratch root not confirmable as retained at its recorded path)
+      is exit 3, never exit 2: exit 2 always means nothing ran and no evidence exists
   F7  shell readings the file does not decide are computed from the constructed environment (held, or
       determinably empty); refusal stands only for what stays indeterminate ($1 $# $? $@ $*, the shell's own
       variables, the ones it sets at startup, ~name, ~+ ~-). SUPERSEDED by the v0.1 literal .env boundary (A1,
@@ -30,6 +30,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = Path(os.environ.get("V2E_EVIDENCE", ROOT / "skills" / "vibe-to-engineering" / "scripts" / "evidence.py"))
@@ -38,7 +39,13 @@ import childenv  # noqa: E402
 import enrolled  # noqa: E402 — the isolated HOME with the suite's runners enrolled (A2)
 from gitrun import Fail  # noqa: E402
 
-SCRATCH_BASE = os.path.realpath(childenv.SCRATCH_BASE)
+
+def scratch_base():
+    """The scratch base the tool under test uses: inside the suite's isolated enrolled HOME — the base is
+    per-user now (~/.vibe-to-engineering/runs, A3), never /tmp, which the OS reaps on its own schedule."""
+    base = Path(str(enrolled.enrolled_home())) / ".vibe-to-engineering" / "runs"
+    base.mkdir(parents=True, exist_ok=True)
+    return base
 
 
 class FinalReviewR1(unittest.TestCase):
@@ -50,7 +57,7 @@ class FinalReviewR1(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def scratch_roots(self):
-        return {name for name in os.listdir(SCRATCH_BASE) if name.startswith(childenv.SCRATCH_PREFIX)}
+        return {name for name in os.listdir(str(scratch_base())) if name.startswith(childenv.SCRATCH_PREFIX)}
 
     def run_tool(self, name, body, env=(), with_path=(), parent=None, files=None, command=None, cwd=None):
         """The tool over a project holding `files` (default: one .env), its check marking that it ran, then running
@@ -76,15 +83,15 @@ class FinalReviewR1(unittest.TestCase):
                 out.read_text(encoding="utf-8") if out.exists() else None,
                 done.stderr.decode("utf-8", "replace"), (project / "check-ran").exists(), project)
 
-    # ------------------------------------------------------------------ F1 + F6: cleanup ownership, exit codes
+    # ------------------------------------------------------------------ F1 + F6: retention ownership, exit codes
 
     MOVER = ("import os\nfrom pathlib import Path\nroot = Path(os.environ['HOME']).parent\n"
              "root.rename(Path('moved-scratch'))\n")
 
-    def test_cleanup_never_deletes_a_folder_that_took_the_roots_place(self):
+    def test_retention_never_touches_a_folder_that_took_the_roots_place(self):
         # the reviewer's reproduction: the check moves its scratch root away and a foreign folder takes the path;
-        # the reviewed candidate deleted the foreign folder. Now the foreign folder is left standing at that path
-        # — nothing the run did not make is ever deleted — and the run ends in an integrity failure, exit 3
+        # the reviewed candidate deleted the foreign folder. Under retention nothing is ever deleted: the foreign
+        # folder is left standing at that path, and the run ends in an integrity failure, exit 3
         before = self.scratch_roots()
         code, printed, saved, report, ran, project = self.run_tool(
             "folder in its place", self.MOVER + "Path('foreign').rename(root)\nprint('done-5519')",
@@ -97,23 +104,23 @@ class FinalReviewR1(unittest.TestCase):
         self.assertIn("integrity failure", report)
         self.assertIn("check ran", report)
         self.assertEqual(len(left), 1)                       # the stranger at the path, left for the human
-        standing = Path(SCRATCH_BASE) / left.pop()
+        standing = scratch_base() / left.pop()
         self.assertEqual((standing / "data.txt").read_text(), "precious-r1-6601")   # untouched
         shutil.rmtree(str(standing))
 
-    def test_cleanup_never_follows_a_link_at_the_roots_place(self):
+    def test_retention_never_follows_a_link_at_the_roots_place(self):
         before = self.scratch_roots()
         code, printed, saved, report, ran, project = self.run_tool(
             "a link in its place", self.MOVER + "root.symlink_to(Path('foreign').resolve(), "
             "target_is_directory=True)\nprint('done-5520')",
             files={".env": "SECRET_KEY=hunter2-not-real\n", "foreign/data.txt": "precious-r1-6602"})
         for name in self.scratch_roots() - before:   # the link itself, left standing, removed by the test
-            os.unlink(Path(SCRATCH_BASE) / name)
+            os.unlink(str(scratch_base() / name))
         self.assertEqual(code, 3, report)
         self.assertTrue(ran)
         self.assertEqual((project / "foreign" / "data.txt").read_text(), "precious-r1-6602")
 
-    def test_cleanup_reports_a_root_simply_moved_or_removed(self):
+    def test_retention_reports_a_root_simply_moved_or_removed(self):
         code, printed, saved, report, ran, project = self.run_tool(
             "root moved away", self.MOVER + "print('done-5521')")
         self.assertEqual(code, 3, report)
@@ -125,23 +132,27 @@ class FinalReviewR1(unittest.TestCase):
         self.assertEqual(code, 3, report)
         self.assertTrue(ran)
 
-    def test_cleanup_unit_level_identity(self):
+    def test_retention_unit_level_identity(self):
         # unit level: the object at a registered path is matched by identity — another folder there is refused
-        root = childenv.scratch_root()
-        moved = self.tmp / "moved"
-        os.rename(str(root), str(moved))
-        replacement = Path(root)
-        replacement.mkdir()
-        (replacement / "data.txt").write_text("precious-r1-6603")
-        with self.assertRaises(Fail):
-            childenv.cleanup(root)
-        self.assertEqual((replacement / "data.txt").read_text(), "precious-r1-6603")
-        childenv._ROOTS.pop(str(root), None)   # the test moved it: unregister rather than leave a stale entry
-        shutil.rmtree(str(moved))
-        shutil.rmtree(str(replacement))        # the test's own stand-in, removed by the test
-        root = childenv.scratch_root()         # the ordinary path still cleans up
-        childenv.cleanup(root)
-        self.assertFalse(root.exists())
+        # and left exactly as found; a root standing as the run made it is confirmed and retained, never deleted
+        with mock.patch.dict(os.environ, {"HOME": str(self.tmp)}):   # in-process roots stay in the test dir
+            root = childenv.scratch_root()
+            moved = self.tmp / "moved"
+            os.rename(str(root), str(moved))
+            replacement = Path(root)
+            replacement.mkdir()
+            (replacement / "data.txt").write_text("precious-r1-6603")
+            with self.assertRaises(Fail):
+                childenv.retain(root)
+            self.assertEqual((replacement / "data.txt").read_text(), "precious-r1-6603")
+            childenv._ROOTS.pop(str(root), None)   # the test moved it: unregister rather than leave a stale entry
+            shutil.rmtree(str(moved))
+            shutil.rmtree(str(replacement))        # the test's own stand-in, removed by the test
+            root = childenv.scratch_root()         # a root standing as made is confirmed and retained …
+            (root / "home" / "kept.txt").write_text("run data-r1-6604")
+            self.assertEqual(childenv.retain(root), str(root))
+            self.assertTrue(root.exists())         # … never deleted, contents and all
+            self.assertEqual((root / "home" / "kept.txt").read_text(), "run data-r1-6604")
 
     # ------------------------------------------------------------------ F2: every admitted value stays secret
 
@@ -338,7 +349,10 @@ class FinalReviewR1(unittest.TestCase):
                 self.assertEqual(code, 2, report)
                 self.assertFalse(ran)
                 self.assertIsNone(saved)
-        self.assertEqual(self.scratch_roots(), before)
+        left = self.scratch_roots() - before   # A3: a refusal PAST construction retains its root, never
+        self.assertEqual(len(left), 2)         # deletes it — the unreadable secret file and the unsupported
+        for name in left:                      # runner cases; the prohibited name stops before a root exists
+            self.assertTrue((scratch_base() / name).is_dir())
 
     # --------------- F7: shell readings over the known mapping — superseded by the A1 literal boundary (refusal)
 

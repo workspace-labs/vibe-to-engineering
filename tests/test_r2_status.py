@@ -6,8 +6,8 @@ wrapper's exit status is its own namespace, exercised over every transition —
   1  a wrapper operational failure: the validated launch itself failed, or the evidence could not be
      written (the check ran but its evidence was not saved)
   2  a pre-launch refusal: nothing ran and this attempt produced no check evidence
-  3  a post-launch integrity failure: the check ran, but the scratch root could not be confirmed and
-     safely removed — never reportable as a pre-launch refusal
+  3  a post-launch integrity failure: the check ran, but the scratch root could not be confirmed retained
+     at its recorded path (nothing is ever deleted — A3) — never reportable as a pre-launch refusal
 
 The pre-launch refusal and operational-failure rows also pass on the pre-slice candidate (their behavior
 is preserved); the post-launch rows fail on it (a post-launch failure came back as exit 2, and a child's
@@ -75,7 +75,7 @@ class StatusMatrix(unittest.TestCase):
 
     def in_process(self, argv, home, patch=None):
         """The tool inside this process with one of its steps patched — to force a failure at an exact
-        boundary (the launch, the moment after the launch, the cleanup)."""
+        boundary (the launch, the moment after the launch, the retention)."""
         spec = importlib.util.spec_from_file_location("evidence_status_under_test", str(TOOL))
         tool = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(tool)
@@ -215,7 +215,7 @@ class StatusMatrix(unittest.TestCase):
         def broken(tool):
             def boom(root):
                 raise tool.Fail("an injected integrity failure-7850")
-            return mock.patch.object(tool.childenv, "cleanup", boom)
+            return mock.patch.object(tool.childenv, "retain", boom)
 
         code, printed, report = self.in_process(
             ["--project", str(project), "--out", str(out), "--", sys.executable, "-B", "check.py"],

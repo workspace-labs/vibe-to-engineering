@@ -4,10 +4,13 @@
 
 Use [LASTUPDATE.md](LASTUPDATE.md) for the current status and remaining release checklist.
 A1 and A2 are accepted; independent review verified R2-F2/F4/F6, and the owner has now
-accepted the remaining F3-R1 fix following Kimi's independent re-review. Next is **A3:
-retain temporary check files, record their paths and sensitivity, and prove unrelated files
-remain untouched**. Then A4 platform refusal, the documentation sweep and the macOS workflow
-exam remain due. Whole-skill release and NEW-5 closure are still pending.
+accepted the remaining F3-R1 fix following Kimi's independent re-review. **A3 is implemented:**
+the tool never deletes — every run-owned scratch root is retained under
+`~/.vibe-to-engineering/runs/` (mode 0700), confirmed by the R1 identity proof, its path recorded
+in the evidence header, on stderr and — per the protocol — in the project ledger; deletion stays
+the human's act. R2-F1 is closed by construction. Next is **A4: macOS-only platform refusal at the
+execution boundary**, then the documentation sweep, the regression re-verification and the macOS
+workflow exam. Whole-skill release and NEW-5 closure are still pending.
 
 The entries below are historical findings and delivery records, including their then-current
 test counts and review statuses. They are preserved as history, not a new order to redo accepted work.

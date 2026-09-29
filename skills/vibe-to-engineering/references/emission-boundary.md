@@ -25,7 +25,7 @@ values are known. Unreadable files still cause pre-launch refusal; this correcti
 
 Named and generic masking happens first. The complete evidence text, including its final newline, then
 passes `emission.Context.scrub` before the same bytes are saved and echoed. All terminal stderr messages
-are accumulated through cleanup and emitted together. Prefixes, labels, usage, help and message boundaries
+are accumulated through retention and emitted together. Prefixes, labels, usage, help and message boundaries
 are inside protection, so independently safe pieces cannot assemble a protected value afterward.
 
 The scrubber finds all overlapping matches in the original text and substitutes readable masks. It checks
@@ -43,7 +43,7 @@ then Unicode word characters; it is finite and never echoes inputs if no output 
 - **3:** integrity failure after the check ran. Evidence may or may not have been saved.
 
 The known child return code is retained immediately when `subprocess.run` completes, before masking,
-writing or cleanup. Human diagnostics include the outcome when it can be displayed without a protected
+writing or retention. Human diagnostics include the outcome when it can be displayed without a protected
 value. A separate recoverable result always carries the available facts on contracted check terminal
 paths, including post-launch failure. A positive child code is an exit, a negative one is a signal;
 neither is substituted for the wrapper's process status.
@@ -57,7 +57,7 @@ The **last stderr line** is a versioned record with exactly these fields, normal
 `child` is `{"exit":N}`, `{"signal":N,"name":"SIGTERM"}` (name may be null for an unknown signal),
 or null when no outcome is available. `launched` and `saved` describe this attempt, not pre-existing
 evidence files. Child stdout/stderr are captured into evidence; neither can supply this wrapper-owned
-stderr record. The record is emitted after cleanup, so a cleanup failure cannot leave a success record.
+stderr record. The record is emitted after retention, so a retention failure cannot leave a success record.
 
 If literal JSON or its boundary with the human messages would contain a protected value, only this
 fixed-schema record is encoded using two distinct printable word symbols absent from all protected

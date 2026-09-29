@@ -1,8 +1,8 @@
 """Tests for the NEW-5 stage-1 launch path of scripts/evidence.py: a check runs with the constructed
 environment childenv builds — nothing of the parent's environment is inherited; the one constructed mapping
 governs the secret-value analysis and the launch alike; the evidence header records declared --env names
-(never their values) and each --with-path folder; and the run's scratch root is removed when the run ends,
-however the run ends. Slice 3 adds the precedence semantics over that mapping: a reading a declared value
+(never their values) and each --with-path folder; and the run's scratch root is retained when the run ends,
+however the run ends (A3 — nothing is ever deleted). Slice 3 adds the precedence semantics over that mapping: a reading a declared value
 wins is masked as the winner, never refused; a recognized .env.vault is always refused. (The third piece — npm
 dotenv v0.4–1.2's $NAME interpolation computed from the known inputs — is superseded by the v0.1 literal .env
 boundary, A1: interpolation refuses before launch; see the supersession comment on the last test.)
@@ -13,6 +13,7 @@ Run from the repository root:  python3 -m unittest discover -s tests -p test_evi
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -25,7 +26,13 @@ sys.path.insert(0, str(ROOT / "skills" / "vibe-to-engineering" / "scripts"))
 import childenv  # noqa: E402
 import enrolled  # noqa: E402 — the isolated HOME with the suite's runners enrolled (A2)
 
-SCRATCH_BASE = os.path.realpath(childenv.SCRATCH_BASE)
+
+def scratch_base():
+    """The scratch base the tool under test uses: inside the suite's isolated enrolled HOME — the base is
+    per-user now (~/.vibe-to-engineering/runs, A3), never /tmp, which the OS reaps on its own schedule."""
+    base = Path(str(enrolled.enrolled_home())) / ".vibe-to-engineering" / "runs"
+    base.mkdir(parents=True, exist_ok=True)
+    return base
 SYNTHESIZED = ["HOME", "LANG", "LC_ALL", "PATH", "TMPDIR", "TZ"] + sorted(childenv.PINNED)
 
 
@@ -38,7 +45,7 @@ class Stage1(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def scratch_roots(self):
-        return {name for name in os.listdir(SCRATCH_BASE) if name.startswith(childenv.SCRATCH_PREFIX)}
+        return {name for name in os.listdir(str(scratch_base())) if name.startswith(childenv.SCRATCH_PREFIX)}
 
     def run_tool(self, name, body, env=(), with_path=(), parent=None, files=()):
         """The tool run the way an agent runs it, over a project holding `files` (default: one .env), its check
@@ -79,7 +86,7 @@ class Stage1(unittest.TestCase):
         home = re.search(r"^\S*home$", printed, re.M).group(0)
         tmpdir = re.search(r"^\S*tmp$", printed, re.M).group(0)
         self.assertEqual(home, os.path.join(os.path.dirname(tmpdir.rstrip("tmp")), "home"))
-        self.assertTrue(tmpdir.startswith(os.path.join(SCRATCH_BASE, childenv.SCRATCH_PREFIX)))
+        self.assertTrue(tmpdir.startswith(os.path.join(str(scratch_base()), childenv.SCRATCH_PREFIX)))
         for text in (printed, saved, report):
             self.assertNotIn("parent-secret-7731", text)
             self.assertNotIn("STAGE1_MARKER", text)
@@ -121,17 +128,25 @@ class Stage1(unittest.TestCase):
         self.assertIn("  path %s\n" % tools, printed)        # D2: recorded in the evidence header
         self.assertEqual(saved, printed)
 
-    def test_the_scratch_root_is_removed_when_the_run_ends_however_it_ends(self):
+    def test_the_scratch_root_is_retained_when_the_run_ends_however_it_ends(self):
         before = self.scratch_roots()
-        code, _, _, report, ran = self.run_tool("a successful run", "print('ok')")
+        code, _, saved, report, ran = self.run_tool("a successful run", "print('ok')")
         self.assertEqual(code, 0, report)
         self.assertTrue(ran)
+        self.assertIn("scratch root is retained at", report)         # A3: reported on stderr, never deleted
+        self.assertIn("\n  scratch ", saved)                         # and recorded in the evidence header
+        self.assertIn("may hold sensitive output", saved)
         code, _, saved, report, ran = self.run_tool(   # a refusal after construction (an unreadable secret file)
             "a refused run", "print('never')", files={".env": "SECRET='never closed\n"})
         self.assertEqual(code, 2, report)
         self.assertFalse(ran)
         self.assertIsNone(saved)
-        self.assertEqual(self.scratch_roots(), before)
+        left = self.scratch_roots() - before
+        self.assertEqual(len(left), 2)                 # both runs' roots retained, however each run ended
+        for name in left:
+            root = scratch_base() / name
+            self.assertTrue((root / "home").is_dir() and (root / "tmp").is_dir())   # the scratch files survive
+            self.assertEqual(stat.S_IMODE(root.stat().st_mode), 0o700)
 
     def test_the_analysis_runs_over_the_constructed_mapping(self):
         # a secret file that sets HOME collides with a name the constructed environment always holds — slice 3:

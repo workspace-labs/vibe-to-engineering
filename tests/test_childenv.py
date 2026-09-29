@@ -1,7 +1,7 @@
 """Tests for scripts/childenv.py: the constructed environment every check runs with (NEW-5 stage 1, slices
-from the accepted design contract) — the synthesized profile, the run-owned scratch root and its strictly
-scoped cleanup, --with-path validation, the prohibited-name set and --env validation, and the Windows
-name-handling corrective (structural only, never run on native Windows).
+from the accepted design contract) — the synthesized profile, the run-owned scratch root and its retention
+(A3: the tool never deletes), --with-path validation, the prohibited-name set and --env validation, and the
+Windows name-handling corrective (structural only, never run on native Windows).
 
 Run from the repository root:  python3 -m unittest discover -s tests -p test_childenv.py -v
 """
@@ -39,12 +39,14 @@ ADMITTED = (   # names that only resemble the prohibited or synthesized sets sta
 class Childenv(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="v2e-childenv-test-")).resolve()
-        self.roots = []   # scratch roots a test made, removed in tearDown through the module's own cleanup
+        home = mock.patch.dict(os.environ, {"HOME": str(self.tmp)})   # the per-user scratch base (A3) lands
+        home.start()                                                  # inside the test dir, never the real ~
+        self.addCleanup(home.stop)
+        self.roots = []   # scratch roots a test made; retention never deletes, so the test removes its own
 
     def tearDown(self):
         for root in self.roots:
-            if root.exists():
-                childenv.cleanup(root)
+            shutil.rmtree(str(root), ignore_errors=True)
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def scratch(self):
@@ -82,7 +84,7 @@ class Childenv(unittest.TestCase):
         self.assertNotEqual(first, second)
         for root in (first, second):
             self.assertTrue(root.name.startswith(childenv.SCRATCH_PREFIX))
-            self.assertEqual(root.parent, Path(os.path.realpath(childenv.SCRATCH_BASE)))
+            self.assertEqual(root.parent, childenv.scratch_base())
             self.assertEqual(stat.S_IMODE(root.stat().st_mode), 0o700)
             for name in ("home", "tmp"):
                 folder = root / name
@@ -97,45 +99,65 @@ class Childenv(unittest.TestCase):
         self.assertNotIn(str(elsewhere), str(root))
         self.assertEqual(os.listdir(str(elsewhere)), [])
 
-    # ------------------------------------------------------------ the strictly scoped cleanup (D2)
+    # ------------------------------------------------------------ retention, never deletion (A3)
 
-    def test_cleanup_removes_the_run_owned_scratch_root(self):
+    def test_the_scratch_base_is_a_private_per_user_folder_never_tmp(self):
+        base = childenv.scratch_base()
+        self.assertEqual(base, Path(os.path.realpath(
+            str(self.tmp / ".vibe-to-engineering" / "runs"))))   # beside the runner registry (HOME is patched)
+        self.assertNotEqual(base, Path(os.path.realpath("/tmp")))   # the OS reaps /tmp; deletion is the human's
+        self.assertEqual(stat.S_IMODE(base.stat().st_mode), 0o700)
+
+    def test_retain_leaves_the_run_owned_scratch_root_standing_with_its_contents(self):
         root = self.scratch()
         (root / "home" / "work.txt").write_text("run data\n")
-        childenv.cleanup(root)
-        self.assertFalse(root.exists())
-        self.roots.remove(root)
+        self.assertEqual(childenv.retain(root), str(root))
+        self.assertTrue(root.exists())                                     # retained, never removed
+        self.assertEqual((root / "home" / "work.txt").read_text(), "run data\n")   # the scratch files survive
+        self.assertEqual(stat.S_IMODE(root.stat().st_mode), 0o700)
 
-    def test_cleanup_refuses_anything_but_a_run_owned_scratch_root(self):
+    def test_retain_leaves_a_foreign_object_moved_inside_the_root_untouched(self):
+        # R2-F1's second route: a foreign directory moved inside the owned root was deleted with it. Under
+        # retention nothing is deleted at all, so the foreign sentinel simply stands
+        root = self.scratch()
+        foreign = self.tmp / "foreign"
+        foreign.mkdir()
+        (foreign / "data.txt").write_text("KEEP THESE BYTES\n")
+        foreign.rename(root / "tmp" / "foreign")
+        childenv.retain(root)
+        self.assertEqual((root / "tmp" / "foreign" / "data.txt").read_text(), "KEEP THESE BYTES\n")
+
+    def test_retain_refuses_anything_but_a_run_owned_scratch_root(self):
         untouched = self.tmp / "keep"
         untouched.mkdir()
         (untouched / "data.txt").write_text("KEEP THESE BYTES\n")
+        base = str(childenv.scratch_base())
         cases = {
-            "the scratch base itself": childenv.SCRATCH_BASE,
+            "the scratch base itself": base,
             "a folder outside the base": str(untouched),
             "a file outside the base": str(untouched / "data.txt"),
             "the filesystem root": os.sep,
-            "a missing run-prefixed folder": os.path.join(childenv.SCRATCH_BASE, childenv.SCRATCH_PREFIX + "gone"),
+            "a missing run-prefixed folder": os.path.join(base, childenv.SCRATCH_PREFIX + "gone"),
             "a run-prefixed folder not made by a run": None,   # made below
         }
-        manual = Path(childenv.SCRATCH_BASE) / (childenv.SCRATCH_PREFIX + "manual")
+        manual = childenv.scratch_base() / (childenv.SCRATCH_PREFIX + "manual")
         manual.mkdir()
         cases["a run-prefixed folder not made by a run"] = str(manual)
         try:
             for why, path in cases.items():
                 with self.subTest(why=why):
-                    self.refused(childenv.cleanup, path)
+                    self.refused(childenv.retain, path)
             self.assertEqual((untouched / "data.txt").read_text(), "KEEP THESE BYTES\n")
             self.assertTrue(manual.exists())
         finally:
             manual.rmdir()
 
-    def test_cleanup_refuses_a_link_even_one_naming_a_scratch_root(self):
+    def test_retain_refuses_a_link_even_one_naming_a_scratch_root(self):
         root = self.scratch()
         link = self.tmp / ("link-to-" + root.name)
         os.symlink(str(root), str(link))
-        self.refused(childenv.cleanup, str(link))
-        self.assertTrue(root.exists())   # nothing was deleted through the link
+        self.refused(childenv.retain, str(link))
+        self.assertTrue(root.exists())   # nothing was touched through the link
 
     # ------------------------------------------------------------ --with-path validation (D2)
 
@@ -208,10 +230,10 @@ class Childenv(unittest.TestCase):
         self.assertEqual(env["HOME"], str(root / "home"))
 
     def test_a_refused_setting_leaves_no_scratch_root_behind(self):
-        before = set(os.listdir(os.path.realpath(childenv.SCRATCH_BASE)))
+        before = set(os.listdir(str(childenv.scratch_base())))
         self.refused(childenv.construct, [], ["BASH_ENV=/x"])
         self.refused(childenv.construct, ["/relative"], [])
-        self.assertEqual(set(os.listdir(os.path.realpath(childenv.SCRATCH_BASE))), before)
+        self.assertEqual(set(os.listdir(str(childenv.scratch_base()))), before)
 
     def test_construct_and_profile_never_resolve_a_mutable_argument_twice(self):
         # R2-F4: validate once, retain the result — a link retargeted after validation changes neither the
@@ -279,11 +301,11 @@ class Childenv(unittest.TestCase):
         self.assertEqual(sorted(env), sorted(SYNTHESIZED + ("SystemRoot",)) + sorted(childenv.PINNED))
 
     def test_on_windows_a_systemroot_the_os_cannot_give_refuses_the_run(self):
-        before = set(os.listdir(os.path.realpath(childenv.SCRATCH_BASE)))
+        before = set(os.listdir(str(childenv.scratch_base())))
         with self.windows(), mock.patch.object(
                 childenv, "system_root", side_effect=Fail("cannot determine SystemRoot from the OS")):
             self.refused(childenv.construct, [], [])
-        self.assertEqual(set(os.listdir(os.path.realpath(childenv.SCRATCH_BASE))), before)   # nothing left
+        self.assertEqual(set(os.listdir(str(childenv.scratch_base()))), before)   # nothing left
 
 
 if __name__ == "__main__":

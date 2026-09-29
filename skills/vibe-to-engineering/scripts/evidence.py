@@ -90,7 +90,8 @@ set, is not enrolled for this user, resolves to a different executable than enro
 enrolled bytes (references/supported-checks.md — an unvalidated check never runs), or secret files that could
 not be gathered or read completely — always before anything runs: exit 2 means the check never ran and this
 attempt produced no check evidence; 3 a post-launch integrity failure — the check DID run (its outcome is
-reported and stands), only the scratch root could not be confirmed and safely removed. A failure after the
+reported and stands), only the scratch root could not be confirmed retained at its recorded path (nothing
+is ever deleted: A3). A failure after the
 launch is never reported as a refusal. Every byte the wrapper emits — the evidence including its header, the
 stdout echo, the stderr summary, mask labels, diagnostics and parser errors — holds no declared --env value:
 the maskable values are collected from the raw arguments before any parsing or validation (two-phase
@@ -802,7 +803,7 @@ def enroll_runner(program, with_path=(), ask=None, out=None):
         else:
             probe(resolved, kind, env, scratch)
     finally:
-        childenv.cleanup(scratch)
+        kept = childenv.retain(scratch)   # retained like every scratch root (A3) — nothing is ever deleted
     record = {"path": resolved, "sha256": digest, "size": size, "pin": pin,
               "probe": "%s %s" % (resolved, " ".join(args)),
               "enrolled": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
@@ -827,6 +828,8 @@ def enroll_runner(program, with_path=(), ask=None, out=None):
             pass
         raise
     print("enrolled %s: %s (sha256 %s, pin %s)" % (kind, resolved, digest, pin), file=out)
+    print("the enrollment's scratch root is retained at %s (mode 0700) — list it freely; deleting it is "
+          "your act alone" % kept, file=out)
 
 
 def supported_runner(command, path, cwd):
@@ -941,11 +944,12 @@ def main(argv=None):
                 result = emission.OPERATIONAL   # the validated launch itself failed: a wrapper failure
             else:
                 outcome = emission.child_outcome(done.returncode)   # the child's own result, as data (5.3)
-                header = "$ %s\n%s%s  runner %s\n" % (   # declared --env names, never their values; each
-                    " ".join(command), "".join("  with %s\n" % name for name in admitted),
+                header = "$ %s\n%s%s  runner %s\n  scratch %s\n" % (   # declared --env names, never their
+                    " ".join(command), "".join("  with %s\n" % name for name in admitted),   # values; each
                     "".join("  path %s\n" % folder for folder in paths),   # --with-path entry the child
                     "%s %s sha256:%s mode:%s — the enrolled identity launched"   # actually received,
-                    % (runner, enrolled["path"], enrolled["sha256"], enrolled["pin"]))   # retained (R2-F4)
+                    % (runner, enrolled["path"], enrolled["sha256"], enrolled["pin"]),   # retained (R2-F4)
+                    "%s — retained after the run, mode 0700, may hold sensitive output (A3)" % scratch)
                 text, masked = mask(header + "\n" + done.stdout.decode("utf-8", "replace"), values,
                                     frozenset(secrets))   # a declared value is masked wherever it appears (R1)
                 text = context.scrub(text if text.endswith("\n") else text + "\n")   # newline included
@@ -970,12 +974,16 @@ def main(argv=None):
             result = emission.OPERATIONAL
     finally:
         try:
-            childenv.cleanup(scratch)   # the run's own scratch root, and nothing else — matched by identity
+            kept = childenv.retain(scratch)   # the run's own scratch root, confirmed and left in place (A3)
         except Fail as error:
             messages.append("evidence.py: integrity failure after the run: %s\n" % error)
             if launched or saved:
                 result = emission.INTEGRITY
-    return finish(result, launched, saved, returncode)   # one stderr emission, through cleanup and result
+        else:
+            messages.append("evidence.py: the run's scratch root is retained at %s (mode 0700) — it may "
+                            "hold sensitive output; list it freely, and delete it only when you choose\n"
+                            % kept)
+    return finish(result, launched, saved, returncode)   # one stderr emission, through retention and result
 
 
 if __name__ == "__main__":

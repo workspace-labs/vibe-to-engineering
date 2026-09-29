@@ -49,7 +49,11 @@ sys.path.insert(0, str(TOOL.parent))
 import evidence  # noqa: E402
 import childenv  # noqa: E402
 
-SCRATCH_BASE = os.path.realpath(childenv.SCRATCH_BASE)
+
+def scratch_base(home):
+    """The scratch base a run with `home` as HOME uses: per-user now (~/.vibe-to-engineering/runs, A3),
+    never the constant /tmp."""
+    return os.path.join(str(home), ".vibe-to-engineering", "runs")
 
 # A compiled lookalike for the node kind: answers the profile probe, otherwise prints its baked line and —
 # with MARKER — writes a marker at a baked absolute path, so a test can tell exactly which bytes executed.
@@ -256,7 +260,7 @@ class RunnerIdentity(unittest.TestCase):
         launched = lines[-1]
         if entry["pin"] == "copy":
             self.assertIn("/%s" % childenv.SCRATCH_PREFIX, launched)   # launched the private copy…
-            self.assertTrue(launched.startswith(SCRATCH_BASE))         # …inside the run's scratch root
+            self.assertTrue(launched.startswith(scratch_base(home)))   # …inside the run's scratch root
         else:
             self.assertEqual(launched, entry["path"])                  # launched at the enrolled path
         self.assertIn("  runner node %s sha256:%s mode:%s" % (entry["path"], entry["sha256"], entry["pin"]),

@@ -86,12 +86,14 @@ retention, A4 platform refusal) and the wider release checklist stay separate wo
    evidence-save and child facts in a recoverable form when literal outcome words/digits need masking;
    its format and caller checks are specified in `references/emission-boundary.md`. A missing or invalid
    record is unverified, never a passed check.
-7. `childenv.cleanup(scratch)` runs in a `finally`, removing the run's own scratch root and nothing else:
-   the object at the path must be the very folder the run made, matched by device and inode — a check can
-   move its root away or put a foreign folder, link or file in its place, and cleanup will never delete it
-   (R1, F1). A cleanup that cannot confirm the root is an **integrity failure after the run: exit 3** (R1,
-   F6) — the check ran and its outcome stands; exit 2 is reserved for refusals where nothing ran and no
-   evidence exists.
+7. `childenv.retain(scratch)` runs in a `finally`, confirming the run's own scratch root still stands where
+   the run made it and leaving it there — nothing is ever deleted (A3, the retained R2-F1 obligation): the
+   object at the path must be the very folder the run made, matched by device and inode — a check can move
+   its root away or put a foreign folder, link or file in its place, and retention will never touch it. A
+   retention that cannot confirm the root is an **integrity failure after the run: exit 3** (R1, F6) — the
+   check ran and its outcome stands; exit 2 is reserved for refusals where nothing ran and no evidence
+   exists. A confirmed root's path goes to the evidence header and the stderr summary: it may hold sensitive
+   output, listing it is allowed, and deleting it is the human's own act.
 
 The evidence header records the command line and the declared `--env` **names only** — never a declared
 value (D4 rule 4) — plus the `--with-path` folders, the validated entries the child actually received
@@ -132,7 +134,7 @@ field or diagnostic carries one (R2-F2, R2-F3).
   masked).
 
 The Slice-1–4, Windows-corrective and R1 test files carry the rest of the proof: `tests/test_childenv.py`
-(construction, cleanup scoping, prohibited names, Windows case-folding and `SystemRoot`, structurally),
+(construction, retention scoping, prohibited names, Windows case-folding and `SystemRoot`, structurally),
 `tests/test_evidence_stage1.py` (the rewired launch path, the header, masked-declared-winner),
 `tests/test_evidence_node.py` (the Node reader obligations — superseded by the boundary: refusals),
 `tests/test_check_registry.py` (registry and gate agree), `tests/test_evidence_readings.py` (the retained

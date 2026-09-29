@@ -6,7 +6,8 @@ preflight reading, and that one mapping is what the launch path (evidence.py, sl
 and to the child alike: PATH is the four system folders, plus only folders --with-path gives (each validated
 an absolute, existing, real directory, recorded in the evidence header by the launch path); HOME and TMPDIR
 are one fresh private scratch root per run — home/ and tmp/ inside it, every folder mode 0700, made by
-absolute path without ever consulting the parent's TMPDIR; LC_ALL and LANG are en_US.UTF-8, TZ is UTC. On
+absolute path directly inside the one scratch base (~/.vibe-to-engineering/runs, itself mode 0700),
+never inside the project and never by consulting the parent's TMPDIR; LC_ALL and LANG are en_US.UTF-8, TZ is UTC. On
 macOS one name is pinned besides: __CF_USER_TEXT_ENCODING, which CoreFoundation otherwise sets inside any
 child that links it (CPython does) — after exec, before the child's own code — a fixed value per user id,
 never taken from the parent, so the mapping stays the whole of what the check's environment holds. On Windows,
@@ -14,12 +15,18 @@ where environment names are case-insensitive, every name rule folds case — a c
 synthesized or already-declared name is refused, never silently normalized into a collapse at spawn — and the
 profile gains a synthesized SystemRoot, valued by the OS itself, never inherited: the minimum a constructed
 Windows child needs. Windows support is not claimed — this is the recorded corrective, verified structurally
-only, never natively. There is nothing else. When the run ends, cleanup removes that scratch root and nothing else: a path that is not a run-owned scratch root (made by
-this process and registered, this tool's own prefix, directly inside the one scratch base) is refused, and so is the
-object standing at a registered path when it is not the very folder the run made — the check can move its root away
-or put another object in its place, so the object is matched by device and inode before anything is deleted: cleanup
-can never delete data the run did not make — the owner-approved exception to the no-deletion rules, limited to
-exactly that root.
+only, never natively. There is nothing else. When the run ends the scratch root is RETAINED, never
+deleted (A3 — the retained R2-F1 obligation: a tool that never deletes can never delete data the run
+did not make; the no-deletion rule has no exception left). Retention only confirms the root still
+stands where the run made it: a path that is not a run-owned scratch root (made by this process and
+registered, this tool's own prefix, directly inside the one scratch base) is refused, and so is the
+object standing at a registered path when it is not the very folder the run made — the check can move
+its root away or put another object in its place, so the object is matched by device and inode. A
+mismatch is reported as an integrity failure and whatever stands there is left exactly as found — a
+foreign object moved inside the root is as untouchable as one standing at its path. The retained root
+may hold sensitive output (a pin-copy runner's launched bytes, anything the check wrote to its HOME
+or TMPDIR), so the launch path records its path in the evidence and on stderr; listing it is allowed,
+deleting it is the human's own act.
 
 Some names are never admitted — construction already guarantees they are not inherited, and --env never adds
 them: the shells' startup and function channels (BASH_ENV, ENV, SHELLOPTS, BASHOPTS, BASH_FUNC_*), the
@@ -51,7 +58,6 @@ Standard library only. Every refusal is a gitrun.Fail, the refusal the launch pa
 
 import os
 import re
-import shutil
 import stat
 import sys
 import tempfile
@@ -63,11 +69,10 @@ import emission  # noqa: E402 — the governed emission path: redaction whose ma
 
 PATH_FOLDERS = "/usr/bin:/bin:/usr/sbin:/sbin"      # the whole PATH, before --with-path adds to it
 LOCALE, TIMEZONE = "en_US.UTF-8", "UTC"
-SCRATCH_BASE = "/tmp"                               # fixed, absolute — never the parent's TMPDIR
 SCRATCH_PREFIX = "v2e-run-"                         # a name only this tool's scratch roots carry
 _ROOTS = {}                                       # the scratch roots this process made: realpath -> (device,
-                                                  # inode) — cleanup's proof that the object standing at the path
-                                                  # is the one this run made, never one that took its place
+                                                  # inode) — retention's proof that the object standing at the
+                                                  # path is the one this run made, never one that took its place
 SYNTHESIZED = ("PATH", "HOME", "TMPDIR", "LC_ALL", "LANG", "TZ")
 # macOS: CoreFoundation, initializing inside any child that links it (CPython does), sets
 # __CF_USER_TEXT_ENCODING in the child's environment when it is absent — after exec, before the child's own
@@ -191,12 +196,24 @@ def with_path(raw, secrets=()):
     return real
 
 
+def scratch_base():
+    """The one base every scratch root stands directly inside: ~/.vibe-to-engineering/runs — fixed, per-user,
+    outside any project, and never the parent's TMPDIR. NOT /tmp: the operating system reaps /tmp on its own
+    schedule, and a retained root's deletion is the human's act alone (A3), so the base lives beside the
+    runner registry. Created on first use, mode 0700 whatever the umask — re-asserted on every call, because
+    the retention contract promises 0700."""
+    base = os.path.join(os.path.expanduser("~"), ".vibe-to-engineering", "runs")
+    os.makedirs(base, exist_ok=True)
+    os.chmod(base, stat.S_IRWXU)
+    return Path(os.path.realpath(base))
+
+
 def scratch_root():
     """One run's fresh private scratch root: a new folder directly inside the fixed scratch base — the
     parent's TMPDIR is never consulted — mode 0700, holding home/ and tmp/, mode 0700. Two runs never share
-    a root. Every root made here is registered by identity (device and inode), so cleanup can tell the root
+    a root. Every root made here is registered by identity (device and inode), so retention can tell the root
     this run made from anything later standing at the same path."""
-    root = Path(os.path.realpath(tempfile.mkdtemp(prefix=SCRATCH_PREFIX, dir=SCRATCH_BASE)))  # already 0700
+    root = Path(os.path.realpath(tempfile.mkdtemp(prefix=SCRATCH_PREFIX, dir=str(scratch_base()))))  # 0700
     for name in ("home", "tmp"):
         folder = root / name
         folder.mkdir()
@@ -206,34 +223,35 @@ def scratch_root():
     return root
 
 
-def cleanup(root):
-    """Remove a run's scratch root — the only thing this tool may delete. Anything else is refused: a path
-    this process did not register as a scratch root (the path checks stand too: directly inside the scratch
-    base, run-prefixed), or — even at a registered path — an object that is not the very folder this run made.
-    A check runs with the root as its HOME and TMPDIR and can move it away or put another folder, a link or a
-    file in its place: the object at the path is matched by device and inode against the run's own root before
-    anything is deleted, so cleanup can never delete data the run did not make (final-review R1). A root that
-    is gone from its path, or an rmtree that fails, is reported, never retried against a stranger."""
+def retain(root):
+    """Confirm a run's scratch root still stands where the run made it — and leave it there, returning its
+    real path for the evidence record. Nothing is deleted, ever: retention is the whole of the tool's
+    end-of-run act (A3, the retained R2-F1 obligation — a tool that never deletes can never delete data the
+    run did not make). The identity proof stands because the confirmation must be about the very folder the
+    run made: a path this process did not register as a scratch root (the path checks stand too: directly
+    inside the scratch base, run-prefixed) is refused, and so is — even at a registered path — an object
+    that is not the very folder this run made. A check runs with the root as its HOME and TMPDIR and can
+    move it away or put another folder, a link or a file in its place: the object at the path is matched by
+    device and inode against the run's own root, and a mismatch is reported by the launch path as an
+    integrity failure — whatever stands there is left exactly as found, and a foreign object moved inside
+    the root is as untouchable as one standing at its path. The retained root may hold sensitive output:
+    listing it is allowed, deleting it is the human's own act."""
     real = Path(os.path.realpath(str(root)))
-    base = Path(os.path.realpath(SCRATCH_BASE))
+    base = scratch_base()
     owned = _ROOTS.get(str(real))
     if owned is None or real.parent != base or not real.name.startswith(SCRATCH_PREFIX):
-        raise Fail("cleanup is limited to a run's own scratch root (%s* directly inside %s) — refusing %s"
+        raise Fail("retention is limited to a run's own scratch root (%s* directly inside %s) — refusing %s"
                    % (SCRATCH_PREFIX, base, root))
     try:
         standing = os.lstat(str(root))
     except OSError:
         del _ROOTS[str(real)]
-        raise Fail("the run's scratch root is no longer at its path (the check moved or removed it) — nothing "
-                   "was deleted")
+        raise Fail("the run's scratch root is no longer at its path (the check moved or removed it) — "
+                   "nothing else was touched")
     if not stat.S_ISDIR(standing.st_mode) or (standing.st_dev, standing.st_ino) != owned:
-        raise Fail("the scratch root's path now holds something this run did not make — left alone, nothing "
-                   "deleted")
-    del _ROOTS[str(real)]
-    try:
-        shutil.rmtree(str(real))
-    except OSError as error:
-        raise Fail("cannot remove the run's own scratch root (%s)" % (error.strerror or error))
+        raise Fail("the scratch root's path now holds something this run did not make — left exactly as "
+                   "found, nothing touched")
+    return str(real)
 
 
 def profile(root, extra_paths=(), systemroot=None):
@@ -254,7 +272,7 @@ def profile(root, extra_paths=(), systemroot=None):
 
 def construct(extra_paths=(), settings=()):
     """The whole child environment for one run, built once — the mapping that governs both the preflight
-    analysis and the launch (the D4 invariant) — the run's scratch root, for cleanup when the run ends, and
+    analysis and the launch (the D4 invariant) — the run's scratch root, retained when the run ends, and
     the validated --with-path entries, retained: what the launch path records is exactly what the child
     received, never a mutable original argument resolved again after the run (R2-F4). The --env settings
     and --with-path folders are validated first — and on Windows the SystemRoot is resolved
