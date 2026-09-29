@@ -94,16 +94,17 @@ retention, A4 platform refusal) and the wider release checklist stay separate wo
    a link, mode 0700 whatever the umask, never inside the project — and retention only inspects it
    (lstat): a base that is missing, unreadable, a link, a non-directory or another user's is the same
    governed exit 3, never a traceback (A3 corrective, F1/F2). The recorded mode 0700 is re-asserted on
-   the verified root and its home/ and tmp/ — the root is opened by descriptor
-   (O_DIRECTORY|O_NOFOLLOW), identity matched with fstat and the mode set with fchmod, home/ and tmp/
+   the verified root and its home/ and tmp/ — the root's descriptor is HELD OPEN from creation
+   (Q1): identity is fstat and the mode is fchmod on it alone, never a by-path operation, and a
+   root the check stripped to mode 000 is judged and restored like any other; "still at its
+   path" is an lstat compared against the held descriptor. home/ and tmp/
    opened through it with dir_fd and matched against their registered identities (a foreign folder
    moved in is a stranger, skipped untouched — P2), a missing or non-directory one simply skipped, so
    no swap between
    check and chmod can touch a stranger and only a failure on the root itself is exit 3 (re-review
    N1/N2). The chain and the root are created the same way — levels through their parent's
-   descriptor, the base descriptor held open, the root made with mkdir(dir_fd=) (P1) — and a root
-   the check made unreadable is identity-confirmed by lstat, restored never through a link, and
-   re-verified (P3). A
+   descriptor, the base descriptor held open, the root made with mkdir(dir_fd=) (P1), its string
+   confirmed against the creation fstat (Q2). A
    retention that cannot confirm the root is an **integrity failure after the run: exit 3** (R1, F6) — the
    check ran and its outcome stands; exit 2 is reserved for refusals where nothing ran and no evidence
    exists. A confirmed root's path goes to the evidence header and the stderr summary: it may hold sensitive

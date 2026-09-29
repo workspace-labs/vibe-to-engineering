@@ -85,11 +85,13 @@ PATH_FOLDERS = "/usr/bin:/bin:/usr/sbin:/sbin"      # the whole PATH, before --w
 LOCALE, TIMEZONE = "en_US.UTF-8", "UTC"
 SCRATCH_PREFIX = "v2e-run-"                         # a name only this tool's scratch roots carry
 _ROOTS = {}                                       # the scratch roots this process made: realpath ->
-                                                  # ((root's device, inode), {"home": (device, inode),
-                                                  # "tmp": (device, inode)}) — retention's proof that the
-                                                  # object standing at each path is the one this run made,
-                                                  # never one that took its place (a foreign folder moved
-                                                  # in as home/ or tmp/ is a stranger too: A3-P2)
+                                                  # (the root's HELD descriptor, {"home": (device, inode),
+                                                  # "tmp": (device, inode)}) — the descriptor is open from
+                                                  # creation to retention (A3-Q1), so identity and mode are
+                                                  # judged on the very folder this run made, whatever the
+                                                  # check does to its path or its permission bits; the folder
+                                                  # identities prove a foreign home/ or tmp/ is a stranger
+                                                  # (A3-P2)
 SYNTHESIZED = ("PATH", "HOME", "TMPDIR", "LC_ALL", "LANG", "TZ")
 # macOS: CoreFoundation, initializing inside any child that links it (CPython does), sets
 # __CF_USER_TEXT_ENCODING in the child's environment when it is absent — after exec, before the child's own
@@ -327,9 +329,12 @@ def scratch_root():
     parent's TMPDIR is never consulted — mode 0700, holding home/ and tmp/, mode 0700. Two runs never share
     a root. The base descriptor stays OPEN the whole time (A3-P1): the root is created with
     mkdir(dir_fd=base) — never by re-walking the base's path, so a swap of a base level cannot redirect the
-    creation into a stranger — then opened through the base with O_NOFOLLOW and registered from fstat, and
-    home/ and tmp/ are made and registered through the root's own descriptor: retention's identity proof
-    covers all three (A3-P2)."""
+    creation into a stranger — then opened through the base with O_NOFOLLOW. The root STRING is resolved
+    only after creation and must name the very folder just made (os.stat against the creation fstat): a
+    base level swapped in between would point it into a stranger, and the run is refused instead (A3-Q2).
+    home/ and tmp/ are made and registered through the root's own descriptor (A3-P2), and the root's
+    descriptor is NOT closed — it is held in the registry until retention, the identity and mode proof
+    that no path operation can lose (A3-Q1). On any failure the descriptor is closed exactly once."""
     path, base_fd = open_base()
     try:
         while True:
@@ -354,6 +359,14 @@ def scratch_root():
             made = os.fstat(fd)
         except OSError as error:
             raise Fail("cannot inspect the run's fresh scratch root — %s" % (error.strerror or error))
+        try:
+            standing = os.stat(str(root))
+        except OSError as error:
+            raise Fail("the fresh scratch root cannot be confirmed at its path — %s"
+                       % (error.strerror or error))
+        if (standing.st_dev, standing.st_ino) != (made.st_dev, made.st_ino):
+            raise Fail("the fresh scratch root's path resolves away from the folder just made — a base "
+                       "level was swapped under construction; the run is refused")
         folders = {}
         for inner in ("home", "tmp"):
             try:
@@ -369,39 +382,11 @@ def scratch_root():
                 raise Fail("cannot prepare the run's scratch root — %s" % (error.strerror or error))
             finally:
                 os.close(inner_fd)
-    finally:
+    except BaseException:
         os.close(fd)
-    _ROOTS[str(root)] = ((made.st_dev, made.st_ino), folders)
+        raise
+    _ROOTS[str(root)] = (fd, folders)
     return root
-
-
-def reopen_unreadable(root, real, root_id):
-    """P3: the check stripped its own root's read permission, so the descriptor open failed EACCES on the
-    very folder this run made — not on a stranger. Confirm identity with lstat against the registered
-    device and inode, restore the owner's permission never through a link (follow_symlinks=False), then
-    open again with O_NOFOLLOW so the caller can re-verify with fstat. Only a real identity mismatch says
-    "did not make"; on 9204241 this same check exited 0 with the root restored to 0700."""
-    try:
-        standing = os.lstat(str(root))
-    except OSError:
-        del _ROOTS[str(real)]
-        raise Fail("the run's scratch root is no longer at its path (the check moved or removed it) — "
-                   "nothing else was touched")
-    if not stat.S_ISDIR(standing.st_mode) or (standing.st_dev, standing.st_ino) != root_id:
-        raise Fail("the scratch root's path now holds something this run did not make — left exactly as "
-                   "found, nothing touched")
-    try:
-        if os.chmod in os.supports_follow_symlinks:
-            os.chmod(str(root), stat.S_IRWXU, follow_symlinks=False)   # never through a link
-        else:
-            os.chmod(str(root), stat.S_IRWXU)   # the lstat just proved a real directory, never a link
-    except OSError as error:
-        raise Fail("cannot restore the run's scratch root permission — %s" % (error.strerror or error))
-    try:
-        return os.open(str(root), os.O_RDONLY | DIR_FLAGS)
-    except OSError as error:
-        raise Fail("cannot open the run's scratch root after restoring its permission — %s"
-                   % (error.strerror or error))
 
 
 def retain(root):
@@ -413,55 +398,51 @@ def retain(root):
     identity proof stands because the confirmation must be about the very folder the
     run made: a path this process did not register as a scratch root (the path checks stand too: directly
     inside the scratch base, run-prefixed) is refused, and so is — even at a registered path — an object
-    that is not the very folder this run made. A check runs with the root as its HOME and TMPDIR and can
-    move it away or put another folder, a link or a file in its place: the root is opened by descriptor
-    (O_RDONLY|O_DIRECTORY|O_NOFOLLOW, the path as given — a link is never followed) and matched with fstat
-    against the run's own device and inode, so no
-    swap between check and chmod can take the object's place (A3-N1) — a mismatch is reported by the
-    launch path as an integrity failure, and whatever stands there is left exactly as found, a foreign
-    object moved inside the root as untouchable as one standing at its path. A root the check made
-    unreadable is no stranger either: identity is confirmed by lstat, the owner's permission restored
-    never through a link, and the root re-opened and re-verified (A3-P3). The 0700 the evidence records
-    is re-asserted with fchmod on that same descriptor — the check can loosen its own root during the run
+    that is not the very folder this run made. The root's descriptor is HELD OPEN from creation to this
+    moment (A3-Q1): identity is fstat on it and the mode is re-asserted with fchmod on it — never a by-path
+    operation the check can race, and a root the check stripped to mode 000 is judged and restored exactly
+    like any other, because an already-open descriptor keeps working. "Still at its path" is an lstat of
+    the path compared against the held descriptor's identity: a check can move its root away or put a
+    folder, a link or a file in its place — a mismatch is reported by the launch path as an integrity
+    failure, and whatever stands there is left exactly as found, a foreign object moved inside the root as
+    untouchable as one standing at its path. The 0700 the evidence records
+    is re-asserted on that same descriptor — the check can loosen its own root during the run
     (A3-F3) — and on home/ and tmp/ opened through it (dir_fd, O_NOFOLLOW) and matched against their
     registered identities: a missing or non-directory one is simply skipped, because only a failure on
     the verified root itself is the integrity failure (A3-N2), and a foreign folder moved in as one is a
-    stranger — skipped, untouched (A3-P2).
+    stranger — skipped, untouched (A3-P2). The held descriptor is closed exactly once, on every path.
     The retained root may hold sensitive output:
     listing it is allowed, deleting it is the human's own act."""
     real = Path(os.path.realpath(str(root)))
     base = verify_base()
-    owned = _ROOTS.get(str(real))
+    owned = _ROOTS.pop(str(real), None)   # the held descriptor leaves the registry here, so exactly one
     if owned is None or real.parent != base or not real.name.startswith(SCRATCH_PREFIX):
+        if owned is not None:             # close follows it, whatever happens next
+            os.close(owned[0])
         raise Fail("retention is limited to a run's own scratch root (%s* directly inside %s) — refusing %s"
                    % (SCRATCH_PREFIX, base, root))
-    root_id, folders = owned
-    try:
-        fd = os.open(str(root), os.O_RDONLY | DIR_FLAGS)   # the object at the path AS GIVEN — a link is
-    except FileNotFoundError:                              # never followed (O_NOFOLLOW) — pinned by
-        del _ROOTS[str(real)]                              # descriptor: no swap can take its place (N1)
-        raise Fail("the run's scratch root is no longer at its path (the check moved or removed it) — "
-                   "nothing else was touched")
-    except PermissionError:
-        fd = reopen_unreadable(root, real, root_id)   # the check stripped its own root's read bit (P3)
-    except OSError:
-        raise Fail("the scratch root's path now holds something this run did not make — left exactly as "
-                   "found, nothing touched")
+    held, folders = owned
     try:
         try:
-            standing = os.fstat(fd)
-        except OSError as error:
+            identity = os.fstat(held)     # the root itself, pinned since creation: a check that stripped
+        except OSError as error:          # its root's read bit changes nothing here (Q1)
             raise Fail("cannot inspect the run's scratch root — %s" % (error.strerror or error))
-        if not stat.S_ISDIR(standing.st_mode) or (standing.st_dev, standing.st_ino) != root_id:
+        try:
+            standing = os.lstat(str(root))
+        except OSError:
+            raise Fail("the run's scratch root is no longer at its path (the check moved or removed it) — "
+                       "nothing else was touched")
+        if not stat.S_ISDIR(standing.st_mode) \
+                or (standing.st_dev, standing.st_ino) != (identity.st_dev, identity.st_ino):
             raise Fail("the scratch root's path now holds something this run did not make — left exactly "
                        "as found, nothing touched")
         try:
-            os.fchmod(fd, stat.S_IRWXU)   # the 0700 the evidence records, on the verified root itself (F3)
-        except OSError as error:
+            os.fchmod(held, stat.S_IRWXU)   # the 0700 the evidence records, on the verified root itself
+        except OSError as error:                                            # (F3), descriptor-held (Q1)
             raise Fail("cannot re-assert the scratch root's private mode — %s" % (error.strerror or error))
         for name in ("home", "tmp"):        # through the root's own descriptor, never through a swapped
             try:                            # link; a missing or non-directory folder is simply skipped —
-                inner = os.open(name, os.O_RDONLY | DIR_FLAGS, dir_fd=fd)   # only a failure on the root
+                inner = os.open(name, os.O_RDONLY | DIR_FLAGS, dir_fd=held)   # only a failure on the root
             except OSError:                                                 # itself is exit 3 (N2)
                 continue
             try:
@@ -479,7 +460,7 @@ def retain(root):
             finally:
                 os.close(inner)
     finally:
-        os.close(fd)
+        os.close(held)   # the held descriptor is closed exactly once, on every path (Q1)
     return str(real)
 
 

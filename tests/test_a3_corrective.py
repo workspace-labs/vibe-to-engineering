@@ -42,6 +42,18 @@ tests below fail on cc5b862 and pass after, every injection hook asserting it ac
       the root re-opened and re-verified
   P4  fstat calls sat outside the OSError handling — a failure escaped raw: both are wrapped into Fail
 
+The fourth review (of 87709ab) closed P1–P5 and everything before them, and found one defect class left
+in the P3 path; the Q tests below fail on 87709ab and pass after, every hook asserting it fired:
+
+  Q1  reopen_unreadable checked identity by path, then chmodded by path — a real foreign directory
+      swapped in between was chmodded: the root's descriptor is now HELD OPEN from creation to
+      retention, fstat and fchmod run on it (a stripped read bit changes nothing), "still at its path"
+      is an lstat compared against it, and reopen_unreadable is gone
+  Q2  the root string was resolved after creation — a base level swapped in between pointed it into
+      the stranger: the string must now name the very folder just made (os.stat against the creation
+      fstat) or the run is refused
+  plus: the held descriptor is closed exactly once — success, refusal, integrity failure, injected error
+
 Run from the repository root:  python3 -m unittest discover -s tests -p test_a3_corrective.py -v
 """
 
@@ -375,8 +387,11 @@ class A3Corrective(unittest.TestCase):
                     os.symlink(str(foreign), str(chain))   # becomes a link into the stranger
                 return real_close(fd)
 
-            with mock.patch.object(childenv.os, "close", close_hook):
-                childenv.scratch_root()
+            try:
+                with mock.patch.object(childenv.os, "close", close_hook):
+                    childenv.scratch_root()
+            except Fail:
+                pass   # Q2's refusal is safe too — what matters is the stranger stands untouched
             self.assertTrue(fired, "the swap hook never fired — the test proves nothing (P5)")
             self.assertEqual(os.listdir(str(foreign / "runs")), [])        # no root inside the stranger
             self.assertEqual(stat.S_IMODE((foreign / "runs").stat().st_mode), 0o755)   # never chmodded
@@ -440,6 +455,113 @@ class A3Corrective(unittest.TestCase):
                 with self.assertRaises(Fail):
                     childenv.scratch_base()
             self.assertTrue(fired)
+
+    # ------------------------------------------- Q1: the descriptor is held, never re-opened by path
+
+    def test_a_swap_during_the_unreadable_root_path_never_chmods_the_stranger(self):
+        # the fourth reviewer's reproduction: root at 0300; right after the identity check, the root is
+        # renamed away and a foreign 0755 folder renamed into its path. On 87709ab the by-path restore
+        # chmodded the stranger, then claimed "nothing touched". With the descriptor held from creation,
+        # the restore lands on the run's own root and the stranger stands. The hook MUST fire.
+        with mock.patch.dict(os.environ, {"HOME": str(self.tmp)}):
+            root = childenv.scratch_root()
+            moved = self.tmp / "moved-root"
+            foreign = self.tmp / "foreign"
+            foreign.mkdir()
+            os.chmod(str(foreign), 0o755)
+            os.chmod(str(root), 0o300)
+            real_lstat, fired = os.lstat, []
+
+            def swapping(path, *args, **kwargs):
+                result = real_lstat(path, *args, **kwargs)
+                if not fired and str(path) == str(root) \
+                        and sys._getframe(1).f_code.co_name in ("retain", "reopen_unreadable"):
+                    fired.append(True)
+                    os.rename(str(root), str(moved))
+                    os.rename(str(foreign), str(root))
+                return result
+
+            try:
+                with mock.patch.object(childenv.os, "lstat", swapping):
+                    childenv.retain(root)
+            finally:
+                os.rename(str(root), str(foreign))         # put everything back for the assertions
+                os.rename(str(moved), str(root))
+            self.assertTrue(fired, "the swap hook never fired — the test proves nothing (P5)")
+            self.assertEqual(stat.S_IMODE(foreign.stat().st_mode), 0o755)   # never chmodded
+            self.assertEqual(stat.S_IMODE(root.stat().st_mode), 0o700)      # the run's own root, restored
+
+    # ------------------------------------------- Q2: the root string must name the folder just made
+
+    def test_a_root_string_resolving_into_a_stranger_is_refused(self):
+        # the fourth reviewer's reproduction: the P1 swap, landing between the root's creation and the
+        # string's resolution — on 87709ab the returned root was …/foreign/runs/v2e-run-…. The string
+        # must now name the very folder just made (os.stat against the creation fstat) or the run is
+        # refused. The hook fires at scratch_root's base close, just before the resolution; it MUST fire.
+        with mock.patch.dict(os.environ, {"HOME": str(self.tmp)}):
+            foreign = self.tmp / "foreign"
+            (foreign / "runs").mkdir(parents=True)
+            chain = self.tmp / ".vibe-to-engineering"
+            moved = self.tmp / "chain-moved"
+            real_close, fired = os.close, []
+
+            def close_hook(fd):
+                if not fired and sys._getframe(1).f_code.co_name == "scratch_root":
+                    fired.append(True)
+                    os.rename(str(chain), str(moved))
+                    os.symlink(str(foreign), str(chain))
+                return real_close(fd)
+
+            with mock.patch.object(childenv.os, "close", close_hook):
+                with self.assertRaises(Fail):
+                    childenv.scratch_root()
+            self.assertTrue(fired, "the swap hook never fired — the test proves nothing (P5)")
+            self.assertEqual(os.listdir(str(foreign / "runs")), [])        # nothing inside the stranger
+
+    # ------------------------------------------- Q1 companion: the held descriptor's one close
+
+    def test_the_held_descriptor_is_closed_exactly_once_on_every_path(self):
+        # Q1's companion proof: success, a stranger at the path, the root moved away, and an injected
+        # fchmod failure — each closes the held descriptor exactly once.
+        with mock.patch.dict(os.environ, {"HOME": str(self.tmp)}):
+            real_close, real_fchmod = os.close, os.fchmod
+            for name, tamper, refuses in (
+                    ("success", None, False),
+                    ("a stranger at the path", "stranger", True),
+                    ("the root moved away", "moved", True),
+                    ("an injected fchmod failure", "boom", True)):
+                with self.subTest(name):
+                    self.count += 1
+                    root = childenv.scratch_root()
+                    held = childenv._ROOTS[str(root)][0]
+                    if tamper == "stranger":
+                        moved = self.tmp / ("moved-%d" % self.count)
+                        stranger = self.tmp / ("stranger-%d" % self.count)
+                        stranger.mkdir()
+                        os.rename(str(root), str(moved))
+                        os.rename(str(stranger), str(root))
+                    elif tamper == "moved":
+                        os.rename(str(root), str(self.tmp / ("moved-%d" % self.count)))
+                    closes, armed = [], [tamper == "boom"]
+
+                    def counting(fd):
+                        if fd == held:
+                            closes.append(fd)
+                        return real_close(fd)
+
+                    def boom(fd_, mode, *args, **kwargs):
+                        if armed[0] and sys._getframe(1).f_code.co_name == "retain":
+                            raise OSError(13, "Permission denied")
+                        return real_fchmod(fd_, mode, *args, **kwargs)
+
+                    try:
+                        with mock.patch.object(childenv.os, "close", counting), \
+                                mock.patch.object(childenv.os, "fchmod", boom):
+                            childenv.retain(root)
+                        self.assertFalse(refuses)
+                    except Fail:
+                        self.assertTrue(refuses)
+                    self.assertEqual(closes, [held])
 
 
 if __name__ == "__main__":

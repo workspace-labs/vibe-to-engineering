@@ -15,9 +15,12 @@ exit-3 regression on a removed $TMPDIR, a letter-case route past the project-con
 an early refusal creating the base, a header claiming unconfirmed retention), and the third
 review (of cc5b862) for P1–P5 (base levels opened by re-walking paths, a foreign folder
 chmodded as home/, an unreadable own root misreported as a stranger, raw fstat failures, a
-vacuous swap test). All three correctives are implemented — one descriptor chain from base to
-root to home/tmp, identity registered and matched at every level, an honest header — each with
-fail-on-the-reviewed-commit regressions, and the third is **delivered for independent
+vacuous swap test), and the fourth review (of 87709ab) for Q1–Q2 (a by-path restore raced by
+a real foreign directory, a root string resolved after creation). All four correctives are
+implemented — the root's descriptor is now held open from creation to retention, identity and
+mode judged on it alone, one descriptor chain from base to root to home/tmp, an honest
+header — each with
+fail-on-the-reviewed-commit regressions, and the fourth is **delivered for independent
 re-review, not accepted**. Next after acceptance is **A4: macOS-only platform
 refusal at the
 execution boundary**, then the documentation sweep, the regression re-verification and the macOS

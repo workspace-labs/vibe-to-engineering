@@ -40,6 +40,13 @@ creation and only a matching descriptor is fchmodded (a foreign folder moved in 
 P2), a root the check made unreadable is identity-confirmed and restored instead of misreported
 as a stranger (P3), and no fstat failure can escape raw (P4); every injection hook in the tests
 asserts it actually fired (P5). Each finding has a regression that fails on cc5b862 and passes now.
+The fourth review (of 87709ab) closed P1–P5 and everything before them, and found one defect class
+left in the P3 path: the by-path restore could still be raced by a real foreign directory. The
+fourth corrective ends the by-path era — the root's descriptor is HELD OPEN from creation to
+retention, identity and mode are judged on it alone, "still at its path" is an lstat compared
+against it, the root string must name the folder just made or the run is refused, and the held
+descriptor is proven closed exactly once on every path. Each finding has a regression that fails
+on 87709ab and passes now.
 A3 is **delivered for independent re-review — not yet reviewed or owner-accepted**.
 
 **The whole skill is still in development.** This state is not a v0.1.0 release or approval

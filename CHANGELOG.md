@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+- 2026-09-29 — A3 fourth corrective (fourth review Q1–Q2), delivered for independent re-review:
+  the fourth review of 87709ab closed P1–P5 and everything before them but found one defect
+  class left in the P3 path. (Q1) `reopen_unreadable` checked identity by path, then chmodded
+  by path — `follow_symlinks=False` stops a link but not a real foreign directory swapped in
+  between: the root's descriptor is now HELD OPEN from creation to retention, identity is fstat
+  and the mode restore is fchmod on it (a stripped read bit changes nothing), "still at its
+  path" is an lstat compared against it, `reopen_unreadable` is deleted, and the held
+  descriptor is closed exactly once on every path — success, refusal, integrity failure,
+  injected error (proven by counting closes in the tests). (Q2) The root string was resolved
+  after creation, so a base level swapped in between pointed it into the stranger even though
+  the root was correctly made in the pinned base: the string must now name the very folder just
+  made (os.stat against the creation fstat) or the run is refused. The no-deletion rule, the
+  device+inode identity proof, the 0/1/2/3 statuses, both refusal rules, the ledger
+  instruction, header masking and all accepted F/N/P behavior are unchanged. The three new
+  tests fail on 87709ab (5 failures, 1 error) and pass after.
+
 - 2026-09-29 — A3 third corrective (third review P1–P5), delivered for independent re-review:
   the third review of cc5b862 closed N2–N5 and all F findings but found N1 only half-closed and
   four more defects. (P1) The base levels were opened by full path, so a swap of
