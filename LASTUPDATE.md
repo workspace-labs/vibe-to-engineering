@@ -53,13 +53,14 @@ on 87709ab and passes now.
 ACCEPTED on the review side — Q1 and Q2 close, every earlier finding (F1–F5, N1–N5, P1–P5)
 stays closed, the must-be-unchanged list holds, and the suite is 329 tests, OK, no skips.
 
-**The owner has not pressed Accept.** His decision: the skill must be completely clean first —
-fix R1–R3 before A3 closes. R1–R3 were fixed (2026-09-30, `89d8151`); the independent review
-reopened R2 for two Low findings (L1, L2), fixed the same day (`aa20333`); the re-review found
-L1 and L2 FIXED and one new Low (L3, tests only, pre-existing since 569c8f9), fixed the same
-day (`79bd7a2`) and — after round 3 narrowed the same flake to the '-'-ending prefix boundary —
-fixed again in final form the same day and delivered for review. Owner acceptance of A3
-remains pending.
+**A3 is owner-ACCEPTED (2026-09-30).** His decision was that the skill must be completely
+clean first — fix R1–R3 before A3 closes. R1–R3 were fixed (2026-09-30, `89d8151`); the
+independent review reopened R2 for two Low findings (L1, L2), fixed the same day (`aa20333`);
+the re-review found L1 and L2 FIXED and one new Low (L3, tests only, pre-existing since
+569c8f9), fixed the same day (`79bd7a2`) and — after round 3 narrowed the same flake to the
+'-'-ending prefix boundary — fixed again in final form the same day (`ec7ed3b`). With the
+skill completely clean, the owner accepted A3 on 2026-09-30. **A4 — platform refusal — is
+next** (see "What to fix and verify next").
 
 ## L3 (2026-09-30, final form) — flaky secret-canary assertions, tests only
 
@@ -80,7 +81,8 @@ planted real leaks (raw .env in the refusal; raw --env with masking disabled) st
 canary assertion. No product code changed; the F03 seal holds. The full suite on a disposable
 copy of the final committed tree, isolated HOME, CLT Python 3.9.6, Node v20.20.2, Chromium
 headless shell, the verified reader matrix, `V2E_REQUIRE_NODE=1` and `V2E_REQUIRE_MATRIX=1`:
-**335 tests, zero failures, errors or skips**. Next: the independent review of L3.
+**335 tests, zero failures, errors or skips**. The independent review of this final form
+closed L3, and the owner accepted A3 on 2026-09-30.
 
 ## L1–L2 (2026-09-30) — the review's two Low findings, fixed (re-review: FIXED)
 
