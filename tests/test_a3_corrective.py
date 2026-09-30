@@ -52,7 +52,10 @@ in the P3 path; the Q tests below fail on 87709ab and pass after, every hook ass
   Q2  the root string was resolved after creation — a base level swapped in between pointed it into
       the stranger: the string must now name the very folder just made (os.stat against the creation
       fstat) or the run is refused
-  plus: the held descriptor is closed exactly once — success, refusal, integrity failure, injected error
+  plus: the held descriptor is closed exactly once — success, refusal, integrity failure, injected
+  error, and a failed base check (R1, 2026-09-30: retain pops the registry BEFORE verify_base, so a
+  base failure can no longer leave the descriptor open and registered; the Q1 test itself now catches
+  the old commit's Fail so it FAILS on the defect assertion on 87709ab instead of erroring — R3)
 
 Run from the repository root:  python3 -m unittest discover -s tests -p test_a3_corrective.py -v
 """
@@ -482,8 +485,12 @@ class A3Corrective(unittest.TestCase):
                 return result
 
             try:
-                with mock.patch.object(childenv.os, "lstat", swapping):
-                    childenv.retain(root)
+                try:
+                    with mock.patch.object(childenv.os, "lstat", swapping):
+                        childenv.retain(root)
+                except Fail:
+                    pass   # 87709ab raises here AFTER chmodding the stranger — the assertions below
+                           # are what must prove the defect (a failure, never an error) (R3)
             finally:
                 os.rename(str(root), str(foreign))         # put everything back for the assertions
                 os.rename(str(moved), str(root))
@@ -521,15 +528,17 @@ class A3Corrective(unittest.TestCase):
     # ------------------------------------------- Q1 companion: the held descriptor's one close
 
     def test_the_held_descriptor_is_closed_exactly_once_on_every_path(self):
-        # Q1's companion proof: success, a stranger at the path, the root moved away, and an injected
-        # fchmod failure — each closes the held descriptor exactly once.
+        # Q1's companion proof: success, a stranger at the path, the root moved away, an injected
+        # fchmod failure, and a failed base check (R1) — each closes the held descriptor exactly once.
         with mock.patch.dict(os.environ, {"HOME": str(self.tmp)}):
             real_close, real_fchmod = os.close, os.fchmod
+            real_verify_base = childenv.verify_base
             for name, tamper, refuses in (
                     ("success", None, False),
                     ("a stranger at the path", "stranger", True),
                     ("the root moved away", "moved", True),
-                    ("an injected fchmod failure", "boom", True)):
+                    ("an injected fchmod failure", "boom", True),
+                    ("a failed base check", "base", True)):
                 with self.subTest(name):
                     self.count += 1
                     root = childenv.scratch_root()
@@ -554,9 +563,15 @@ class A3Corrective(unittest.TestCase):
                             raise OSError(13, "Permission denied")
                         return real_fchmod(fd_, mode, *args, **kwargs)
 
+                    def verify_hook():                     # R1: a base failure after the launch —
+                        if tamper == "base":               # the held descriptor must still be closed
+                            raise Fail("injected base failure (R1)")
+                        return real_verify_base()
+
                     try:
                         with mock.patch.object(childenv.os, "close", counting), \
-                                mock.patch.object(childenv.os, "fchmod", boom):
+                                mock.patch.object(childenv.os, "fchmod", boom), \
+                                mock.patch.object(childenv, "verify_base", verify_hook):
                             childenv.retain(root)
                         self.assertFalse(refuses)
                     except Fail:

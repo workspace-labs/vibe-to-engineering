@@ -145,7 +145,9 @@ class FinalReviewR1(unittest.TestCase):
             with self.assertRaises(Fail):
                 childenv.retain(root)
             self.assertEqual((replacement / "data.txt").read_text(), "precious-r1-6603")
-            childenv._ROOTS.pop(str(root), None)   # the test moved it: unregister rather than leave a stale entry
+            leftover = childenv._ROOTS.pop(str(root), None)   # the test moved it: unregister rather
+            if leftover is not None:                          # than leave a stale entry — and close
+                os.close(leftover[0])                         # the held descriptor, never leak it (R3)
             shutil.rmtree(str(moved))
             shutil.rmtree(str(replacement))        # the test's own stand-in, removed by the test
             root = childenv.scratch_root()         # a root standing as made is confirmed and retained …

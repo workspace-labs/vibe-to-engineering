@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+- 2026-09-30 — A3 R1–R3 (the owner's three Low leftovers after the reviewer acceptance of
+  46114bc), delivered for independent review. (R1) `retain` called `verify_base()` BEFORE
+  `_ROOTS.pop`, so a failed base check left the root's held descriptor open and registered
+  until the process exited: the pop now comes first, and the descriptor is closed exactly
+  once on that path too — the "closed exactly once on every path" companion proof gained the
+  "a failed base check" case. (R2) Any `Fail` raised after the root's `mkdir` in
+  `scratch_root` left a real root in the base that was neither registered nor reported — and
+  the tool never deletes. The refusal now names what the human needs to find it: the
+  confirmed root path once the identity check has passed, and before it only the root's name
+  and base — a path that could resolve into a stranger (the Q2 swap) is never printed.
+  (R3, tests) The Q1 test caught nothing, so on 87709ab it ERRORED on `retain`'s `Fail`
+  instead of reaching the mode assertion that proves the defect: it now catches the `Fail`
+  and FAILs on that assertion there. `test_final_review_r1.py`'s registry pop now closes the
+  held descriptor it removes instead of leaking it. The new regressions in
+  `tests/test_a3_r1_r2.py` fail on 46114bc (4 failures) and pass after. The no-deletion
+  rule, the held-descriptor design, the one descriptor chain, the 0/1/2/3 statuses, every
+  F/N/P/Q regression and the F03-sealed files are unchanged.
+
 - 2026-09-29 — A3 fourth corrective (fourth review Q1–Q2), delivered for independent re-review:
   the fourth review of 87709ab closed P1–P5 and everything before them but found one defect
   class left in the P3 path. (Q1) `reopen_unreadable` checked identity by path, then chmodded

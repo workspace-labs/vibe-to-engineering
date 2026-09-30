@@ -334,7 +334,11 @@ def scratch_root():
     base level swapped in between would point it into a stranger, and the run is refused instead (A3-Q2).
     home/ and tmp/ are made and registered through the root's own descriptor (A3-P2), and the root's
     descriptor is NOT closed — it is held in the registry until retention, the identity and mode proof
-    that no path operation can lose (A3-Q1). On any failure the descriptor is closed exactly once."""
+    that no path operation can lose (A3-Q1). On any failure the descriptor is closed exactly once. A
+    refusal after the root's mkdir leaves a real root behind — the tool never deletes, so the refusal
+    message names what the human needs to find it (A3-R2): once the identity check has passed the root
+    string honestly names it and is printed; before that check only the name and base are named — a
+    path that could resolve into a stranger (the Q2 swap) is never printed."""
     path, base_fd = open_base()
     try:
         while True:
@@ -350,7 +354,10 @@ def scratch_root():
         try:
             fd = os.open(name, os.O_RDONLY | DIR_FLAGS, dir_fd=base_fd)
         except OSError as error:
-            raise Fail("cannot open the run's fresh scratch root — %s" % (error.strerror or error))
+            raise Fail("cannot open the run's fresh scratch root — %s; the folder just made is left "
+                       "standing: named %s, directly inside the scratch base (%s) — the tool never "
+                       "deletes, so finding and removing it is the human's act"
+                       % (error.strerror or error, name, path))
     finally:
         os.close(base_fd)
     root = Path(os.path.realpath(os.path.join(str(path), name)))
@@ -358,28 +365,43 @@ def scratch_root():
         try:
             made = os.fstat(fd)
         except OSError as error:
-            raise Fail("cannot inspect the run's fresh scratch root — %s" % (error.strerror or error))
+            raise Fail("cannot inspect the run's fresh scratch root — %s; the folder just made is left "
+                       "standing: named %s, directly inside the scratch base (%s) — the tool never "
+                       "deletes, so finding and removing it is the human's act"
+                       % (error.strerror or error, name, path))
         try:
             standing = os.stat(str(root))
         except OSError as error:
-            raise Fail("the fresh scratch root cannot be confirmed at its path — %s"
-                       % (error.strerror or error))
+            raise Fail("the fresh scratch root cannot be confirmed at its path — %s; the folder just "
+                       "made is left standing: named %s, directly inside the scratch base directory "
+                       "this run created it in — its path could not be confirmed to name it, so no "
+                       "path is printed (a printed path could point into a stranger); the tool never "
+                       "deletes, so finding and removing it is the human's act"
+                       % (error.strerror or error, name))
         if (standing.st_dev, standing.st_ino) != (made.st_dev, made.st_ino):
             raise Fail("the fresh scratch root's path resolves away from the folder just made — a base "
-                       "level was swapped under construction; the run is refused")
+                       "level was swapped under construction; the run is refused. The folder just made "
+                       "is left standing: named %s, directly inside the scratch base directory this "
+                       "run created it in — its recorded path now resolves into a stranger, so it is "
+                       "not printed; the tool never deletes, so finding and removing it is the "
+                       "human's act" % name)
         folders = {}
         for inner in ("home", "tmp"):
             try:
                 os.mkdir(inner, stat.S_IRWXU, dir_fd=fd)
                 inner_fd = os.open(inner, os.O_RDONLY | DIR_FLAGS, dir_fd=fd)
             except OSError as error:
-                raise Fail("cannot prepare the run's scratch root — %s" % (error.strerror or error))
+                raise Fail("cannot prepare the run's scratch root — %s; the root is left standing at "
+                           "%s — the tool never deletes, so finding and removing it is the human's act"
+                           % (error.strerror or error, root))
             try:
                 os.fchmod(inner_fd, stat.S_IRWXU)                      # 0700 whatever the umask
                 standing = os.fstat(inner_fd)
                 folders[inner] = (standing.st_dev, standing.st_ino)
             except OSError as error:
-                raise Fail("cannot prepare the run's scratch root — %s" % (error.strerror or error))
+                raise Fail("cannot prepare the run's scratch root — %s; the root is left standing at "
+                           "%s — the tool never deletes, so finding and removing it is the human's act"
+                           % (error.strerror or error, root))
             finally:
                 os.close(inner_fd)
     except BaseException:
@@ -410,14 +432,21 @@ def retain(root):
     (A3-F3) — and on home/ and tmp/ opened through it (dir_fd, O_NOFOLLOW) and matched against their
     registered identities: a missing or non-directory one is simply skipped, because only a failure on
     the verified root itself is the integrity failure (A3-N2), and a foreign folder moved in as one is a
-    stranger — skipped, untouched (A3-P2). The held descriptor is closed exactly once, on every path.
+    stranger — skipped, untouched (A3-P2). The held descriptor is closed exactly once, on every path —
+    a failed base check included: the registry pop comes first, so the descriptor is never left open
+    and registered until the process exits (A3-R1).
     The retained root may hold sensitive output:
     listing it is allowed, deleting it is the human's own act."""
     real = Path(os.path.realpath(str(root)))
-    base = verify_base()
-    owned = _ROOTS.pop(str(real), None)   # the held descriptor leaves the registry here, so exactly one
-    if owned is None or real.parent != base or not real.name.startswith(SCRATCH_PREFIX):
+    owned = _ROOTS.pop(str(real), None)   # the held descriptor leaves the registry FIRST (R1): a
+    try:                                  # failed verify_base must not leave it open and registered
+        base = verify_base()              # until the process exits
+    except BaseException:
         if owned is not None:             # close follows it, whatever happens next
+            os.close(owned[0])
+        raise
+    if owned is None or real.parent != base or not real.name.startswith(SCRATCH_PREFIX):
+        if owned is not None:
             os.close(owned[0])
         raise Fail("retention is limited to a run's own scratch root (%s* directly inside %s) — refusing %s"
                    % (SCRATCH_PREFIX, base, root))

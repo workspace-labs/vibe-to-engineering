@@ -1,4 +1,4 @@
-# Latest update — 2026-09-29
+# Latest update — 2026-09-30
 
 ## Current status
 
@@ -54,16 +54,32 @@ ACCEPTED on the review side — Q1 and Q2 close, every earlier finding (F1–F5,
 stays closed, the must-be-unchanged list holds, and the suite is 329 tests, OK, no skips.
 
 **The owner has not pressed Accept.** His decision: the skill must be completely clean first —
-fix R1–R3 before A3 closes.
+fix R1–R3 before A3 closes. **R1–R3 are now fixed (2026-09-30)** and delivered for the
+independent review; owner acceptance of A3 remains pending that review.
 
-## Open items for tomorrow (2026-09-30)
+## R1–R3 (2026-09-30) — fixed, delivered for independent review
 
-- R1 (Low): retain calls verify_base() before _ROOTS.pop (childenv.py:417-418), so a failed verify_base leaves the held descriptor open and registered until the process exits. Pop first, or close it in finally.
-- R2 (Low): the Q2 refusal (and any Fail after the root's mkdir in scratch_root, around childenv.py:363) leaves a real root in the base that is unregistered and unreported. Name its path in the refusal message.
-- R3 (Low, tests): the Q1 test errors on 87709ab via an uncaught Fail instead of reaching its mode assertion. tests/test_final_review_r1.py:148 pops an _ROOTS entry without closing its held descriptor. Add regression tests for R1 and R2.
+- R1: `retain` now pops the registry BEFORE `verify_base` and closes the held descriptor on
+  that failure path too — a failed base check no longer leaves it open and registered until
+  the process exits. The "closed exactly once on every path" companion proof gained the
+  "a failed base check" case.
+- R2: every `Fail` raised after the root's `mkdir` in `scratch_root` now names what the human
+  needs to find the left-behind root — the confirmed root path once the identity check has
+  passed, and before it only the root's name and base; a path that could resolve into a
+  stranger (the Q2 swap) is never printed. Nothing is deleted, still.
+- R3: the Q1 test catches `retain`'s `Fail`, so on 87709ab it FAILS on the mode assertion
+  that proves the defect instead of ERRORING on it; `test_final_review_r1.py`'s registry pop
+  now closes the held descriptor it removes.
 
-**Tomorrow's rules:** each R item gets a regression test that fails on 46114bc and passes
-after, then the full suite with the isolated-HOME command, then an independent review.
+Each item has a regression that fails on 46114bc and passes after: the four new tests in
+`tests/test_a3_r1_r2.py` fail there (4 failures, each on the defect-proving assertion), the
+extended companion proof fails on its new "a failed base check" case, and the repaired Q1
+test fails — never errors — on 87709ab. The full suite ran on a disposable copy with an
+isolated HOME, the documented CLT Python 3.9.6, Node v20.20.2, Chromium headless shell and a
+freshly rebuilt reader matrix (the previous folder was gone; every artifact fetched from its
+recorded URL, each sha256 verified) with `V2E_REQUIRE_NODE=1` and `V2E_REQUIRE_MATRIX=1`:
+**333 tests passed (329 plus the four new ones), zero failures, errors or skips**, in 343.2
+seconds. The F03-sealed files are byte-identical. Next: the independent review of R1–R3.
 
 **The whole skill is still in development.** This state is not a v0.1.0 release or approval
 for use on real projects. A4, the documentation sweep, the regression re-verification and
