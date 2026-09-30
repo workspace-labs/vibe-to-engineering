@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+- 2026-09-30 — A3 L1–L2 (the independent review of 89d8151 REOPENED R2 for two Low findings;
+  R1 and R3 stayed closed), delivered for independent re-review. (L1) The open-failure and
+  fstat-failure refusals printed the scratch base PATH before the identity check had passed —
+  after the very base-level swap Q2 guards against, that string resolves into a stranger: both
+  branches now use the stat/Q2 wording ("directly inside the scratch base directory this run
+  created it in" — no path; before the identity check only the root's NAME is named). The new
+  regression swaps the chain and then fails the open: it fails on 89d8151 (the stranger-bound
+  base path was printed) and passes after. (L2) No test reached the true Q2 "resolves away"
+  mismatch branch — the existing swap test lands on the stat-confirmation branch (os.stat
+  finds nothing after the swap): it is renamed `test_the_stat_confirmation_refusal_…`, and a
+  new test plants a same-named folder in the stranger so os.stat succeeds on a different
+  inode, reaching the real mismatch refusal — asserting "resolves away", the root named, the
+  stranger's path absent and the stranger untouched. The branch was already correct on
+  89d8151 (the test passes there and fails on 46114bc, where the message named nothing); the
+  gap was coverage, not behavior. The no-deletion rule, the held-descriptor design, R1, R3,
+  every F/N/P/Q regression and the F03-sealed files are unchanged.
+
 - 2026-09-30 — A3 R1–R3 (the owner's three Low leftovers after the reviewer acceptance of
   46114bc), delivered for independent review. (R1) `retain` called `verify_base()` BEFORE
   `_ROOTS.pop`, so a failed base check left the root's held descriptor open and registered
@@ -10,15 +27,18 @@
   "a failed base check" case. (R2) Any `Fail` raised after the root's `mkdir` in
   `scratch_root` left a real root in the base that was neither registered nor reported — and
   the tool never deletes. The refusal now names what the human needs to find it: the
-  confirmed root path once the identity check has passed, and before it only the root's name
-  and base — a path that could resolve into a stranger (the Q2 swap) is never printed.
-  (R3, tests) The Q1 test caught nothing, so on 87709ab it ERRORED on `retain`'s `Fail`
-  instead of reaching the mode assertion that proves the defect: it now catches the `Fail`
-  and FAILs on that assertion there. `test_final_review_r1.py`'s registry pop now closes the
-  held descriptor it removes instead of leaking it. The new regressions in
-  `tests/test_a3_r1_r2.py` fail on 46114bc (4 failures) and pass after. The no-deletion
-  rule, the held-descriptor design, the one descriptor chain, the 0/1/2/3 statuses, every
-  F/N/P/Q regression and the F03-sealed files are unchanged.
+  confirmed root path once the identity check has passed, and before it only the root's
+  NAME — not even the base's path, which the same swap can point into a stranger (corrected
+  by L1 above; this entry first claimed "name and base"). (R3, tests) The Q1 test caught
+  nothing, so on 87709ab it ERRORED on `retain`'s `Fail` instead of reaching the mode
+  assertion that proves the defect: it now catches the `Fail` and FAILs on that assertion
+  there. `test_final_review_r1.py`'s registry pop now closes the held descriptor it removes
+  instead of leaking it. The new regressions in `tests/test_a3_r1_r2.py` fail on 46114bc and
+  pass after; the swap test among them covers the stat-confirmation branch — the true Q2
+  "resolves away" mismatch branch gains its own test under L2 above (this entry first implied
+  it was already covered). The no-deletion rule, the held-descriptor design, the one
+  descriptor chain, the 0/1/2/3 statuses, every F/N/P/Q regression and the F03-sealed files
+  are unchanged.
 
 - 2026-09-29 — A3 fourth corrective (fourth review Q1–Q2), delivered for independent re-review:
   the fourth review of 87709ab closed P1–P5 and everything before them but found one defect

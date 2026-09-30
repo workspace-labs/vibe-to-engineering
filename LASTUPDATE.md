@@ -54,10 +54,33 @@ ACCEPTED on the review side — Q1 and Q2 close, every earlier finding (F1–F5,
 stays closed, the must-be-unchanged list holds, and the suite is 329 tests, OK, no skips.
 
 **The owner has not pressed Accept.** His decision: the skill must be completely clean first —
-fix R1–R3 before A3 closes. **R1–R3 are now fixed (2026-09-30)** and delivered for the
-independent review; owner acceptance of A3 remains pending that review.
+fix R1–R3 before A3 closes. R1–R3 were fixed (2026-09-30, `89d8151`); the independent review
+**reopened R2 for two Low findings (L1, L2)**, now fixed the same day and delivered for
+re-review. Owner acceptance of A3 remains pending.
 
-## R1–R3 (2026-09-30) — fixed, delivered for independent review
+## L1–L2 (2026-09-30) — the review's two Low findings, fixed
+
+- L1: the open-failure and fstat-failure refusals printed the scratch base PATH before the
+  identity check had passed — after a base-level swap (the Q2 attack shape) that string
+  resolves into a stranger. Both branches now use the stat/Q2 wording: before the identity
+  check only the root's NAME is named, no path at all. The new regression swaps the chain and
+  then fails the open: **fails on 89d8151** (the stranger-bound base path was printed) and
+  passes after.
+- L2: no test reached the true Q2 "resolves away" mismatch branch — the swap test lands on
+  the stat-confirmation branch (os.stat finds nothing after the swap). It is renamed
+  `test_the_stat_confirmation_refusal_…`; a new test plants a same-named folder in the
+  stranger so os.stat succeeds on a different inode, reaching the real mismatch refusal and
+  asserting "resolves away", the root named, the stranger's path absent and the stranger
+  untouched. The branch was already correct — the gap was coverage, not behavior (the test
+  passes on 89d8151 and fails on 46114bc, where the message named nothing).
+
+The full suite ran on a disposable copy of the final committed tree with an isolated HOME,
+the documented CLT Python 3.9.6, Node v20.20.2, Chromium headless shell and the verified
+reader matrix, with `V2E_REQUIRE_NODE=1` and `V2E_REQUIRE_MATRIX=1`: **335 tests passed (333
+plus the two new ones), zero failures, errors or skips**. The F03-sealed files are
+byte-identical. Next: the independent re-review of L1–L2.
+
+## R1–R3 (2026-09-30) — fixed, reviewer-accepted for R1 and R3; R2 completed under L1–L2
 
 - R1: `retain` now pops the registry BEFORE `verify_base` and closes the held descriptor on
   that failure path too — a failed base check no longer leaves it open and registered until
@@ -65,21 +88,23 @@ independent review; owner acceptance of A3 remains pending that review.
   "a failed base check" case.
 - R2: every `Fail` raised after the root's `mkdir` in `scratch_root` now names what the human
   needs to find the left-behind root — the confirmed root path once the identity check has
-  passed, and before it only the root's name and base; a path that could resolve into a
-  stranger (the Q2 swap) is never printed. Nothing is deleted, still.
+  passed, and before it only the root's NAME (the review's L1: not even the base's path,
+  which the same swap can point into a stranger; this section first said "name and base").
+  Nothing is deleted, still.
 - R3: the Q1 test catches `retain`'s `Fail`, so on 87709ab it FAILS on the mode assertion
   that proves the defect instead of ERRORING on it; `test_final_review_r1.py`'s registry pop
   now closes the held descriptor it removes.
 
-Each item has a regression that fails on 46114bc and passes after: the four new tests in
-`tests/test_a3_r1_r2.py` fail there (4 failures, each on the defect-proving assertion), the
-extended companion proof fails on its new "a failed base check" case, and the repaired Q1
-test fails — never errors — on 87709ab. The full suite ran on a disposable copy with an
-isolated HOME, the documented CLT Python 3.9.6, Node v20.20.2, Chromium headless shell and a
-freshly rebuilt reader matrix (the previous folder was gone; every artifact fetched from its
-recorded URL, each sha256 verified) with `V2E_REQUIRE_NODE=1` and `V2E_REQUIRE_MATRIX=1`:
-**333 tests passed (329 plus the four new ones), zero failures, errors or skips**, in 343.2
-seconds. The F03-sealed files are byte-identical. Next: the independent review of R1–R3.
+Each item has a regression that fails on 46114bc and passes after: the new tests in
+`tests/test_a3_r1_r2.py` fail there (each on the defect-proving assertion), the extended
+companion proof fails on its new "a failed base check" case, and the repaired Q1 test fails —
+never errors — on 87709ab. The full suite ran on a disposable copy with an isolated HOME, the
+documented CLT Python 3.9.6, Node v20.20.2, Chromium headless shell and a freshly rebuilt
+reader matrix (the previous folder was gone; every artifact fetched from its recorded URL,
+each sha256 verified) with `V2E_REQUIRE_NODE=1` and `V2E_REQUIRE_MATRIX=1`: **333 tests
+passed (329 plus the four new ones), zero failures, errors or skips**, in 343.2 seconds, and
+the reviewer reran it on 89d8151 itself: 333, OK, 287.4 seconds. The F03-sealed files are
+byte-identical.
 
 **The whole skill is still in development.** This state is not a v0.1.0 release or approval
 for use on real projects. A4, the documentation sweep, the regression re-verification and

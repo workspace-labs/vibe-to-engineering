@@ -337,8 +337,8 @@ def scratch_root():
     that no path operation can lose (A3-Q1). On any failure the descriptor is closed exactly once. A
     refusal after the root's mkdir leaves a real root behind — the tool never deletes, so the refusal
     message names what the human needs to find it (A3-R2): once the identity check has passed the root
-    string honestly names it and is printed; before that check only the name and base are named — a
-    path that could resolve into a stranger (the Q2 swap) is never printed."""
+    string honestly names it and is printed; before that check only the root's NAME is named — not even
+    the base's path, which the same swap (A3-Q2) can point into a stranger (A3-L1)."""
     path, base_fd = open_base()
     try:
         while True:
@@ -355,9 +355,11 @@ def scratch_root():
             fd = os.open(name, os.O_RDONLY | DIR_FLAGS, dir_fd=base_fd)
         except OSError as error:
             raise Fail("cannot open the run's fresh scratch root — %s; the folder just made is left "
-                       "standing: named %s, directly inside the scratch base (%s) — the tool never "
-                       "deletes, so finding and removing it is the human's act"
-                       % (error.strerror or error, name, path))
+                       "standing: named %s, directly inside the scratch base directory this run "
+                       "created it in — the identity check has not passed, so no path is printed "
+                       "(a printed path could point into a stranger); the tool never deletes, so "
+                       "finding and removing it is the human's act"
+                       % (error.strerror or error, name))
     finally:
         os.close(base_fd)
     root = Path(os.path.realpath(os.path.join(str(path), name)))
@@ -366,9 +368,11 @@ def scratch_root():
             made = os.fstat(fd)
         except OSError as error:
             raise Fail("cannot inspect the run's fresh scratch root — %s; the folder just made is left "
-                       "standing: named %s, directly inside the scratch base (%s) — the tool never "
-                       "deletes, so finding and removing it is the human's act"
-                       % (error.strerror or error, name, path))
+                       "standing: named %s, directly inside the scratch base directory this run "
+                       "created it in — the identity check has not passed, so no path is printed "
+                       "(a printed path could point into a stranger); the tool never deletes, so "
+                       "finding and removing it is the human's act"
+                       % (error.strerror or error, name))
         try:
             standing = os.stat(str(root))
         except OSError as error:
