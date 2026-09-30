@@ -8,6 +8,10 @@ dotenv parsers, interpolation computed from the constructed environment) with a 
 are no longer wired into the reader. The grammar is implemented in `scripts/envliteral.py` and wired into
 `secretformats.dotenv_values`.
 
+A file the boundary refuses is never edited, rewritten or converted so the tool accepts the project. The
+acceptable remedies are to keep the file outside the project for the migration, or to point the check at
+throwaway data with `--env`.
+
 ## The grammar
 
 **File:** UTF-8, LF-only (a carriage return anywhere refuses), no byte order mark.
@@ -78,8 +82,8 @@ masked wherever the check prints it, under its declared name.
 
 - **The reader-compatibility experiment (2026-09-27)** — 107 readers × 83 fixtures + 5 two-file cases = 8,891
   recorded observations under `env -i`: bash sourcing; six Node versions; all 99 stable dotenv releases
-  0.1.1–18.0.4 driven per era; the python-dotenv wheel. Sources, versions, sha256 and publisher digests in
-  `~/Desktop/Vibe-to-Engineering/vibe-to-engineering-reader-compat-2026-09-27/` (`PROVENANCE.md`,
+  0.1.1–18.0.4 driven per era; the python-dotenv wheel. Sources, versions, sha256 and publisher digests are
+  recorded in the experiment's evidence bundle, kept outside this repository (`PROVENANCE.md`,
   `results.jsonl`, `analysis.txt`).
 - **The in-suite differential matrix** (`tests/test_literal_matrix.py`) — the implemented grammar and masking
   logic against every claimed reader, live, over the admitted corpus, the combination cases with and without

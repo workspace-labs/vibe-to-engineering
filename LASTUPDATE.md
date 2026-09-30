@@ -95,6 +95,48 @@ The F03 seal is intact and the recovery.md unseal is exactly 3 lines. The review
 wording notes to C (item 2 below). **Next is C — the documentation corrections — then B (the
 regression re-verification) and D (the macOS workflow exam).**
 
+**C — documentation correctness — is implemented (2026-09-30, base `99c8ebf`) and delivered for
+independent review.** The skill's words now promise exactly what the tool does. Checkpoints are
+described as their defined saved-file set — every file git would not ignore; ignored files
+watched, not saved; nested repositories not saved — replacing the "whole project" claims in
+README.md and plan-template.html, with SKILL.md's checkpoint table saying the same. Wherever a
+fingerprint or checkpoint comparison stands as data-safety evidence, the text states it compares
+covered local file states and **does not prove the absence of reads, remote writes or temporary
+changes** (a file changed and changed back between two checkpoints looks unchanged): SKILL.md's
+checkpoint-tool section and phase gate, README, the plan template. The `.env` boundary states the
+file is never edited, rewritten or converted so the tool accepts the project — the acceptable
+remedies are keeping it outside the project for the migration or `--env` throwaway data; the
+audit found no editing suggestion anywhere to remove. Required checks: passing recorded evidence
+(a matching wrapper 0 and child exit 0) is the written gate for ALL GREEN; a refused or
+unrunnable required check has exactly three outcomes — (a) a plan revision, (b) an owner-approved
+manual alternative (approved plan revision, ledger record with the human's words, visibly marked
+`MANUAL — OUTSIDE THE MASKING GUARANTEE`), (c) a blocking finding, never silently skipped and
+never ALL GREEN — and a migration completed with (b) ends in the new
+`VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED MANUAL CHECKS` outcome with one `Manual:` line per
+such check stating it ran outside the secret-masking guarantee; a run with both kinds shows both
+blocks. The outcome is added everywhere outcomes are listed: the SKILL.md and README flows, the
+resume rule, the status-lines list and the section-9 blocks (the plan template and
+migration-plan.md list no outcomes; migration-plan.md's verification section gains the
+three-outcomes rule). Skill-audit leftovers folded in: the `sh scripts/test.sh` example is now
+`sh <project-script> …` in SKILL.md and supported-checks.md, and the two personal `~/Desktop`
+evidence paths in env-boundary.md and stage1-acceptance.md are neutral descriptions (the evidence
+is recorded outside the repository). The four A4 review notes: checkpoint.py's docstring is
+macOS-only with Linux/Windows on the roadmap; the "(Windows: py -3 …)" usage lines are removed
+from evidence.py's and render_pdf.py's docstrings; README's macOS row reads "supported; all tests
+pass; release exam pending"; and the Linux/Windows notes in stage1-acceptance.md read as
+roadmap/design history (supported-checks.md's platform-scope note already did). One audit find
+beyond the list: evidence.py's docstring still said the scratch folder is "removed when the run
+ends" — A3 retains it — now corrected to retained, never deleted. `tests/test_c_wording.py`
+(7 tests) guards every correction — each fails on `99c8ebf` (failures=7) and passes after. No
+behavior changes; recovery.md, gitrun.py, nested.py and test_nested.py stay byte-identical to
+`b3ad397`. Per the seal rule, the audit's flagged lines inside the sealed recovery.md come back
+as an owner decision instead of edits: line 51 "so the same files run on every platform" (stale
+since A4; its checkpoint.py twin is fixed) and line 81 "macOS — validated in 0.1.0" (reads
+release-validated while exam D is pending; its README twin is fixed), plus two borderline
+readings recorded for judgment (G10's "report one whose contents changed" without the
+changed-and-changed-back limit, and the Windows roadmap note's "the saved pre-restore checkpoint
+keeps everything").
+
 ## L3 (2026-09-30, final form) — flaky secret-canary assertions, tests only
 
 The reviewer's full suite flaked once: `assertNotIn("9137", …)` tripped on the retained root's
@@ -281,22 +323,23 @@ the release workflow exam below is still pending.
    release is macOS-only at the execution boundary: unsupported platforms refuse before any
    write or check, and Linux and Windows live in the roadmap until their own implementation and
    native release exams are complete. Claude's independent review accepted it with no findings.
-2. **C — documentation corrections.** Describe checkpoints as covering their defined
-   saved-file set. Explain that fingerprints compare covered file states and do not prove
-   absence of reads, remote writes or temporary changes. Remove any suggestion to edit a
-   real `.env` to gain admission. Require passing recorded evidence for required checks;
-   approved manual alternatives must stay visibly outside the masking guarantee. Also fold in
-   the 2026-09-29 skill-audit findings: the `sh scripts/test.sh` example wording in SKILL.md
-   (a static scanner reads it as a bundled-file reference) and the two `~/Desktop/...` evidence
-   paths in `references/env-boundary.md` and `references/stage1-acceptance.md`. And the four
-   wording notes from the A4 review (2026-09-30): (a) `scripts/checkpoint.py:14` — the
-   docstring still says the tool "runs on macOS, Linux and Windows"; (b) the
-   "(Windows: py -3 …)" usage lines in `evidence.py`'s and `render_pdf.py`'s docstrings;
-   (c) `README.md`'s Platforms table says macOS is "Supported and validated" — exam D is still
-   pending, so it must not read as release-validated (suggested: "supported; all tests pass;
-   release exam pending"); (d) `references/stage1-acceptance.md` (~165–172, 207) and
-   `references/supported-checks.md` (~165) — confirm the Linux/Windows notes read as
-   roadmap/design history, not support claims.
+2. **C — documentation corrections (implemented 2026-09-30, base `99c8ebf`; delivered for
+   independent review).** Checkpoints are described as covering their defined saved-file set;
+   fingerprints and checkpoint comparisons state they compare covered local file states and do
+   not prove absence of reads, remote writes or temporary changes; the `.env` boundary states
+   the file is never edited, rewritten or converted to gain admission and names the acceptable
+   remedies (outside the project for the migration, or `--env` throwaway data) — the audit found
+   no editing suggestion to remove. Required checks pass only with passing recorded evidence; a
+   refused or unrunnable one has exactly three outcomes (plan revision / owner-approved manual
+   alternative, ledger-recorded and marked `MANUAL — OUTSIDE THE MASKING GUARANTEE` / blocking
+   finding), and an approved manual alternative ends the migration in the new
+   `VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED MANUAL CHECKS` outcome — never ALL GREEN. The
+   2026-09-29 skill-audit findings (`sh <project-script> …`; neutral evidence paths) and the
+   four A4 wording notes are folded in. Guarded by `tests/test_c_wording.py` (7 tests, each
+   failing on `99c8ebf` and passing after); no behavior changes; the four sealed files stay
+   byte-identical to `b3ad397`. Awaits Claude's independent review and the owner's decision —
+   including the sealed recovery.md lines the audit brings back (line 51 "run on every
+   platform", line 81 "validated in 0.1.0", and two borderline readings recorded for judgment).
 3. **B — release regression verification.** After the pending changes, run the complete
    suite with Node and the reader matrix required, verify the F03 seal, and preserve the
    accepted A1/A2 and confidentiality/status regressions. Keep explicit refusal tests and

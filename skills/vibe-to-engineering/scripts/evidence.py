@@ -2,15 +2,16 @@
 """Run one check and keep its output as evidence, with every secret value masked.
 
     python3 evidence.py --project <project> --out <project>/.vibe-to-engineering/evidence/<step>/<name>.txt \\
-        [--with-path /abs/dir]… [--env NAME=VALUE]… -- <command> [<argument>…]          (Windows: py -3 evidence.py …)
+        [--with-path /abs/dir]… [--env NAME=VALUE]… -- <command> [<argument>…]
     python3 evidence.py --enroll-runner <runner> [--with-path /abs/dir]…      enroll this user's runner (A2)
 
 Standard library only. The command runs in the project folder with a constructed environment — nothing is
 inherited: PATH is the system folders plus each --with-path folder (validated: absolute, existing, a real
 directory, its name never holding the PATH separator — one folder enters PATH as exactly one entry — the
 validated entries retained from construction, so the header records exactly what the child received, never a
-mutable original argument resolved again after the run), HOME and TMPDIR are one fresh private folder made for the run (removed when
-the run ends, and nothing else is — the object at its path is matched by identity before anything is deleted), the
+mutable original argument resolved again after the run), HOME and TMPDIR are one fresh private folder made for the run (RETAINED when
+the run ends, never deleted, under ~/.vibe-to-engineering/runs/ — A3: the object at its path is matched by identity before it is
+confirmed and left standing), the
 locale and timezone are fixed — plus each --env setting, how a check is
 pointed at throwaway data: NAME=VALUE, the name a shell's name, never one the constructed environment or the
 prohibited set holds (the shells', runtimes', linkers', dotenv, package-manager, git and proxy configuration

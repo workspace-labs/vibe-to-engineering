@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render Engineering-Migration-Plan.html to a PDF with a Chrome-family browser.
 
-    python3 render_pdf.py <plan.html> <plan.pdf>        (Windows: py -3 render_pdf.py …)
+    python3 render_pdf.py <plan.html> <plan.pdf>
 
 Standard library only. It uses a Chrome, Chromium, Edge or Brave browser that is
 already installed, or one downloaded by Playwright; set V2E_BROWSER to a browser's

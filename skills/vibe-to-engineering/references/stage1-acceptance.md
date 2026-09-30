@@ -3,7 +3,7 @@
 This record assembles the evidence the final independent review is asked to confirm. It says what stage 1
 built, what each acceptance test proves, how the launch path is shaped, and what is and is not verified on
 each platform. The governing documents are the stage-1 design contract and its seven owner decisions D1–D7
-(`~/Desktop/vibe-to-engineering-stage1-design-contract-2026-09-26.md`, decisions log in its §13) and the
+(the stage-1 design contract of 2026-09-26, recorded outside this repository — decisions log in its §13) and the
 supported-check registry (`references/supported-checks.md`). NEW-5 is **not closed**: closure requires this
 evidence to pass the independent review, per the closure standard (D7).
 
@@ -159,20 +159,26 @@ finding, each failing against the reviewed candidate: 20 failures + 1 error ther
 
 ## Platform status
 
+Recorded for stage 1 (2026-09-27). Since A4 (2026-09-30) every entry point refuses to run anywhere but
+macOS; the Linux and Windows notes below are the stage-1 design investigation — roadmap and design history,
+not support claims.
+
 - **macOS** — verified. The full suite (179 tests) runs green on the development Mac (system Python 3.9.6,
   bash 3.2.57 as `/bin/sh`, Node v20.20.2). `__CF_USER_TEXT_ENCODING` is pinned in the constructed
   environment so the OS cannot inject it into the child after the analysis (owner decision at Gate 2).
-- **Linux** — no pin required. The stage-1 cross-platform investigation found no channel by which a Linux
-  child receives a variable absent from the constructed mapping. Structurally covered by the portable path;
+- **Linux** — design investigation, not a support claim (roadmap; this release refuses to run there). The
+  stage-1 cross-platform investigation found no channel by which a Linux child would receive a variable
+  absent from the constructed mapping — no pin required. Structurally covered by the portable path;
   a native Linux suite run remains open as part of FIX-FIRST item 7. Note: the sh profile (checked at
   enrollment since A2) requires the runner to answer as bash 3.2 — the version the shell evidence is measured
-  against — so a Linux box whose `/bin/sh` is dash refuses loudly rather than running under an unverified
+  against — so a Linux box whose `/bin/sh` is dash would refuse loudly rather than run under an unverified
   profile.
-- **Windows** — **not claimed supported**. The corrective (case-folded name rules, OS-derived `SystemRoot`)
-  is proven structurally only; `system_root()` has never executed on native Windows. The owner will run
-  native verification separately, and any failure returns through a corrective gate. Recorded future
-  requirements: case-insensitive collision/prohibition handling (done, structural), SystemRoot resolution
-  (done, structural), and a native platform verification before any support claim.
+- **Windows** — **not claimed supported** (roadmap; this release refuses to run there). The corrective
+  (case-folded name rules, OS-derived `SystemRoot`) is proven structurally only; `system_root()` has never
+  executed on native Windows. The owner will run native verification separately, and any failure returns
+  through a corrective gate. Recorded future requirements: case-insensitive collision/prohibition handling
+  (done, structural), SystemRoot resolution (done, structural), and a native platform verification before any
+  support claim.
 
 ## Real-reader evidence for every supported profile (R1, F8 — closed)
 

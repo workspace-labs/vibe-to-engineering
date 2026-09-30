@@ -10,8 +10,10 @@ Python 3.8+, standard library only. This file is the command-line tool; the
 modules beside it each own one part of the job: gitrun.py runs git safely and
 holds the platform helpers, nested.py checks nested repositories, watched.py
 watches the ignored files a checkpoint does not save, treeview.py prints the
-tree. git is called with argument lists, never through a shell, so the tool
-runs on macOS, Linux and Windows.
+tree. git is called with argument lists, never through a shell. This release
+runs on macOS only: on Linux, Windows or any other platform the tool refuses
+before any write or check (platform_gate.py); those platforms are roadmap
+entries (references/recovery.md, section 4).
 """
 
 import os

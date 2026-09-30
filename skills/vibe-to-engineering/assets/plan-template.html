@@ -176,7 +176,7 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
 
   <div class="authorize">
     <p class="eyebrow">What your approval authorizes</p>
-    <p>Creating and verifying a recovery baseline — a saved copy of the whole project that it can be put back to — and then <b>Phase 1 only</b>. Every later phase waits for its own approval. The product's behavior stays the same, nothing is committed or published, and nothing is deleted without a saved copy.</p>
+    <p>Creating and verifying a recovery baseline — every file git would not ignore, saved so those files can be put back byte for byte — and then <b>Phase 1 only</b>. Every later phase waits for its own approval. The product's behavior stays the same, nothing is committed or published, and nothing is deleted without a saved copy.</p>
   </div>
 </section>
 
@@ -358,7 +358,7 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
     <div class="two">
       <div>
         <h3>Backup and checkpoints</h3>
-        <p>Before Phase 1, the whole project — including work that is not committed yet — is saved as a recovery baseline and proven restorable by restoring it into a temporary folder. After every successful phase a new checkpoint is saved the same way. Checkpoints live in <span class="path">.vibe-to-engineering/checkpoints.git</span>, separate from the project's own history, which is never changed.</p>
+        <p>Before Phase 1, the project's saved-file set — every file git would not ignore, including work not committed yet — is saved as a recovery baseline and proven restorable by restoring it into a temporary folder. Files git ignores are watched, not saved, and nested repositories are not saved. After every successful phase a new checkpoint is saved the same way. Checkpoints live in <span class="path">.vibe-to-engineering/checkpoints.git</span>, separate from the project's own history, which is never changed. A comparison against a checkpoint covers the saved and watched files; it does not prove that nothing was read, sent elsewhere, or changed and changed back in between.</p>
       </div>
       <div>
         <h3>If something breaks</h3>

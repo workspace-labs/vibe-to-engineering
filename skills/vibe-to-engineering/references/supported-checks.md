@@ -73,7 +73,7 @@ The supported set (the gate's table, one kind per runner; the profile each must 
 
 Quarantine list: **empty** (no runner failed revalidation).
 
-A plan's check names its runner explicitly (`python3 -m pytest …`, `sh scripts/test.sh …`, `node …`), never a
+A plan's check names its runner explicitly (`python3 -m pytest …`, `sh <project-script> …`, `node …`), never a
 bare project command (`npm test`, `./run.sh`, `make`): those resolve to runners outside the set and are
 refused. A project check that cannot run under a supported runner is not run until it passes revalidation —
 the human decides, per the plan rules.

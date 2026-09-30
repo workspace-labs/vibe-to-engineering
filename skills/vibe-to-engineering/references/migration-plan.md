@@ -66,6 +66,8 @@ List the exact commands that run at the baseline and after every phase:
 
 **Checks stay local.** A check never installs or updates dependencies, deploys, publishes, migrates or seeds a database, or sends anything anywhere. If the project's own build or test command does any of that (an `npm ci` inside `build`, for example), say so in the plan and propose a local alternative; if dependencies are missing, the baseline stops and the human decides.
 
+**A required check that is refused, or cannot run under a supported runner, is never silently skipped.** It has exactly three outcomes (SKILL.md, "The checkpoint tool"): a plan revision that replaces or removes it; an owner-approved manual alternative the human runs outside the tool — visibly marked `MANUAL — OUTSIDE THE MASKING GUARANTEE` wherever its result is reported, and recorded in the ledger with the human's approving words; or a blocking finding. None of the three is ever reported as ALL GREEN.
+
 **Pass means:** every check that passed at the baseline passes; the number of tests found is not lower (moved tests can silently fall outside the runner's file pattern); the smoke results match the baseline.
 
 **Thin safety net?** If the tests do not cover the behavior the migration touches, the plan starts with a safety-net phase: characterization checks that record today's behavior (outputs for sample inputs, responses of key routes, rendered text) and compare against it after every phase. Keep them in `.vibe-to-engineering/checks/` unless the human wants them added to the project's own tests.

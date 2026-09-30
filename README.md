@@ -5,7 +5,8 @@ An Agent Skill that inspects an existing software project, decides from evidence
 ```
 INSPECT → DIAGNOSE → DESIGN TARGET ARCHITECTURE → CREATE MIGRATION PLAN → GENERATE PDF
 → HUMAN APPROVAL → CREATE + VERIFY BACKUP → PHASE 1 → TEST + VERIFY → CHECKPOINT
-→ HUMAN APPROVAL → NEXT PHASE → … → FINAL REVIEW → ALL GREEN
+→ HUMAN APPROVAL → NEXT PHASE → … → FINAL REVIEW
+→ ALL GREEN · COMPLETE WITH APPROVED BASELINE FAILURES · COMPLETE WITH APPROVED MANUAL CHECKS
 ```
 
 ## What it does
@@ -13,10 +14,10 @@ INSPECT → DIAGNOSE → DESIGN TARGET ARCHITECTURE → CREATE MIGRATION PLAN �
 - **Reads before it judges.** Inspection and diagnosis are read-only: no builds, tests or scripts run, and nothing in the project is written.
 - **Can say no.** Every finding cites evidence someone else can re-check. A project whose structure already fits gets `NO MIGRATION REQUIRED`, and nothing is written. It never imposes one folder tree on every project, and it treats more folders or more abstraction as a cost, not as engineering.
 - **Plans before it touches anything.** A justified migration gets a current tree, a target tree designed for that project, every file of the project listed before → after (the ones it never touches included), phased steps and an `Engineering-Migration-Plan.pdf` that shows CURRENT → MIGRATION → TARGET on one page. Then it stops at `AWAITING HUMAN APPROVAL`.
-- **Backs up by itself.** After approval, and before Phase 1, it saves the whole project — uncommitted work included — as a recovery baseline and proves the baseline restores byte for byte. It refuses to start when it cannot save everything, for example a folder it cannot read or a nested repository with uncommitted work.
+- **Backs up by itself.** After approval, and before Phase 1, it saves a recovery baseline — the project's defined saved-file set: every file git would not ignore, uncommitted work included — and proves the baseline restores byte for byte. Files git ignores (dependencies, build output, local databases, `.env` files) are watched, not saved, and nested repositories are not saved; comparisons against a checkpoint report ones that disappeared or changed — a comparison of covered local file states, never proof that nothing was read, remotely written or changed and changed back in between. It refuses to start when it cannot save the set, for example a folder it cannot read or a nested repository with uncommitted work.
 - **One phase per approval.** After each phase: checks compared with the baseline, the change compared with the plan, a new verified checkpoint, a report, and a stop.
 - **Investigates failures instead of guessing.** A break stops the work, saves the broken state, compares it with the last known-good checkpoint and reports the root cause and the options. Stopping never rolls anything back; a restore needs the human's own approval and refuses, changing nothing, when it cannot be done safely.
-- **Finishes with an independent review.** The approved target tree is compared with the actual final tree, and `VIBE-TO-ENGINEERING — ALL GREEN` is reported only when nothing blocking remains and every final check passes. Checks that were already failing when the human approved going ahead anyway are named in a separate completion status instead.
+- **Finishes with an independent review.** The approved target tree is compared with the actual final tree, and `VIBE-TO-ENGINEERING — ALL GREEN` is reported only when nothing blocking remains and every required check ran through the tool with passing recorded evidence. Checks that were already failing when the human approved going ahead anyway are named in a separate completion status instead — as are required checks the human approved running by hand, outside the tool's secret-masking guarantee.
 
 It never adds features, fixes bugs or changes dependencies, commits nothing unless asked, never pushes, and never touches files git ignores, secrets, data or nested repositories.
 
@@ -105,7 +106,7 @@ never a traceback. There is no bypass flag, environment variable or config.
 
 | Platform | Status in 0.1.0 |
 |---|---|
-| macOS | Supported and validated: all tests pass (Python 3.9, git 2.54, Chromium headless shell). |
+| macOS | Supported; all tests pass (Python 3.9, git 2.54, Chromium headless shell); release exam pending. |
 | Linux | Roadmap — not validated; the tools refuse to run. |
 | Windows | Roadmap — not validated; the tools refuse to run. |
 

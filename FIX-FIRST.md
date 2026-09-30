@@ -7,14 +7,28 @@ A1, A2, A3 and **A4 are all accepted** (A4 — macOS-only platform refusal at th
 boundary — owner-accepted 2026-09-30, `b3ad397`: Claude's independent review found no
 findings; every entry point refuses a non-macOS platform before any write, check, launch or
 platform-risky import, with a clean message and no bypass). The R2 confidentiality/status
-slice and the R1–R3/L1–L3 fixes are accepted as well. **Next is C — the documentation
-corrections** (including the four wording notes the A4 review handed it: the checkpoint.py
-docstring's "runs on macOS, Linux and Windows", the "(Windows: py -3 …)" docstring usage
-lines, README's "Supported and validated" reading as release-validated while exam D is
-pending, and the Linux/Windows notes in stage1-acceptance.md and supported-checks.md reading
-as roadmap/design history) — then B (the regression re-verification) and D (the macOS
-workflow exam). Whole-skill release and NEW-5 closure are still pending; the skill is still
-in development, not a release.
+slice and the R1–R3/L1–L3 fixes are accepted as well. **C — the documentation corrections — is
+implemented and delivered for independent review** (2026-09-30, base `99c8ebf`): checkpoints
+promise their defined saved-file set (files git would not ignore; ignored files watched, not
+saved; nested repositories not saved) instead of "the whole project"; fingerprint and
+checkpoint comparisons state their limit (covered local file states — they do not prove the
+absence of reads, remote writes or temporary changes); the `.env` boundary states the file is
+never edited, rewritten or converted to gain admission (the audit found no such suggestion to
+remove); a required check passes only with passing recorded evidence, a refused or unrunnable
+one has exactly three outcomes — plan revision, owner-approved manual alternative
+(ledger-recorded, marked `MANUAL — OUTSIDE THE MASKING GUARANTEE`), or blocking finding — and
+a migration completed with one ends in the new `VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED
+MANUAL CHECKS` outcome with one `Manual:` line per such check, never ALL GREEN. The four A4
+wording notes are folded in (checkpoint.py's docstring is macOS-only, the "(Windows: py -3 …)"
+usage lines are gone, README's macOS row reads "supported; all tests pass; release exam
+pending", and the Linux/Windows notes read as roadmap/design history), plus the 2026-09-29
+skill-audit leftovers (the `sh <project-script>` example, neutral evidence paths).
+`tests/test_c_wording.py` (7 tests) guards the wording — each fails on `99c8ebf` and passes
+after; no behavior changes, the four sealed files stay byte-identical to `b3ad397`, and the
+audit-flagged sealed lines inside recovery.md come back as an owner decision per the seal
+rule. **Next is B** (the regression re-verification) **and D** (the macOS workflow exam).
+Whole-skill release and NEW-5 closure are still pending; the skill is still in development,
+not a release.
 
 The entries below are historical findings and delivery records, including their then-current
 test counts and review statuses. They are preserved as history, not a new order to redo accepted work.
