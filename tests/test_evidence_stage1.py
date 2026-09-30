@@ -105,19 +105,21 @@ class Stage1(unittest.TestCase):
 
     def test_a_refused_env_setting_or_with_path_runs_nothing_and_leaves_nothing(self):
         before = self.scratch_roots()
-        cases = ({"env": ["BASH_ENV=/x-5561"]}, {"env": ["PATH=/x-5561"]}, {"env": ["A=1", "A=2"]},
-                 {"env": ["NOT A NAME=v-5561"]}, {"with_path": ["relative/dir"]},
-                 {"with_path": [str(self.tmp / "missing")]})
-        for flags in cases:
+        cases = (({"env": ["BASH_ENV=/x-5561"]}, ("/x-5561",)), ({"env": ["PATH=/x-5561"]}, ("/x-5561",)),
+                 ({"env": ["A=1", "A=2"]}, ()), ({"env": ["NOT A NAME=v-5561"]}, ("v-5561",)),
+                 ({"with_path": ["relative/dir"]}, ()), ({"with_path": [str(self.tmp / "missing")]}, ()))
+        for flags, canaries in cases:
             with self.subTest(flags=flags):
                 code, printed, saved, report, ran = self.run_tool("refused %s" % sorted(flags), "print('ran')",
                                                                   **flags)
                 self.assertEqual(code, 2, report)
                 self.assertFalse(ran)
                 self.assertIsNone(saved)
-                self.assertNotIn("-5561", report)            # a refusal never shows the value — every
-                # canary above carries "-5561"; the non-hex '-' can never be spelled by a random hex
-                # root name or a mktemp suffix in the report's paths (L3)
+                for canary in canaries:              # a refusal never shows the value: each case's own
+                    self.assertNotIn(canary, report)   # FULL value is asserted — '/x-5561' and
+                # 'v-5561' hold characters no random root name (v2e-run- + lowercase hex) or mktemp
+                # suffix ([a-z0-9_]) can spell, so the guard cannot flake (L3); a shared "-5561"
+                # token could — the prefixes end in '-', so a suffix STARTING with 5561 spells it
         self.assertEqual(self.scratch_roots(), before)       # a refusal before construction leaves nothing
 
     def test_with_path_adds_a_real_folder_and_is_recorded_in_the_header(self):

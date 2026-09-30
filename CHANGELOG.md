@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+- 2026-09-30 — A3 L3, final form (the re-review of 79bd7a2 narrowed the same flake: the round-2
+  shared tokens `"-9137"`/`"-5561"` can still be spelled at the prefix boundary — `v2e-run-`
+  ends in '-', so a root name whose hex STARTS with 9137 prints `v2e-run-9137…`; the token had
+  been the reviewer's own recommendation, and the new comments overstated it), delivered for
+  independent review. Both assertions now assert each subtest's own FULL canary values:
+  `FEED-9137`, `Hor5e-9137x`, `other-9137`, `c13k-9137-token` and `x{a,b}` in
+  `tests/test_env_literal.py` (the brace case's guard was vacuous before — it now has a real
+  one), `/x-5561` and `v-5561` in `tests/test_evidence_stage1.py`. Every canary holds
+  characters no `v2e-run-` + lowercase-hex name or mktemp suffix ([a-z0-9_]) can spell, so the
+  guards cannot flake at all; the comments state exactly that and no more. Proof on disposable
+  copies: root names forced to START with 9137 fail 79bd7a2 (6 failures, `v2e-run-9137e03…`)
+  and pass now; names forced to END with 9137 pass; a mktemp name holding `-5561` fails
+  79bd7a2 and passes now; planted real leaks (raw .env in the refusal; the raw --env setting
+  with masking disabled) still fail every canary assertion. Tests only — no product code; the
+  F03 seal holds.
+
 - 2026-09-30 — A3 L3 (the re-review of aa20333 found L1 and L2 FIXED and one new Low, tests
   only, pre-existing since A3's 569c8f9), delivered for independent review. The reviewer's
   full suite flaked once: `assertNotIn("9137", …)` tripped on the retained root's random hex
@@ -10,7 +26,9 @@
   non-hex character: `"-9137"` in `tests/test_env_literal.py` (every canary in the loop
   carries it) and `"-5561"` in `tests/test_evidence_stage1.py` (the one canary that lacked
   the dash, `NOT A NAME=5561`, became `NOT A NAME=v-5561`; that report's only collision
-  channel is the mktemp suffix in a `--with-path` path, which never spells `-`). Audited and
+  channel is the mktemp suffix in a `--with-path` path, which never spells `-`). (The shared
+  tokens were superseded the same day by the entry above: they can still be spelled at the
+  '-'-ending prefix boundary.) Audited and
   LEFT, with evidence: `tests/test_final_review_r2.py:575` — its canary is a DECLARED value,
   masked wherever it appears, so a forced root name ending in `1234` arrives as
   `v2e-run-…<masked>` and the old assertion cannot flake; `tests/test_evidence_readings.py:167`

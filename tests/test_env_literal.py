@@ -183,14 +183,14 @@ class EndToEnd(unittest.TestCase):
         self.assertIn("EMPTY=\n", shown)                 # an empty setting holds no value: left readable
 
     def test_every_refusal_means_nothing_ran_and_no_evidence(self):
-        for name, source in {
-                "a reference": "DB_PASSWORD=$FEED-9137\n",
-                "a brace pair (Codex's case)": "export A=x{a,b}\n",
-                "CRLF": b"DB_PASSWORD=Hor5e-9137x\r\n",
-                "a byte order mark": b"\xef\xbb\xbfDB_PASSWORD=Hor5e-9137x\n",
-                "a duplicate name": "DB_PASSWORD=Hor5e-9137x\nDB_PASSWORD=other-9137\n",
-                "a bare token line": "APP=demo\nc13k-9137-token\n",
-        }.items():
+        for name, source, canaries in (
+                ("a reference", "DB_PASSWORD=$FEED-9137\n", ("FEED-9137",)),
+                ("a brace pair (Codex's case)", "export A=x{a,b}\n", ("x{a,b}",)),
+                ("CRLF", b"DB_PASSWORD=Hor5e-9137x\r\n", ("Hor5e-9137x",)),
+                ("a byte order mark", b"\xef\xbb\xbfDB_PASSWORD=Hor5e-9137x\n", ("Hor5e-9137x",)),
+                ("a duplicate name", "DB_PASSWORD=Hor5e-9137x\nDB_PASSWORD=other-9137\n",
+                 ("Hor5e-9137x", "other-9137")),
+                ("a bare token line", "APP=demo\nc13k-9137-token\n", ("c13k-9137-token",))):
             with self.subTest(name):
                 code, shown, saved, report, ran = self.check_prints(name, {".env": source}, "print('never')")
                 self.assertEqual(code, 2, report)
@@ -198,9 +198,13 @@ class EndToEnd(unittest.TestCase):
                 self.assertIsNone(saved)                 # and no evidence exists
                 self.assertIn(".env", report)
                 self.assertIn("cannot be masked", report)
-                self.assertNotIn("-9137", shown + report)   # every canary above carries "-9137"; the
-                # non-hex '-' can never be spelled by the retained root's random hex name, whose path
-                # the report now prints (L3 — the bare "9137" flaked on v2e-run-ba82f9ad9c9137509e)
+                for canary in canaries:
+                    self.assertNotIn(canary, shown + report)
+                # each case's own full value is asserted: every canary holds characters no retained
+                # root name (v2e-run- + lowercase hex) or mktemp suffix ([a-z0-9_]) can spell —
+                # uppercase letters, '{' or '$' — so the guard cannot flake (L3). Shorter shared
+                # tokens can: "9137" flaked on v2e-run-ba82f9ad9c9137509e, and "-9137" on a root
+                # name whose hex STARTS with 9137 (the prefix ends in '-').
 
     def test_the_brace_regression(self):
         # Codex's reproduced case (2026-09-27): export A=x{a,b} becomes A=xb under bash — the brace pair is an
