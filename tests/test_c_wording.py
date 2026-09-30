@@ -37,6 +37,7 @@ class CWording(unittest.TestCase):
         self.env_boundary = (SKILL_DIR / "references" / "env-boundary.md").read_text(encoding="utf-8")
         self.acceptance = (SKILL_DIR / "references" / "stage1-acceptance.md").read_text(encoding="utf-8")
         self.registry = (SKILL_DIR / "references" / "supported-checks.md").read_text(encoding="utf-8")
+        self.recovery = (SKILL_DIR / "references" / "recovery.md").read_text(encoding="utf-8")
 
     def test_checkpoints_promise_their_defined_saved_file_set_never_the_whole_project(self):
         for path, text in skill_texts():
@@ -47,6 +48,8 @@ class CWording(unittest.TestCase):
             self.assertIn(words, self.readme)
             self.assertIn(words, self.template)
         self.assertIn("save the project's defined saved-file set as a checkpoint", self.skill)
+        self.assertIn("keeps its saved-file set", self.recovery)   # D1 spot 3
+        self.assertNotIn("keeps everything", self.recovery)
 
     def test_fingerprint_and_checkpoint_comparisons_state_their_limit(self):
         for words in ("do not prove the absence of reads, remote writes or temporary changes",
@@ -54,6 +57,9 @@ class CWording(unittest.TestCase):
             self.assertIn(words, self.skill)
         self.assertIn("changed and changed back", self.readme)
         self.assertIn("changed and changed back", self.template)
+        self.assertIn("does not prove the absence of reads, remote writes or temporary changes: a file"
+                      " changed and changed back between two checkpoints looks unchanged",
+                      self.recovery)   # D1 spot 4 (G10)
 
     def test_no_text_suggests_editing_a_real_env_to_gain_admission(self):
         forbidden = ("edit the .env", "edit your .env", "edit .env", "editing the .env",
@@ -81,13 +87,21 @@ class CWording(unittest.TestCase):
                       "never silently skipped",
                       "MANUAL — OUTSIDE THE MASKING GUARANTEE",
                       "`VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED MANUAL CHECKS`",
-                      "Manual: <check> — ran outside the secret-masking guarantee"
-                      " (its output was not masked by the tool)",
+                      "Manual: <check> — passed (reported by the human, <date>) — ran outside"
+                      " the secret-masking guarantee (its output was not masked by the tool)",
                       "Never shorten either block to ALL GREEN"):
             self.assertIn(words, self.skill)
         self.assertGreaterEqual(self.skill.count("COMPLETE WITH APPROVED MANUAL CHECKS"), 4)
         self.assertIn("MANUAL — OUTSIDE THE MASKING GUARANTEE", self.plan)
         self.assertIn("outside the tool's secret-masking guarantee", self.readme)
+        for words in ("requires every manual check to be reported PASSED",   # M1
+                      "A manual check reported FAILED is a failing check like any other",
+                      "in a phase the phase fails (section 8)",
+                      "the human's own approving words and the reported result"):
+            self.assertIn(words, self.skill)
+        self.assertNotIn("Manual: <check> — ran outside", self.skill)
+        self.assertIn("A manual check reported FAILED is a failing check like any other", self.plan)
+        self.assertIn("the human's approving words and the reported result", self.plan)
 
     def test_no_personal_paths_in_the_skill_folder(self):
         for path, text in skill_texts():
@@ -105,6 +119,10 @@ class CWording(unittest.TestCase):
         self.assertNotIn("py -3", render_pdf)
         self.assertNotIn("Supported and validated", self.readme)
         self.assertIn("release exam pending", self.readme)
+        self.assertNotIn("run on every platform", self.recovery)   # D1 spot 1
+        self.assertIn("runs on macOS only", self.recovery)
+        self.assertNotIn("macOS — validated in 0.1.0", self.recovery)   # D1 spot 2
+        self.assertIn("macOS — supported in 0.1.0 (all tests pass; release exam pending)", self.recovery)
 
     def test_runner_examples_and_stage1_platform_notes_read_as_roadmap(self):
         for text in (self.skill, self.registry):

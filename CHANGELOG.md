@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+- 2026-09-30 — C review round: M1 (a FAILED manual check had no defined outcome) and D1
+  (recovery.md narrow unseal, owner-approved 2026-09-30), delivered for independent review;
+  base `7dd2193`. M1: the `Manual:` line now carries the reported result —
+  `Manual: <check> — passed (reported by the human, <date>) — ran outside the secret-masking
+  guarantee (its output was not masked by the tool)`; `COMPLETE WITH APPROVED MANUAL CHECKS`
+  requires every manual check reported PASSED; a manual check reported FAILED is a failing
+  check like any other — in a phase the phase fails (section 8), in the final review it blocks
+  completion unless it was already failing at the baseline and approved, in which case it
+  appears as a `Still failing` line under `COMPLETE WITH APPROVED BASELINE FAILURES`; the
+  ledger records the reported result with the approval; mirrored in migration-plan.md. D1
+  (recovery.md, exactly four spots, nothing else): line 51 macOS-only this release with other
+  platforms as roadmap entries; line 81 "supported in 0.1.0 (all tests pass; release exam
+  pending)"; line 83 "keeps its saved-file set"; G10 gains the §3.7 limit sentence (the
+  comparison covers local file states and does not prove the absence of reads, remote writes
+  or temporary changes — a file changed and changed back looks unchanged). gitrun.py,
+  nested.py and test_nested.py stay byte-identical to `b3ad397`. `tests/test_c_wording.py`'s
+  extended assertions guard both — the four touched methods fail on `7dd2193` (failures=4)
+  and pass after; the suite stays 346 tests. The skill is still in development — this is not
+  a release.
+
 - 2026-09-30 — C: documentation correctness (the frozen §3.7 wording rules and the owner
   decision of 2026-09-30 on required checks), delivered for independent review; base `99c8ebf`.
   Checkpoints are described as covering their defined saved-file set — every file git would not

@@ -137,6 +137,28 @@ readings recorded for judgment (G10's "report one whose contents changed" withou
 changed-and-changed-back limit, and the Windows roadmap note's "the saved pre-restore checkpoint
 keeps everything").
 
+## C review round (2026-09-30) — M1 and D1 implemented, delivered for independent review
+
+Claude's review of `7dd2193` verified items 1–7 (7/7 new tests fail on `99c8ebf` and pass
+after; the full suite 346 OK; the seals hold; no over-claims left outside recovery.md) and
+REOPENED narrowly for one finding: a manual check the human reports FAILED had no defined
+outcome and could end in `COMPLETE WITH APPROVED MANUAL CHECKS` (M1). Fixed with the review's
+prescription: the `Manual:` line carries the reported result —
+`Manual: <check> — passed (reported by the human, <date>) — ran outside the secret-masking
+guarantee (its output was not masked by the tool)`; the label requires every manual check
+reported PASSED; a manual check reported FAILED is a failing check like any other — in a phase
+the phase fails (section 8), in the final review it blocks completion unless it was already
+failing at the baseline and approved, in which case it appears as a `Still failing` line under
+`COMPLETE WITH APPROVED BASELINE FAILURES`; the ledger records the reported result with the
+approval. Mirrored in migration-plan.md. The owner then decided the recovery.md question the
+audit brought back (D1, narrow unseal 2026-09-30, exactly four spots, nothing else): line 51
+is macOS-only with other platforms as roadmap entries; line 81 reads "supported in 0.1.0 (all
+tests pass; release exam pending)"; line 83's "keeps everything" is "keeps its saved-file
+set"; G10 gains the §3.7 limit sentence. gitrun.py, nested.py and test_nested.py stay
+byte-identical to `b3ad397`; recovery.md differs from it by exactly those four spots.
+`tests/test_c_wording.py`'s extended assertions guard both fixes — the four touched methods
+fail on `7dd2193` (failures=4) and pass after; the suite stays 346 tests.
+
 ## L3 (2026-09-30, final form) — flaky secret-canary assertions, tests only
 
 The reviewer's full suite flaked once: `assertNotIn("9137", …)` tripped on the retained root's
@@ -336,10 +358,11 @@ the release workflow exam below is still pending.
    `VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED MANUAL CHECKS` outcome — never ALL GREEN. The
    2026-09-29 skill-audit findings (`sh <project-script> …`; neutral evidence paths) and the
    four A4 wording notes are folded in. Guarded by `tests/test_c_wording.py` (7 tests, each
-   failing on `99c8ebf` and passing after); no behavior changes; the four sealed files stay
-   byte-identical to `b3ad397`. Awaits Claude's independent review and the owner's decision —
-   including the sealed recovery.md lines the audit brings back (line 51 "run on every
-   platform", line 81 "validated in 0.1.0", and two borderline readings recorded for judgment).
+   failing on `99c8ebf` and passing after); no behavior changes. Claude's review verified all
+   of it and reopened narrowly for M1 (a FAILED manual check had no defined outcome) — fixed
+   with the review's prescription; the owner decided the recovery.md lines the audit brought
+   back (D1: all four spots changed under a narrow unseal; gitrun.py, nested.py and
+   test_nested.py stay byte-identical to `b3ad397`). Delivered for re-review.
 3. **B — release regression verification.** After the pending changes, run the complete
    suite with Node and the reader matrix required, verify the F03 seal, and preserve the
    accepted A1/A2 and confidentiality/status regressions. Keep explicit refusal tests and
