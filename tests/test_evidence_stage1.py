@@ -106,7 +106,7 @@ class Stage1(unittest.TestCase):
     def test_a_refused_env_setting_or_with_path_runs_nothing_and_leaves_nothing(self):
         before = self.scratch_roots()
         cases = ({"env": ["BASH_ENV=/x-5561"]}, {"env": ["PATH=/x-5561"]}, {"env": ["A=1", "A=2"]},
-                 {"env": ["NOT A NAME=5561"]}, {"with_path": ["relative/dir"]},
+                 {"env": ["NOT A NAME=v-5561"]}, {"with_path": ["relative/dir"]},
                  {"with_path": [str(self.tmp / "missing")]})
         for flags in cases:
             with self.subTest(flags=flags):
@@ -115,7 +115,9 @@ class Stage1(unittest.TestCase):
                 self.assertEqual(code, 2, report)
                 self.assertFalse(ran)
                 self.assertIsNone(saved)
-                self.assertNotIn("5561", report)             # a refusal never shows the value
+                self.assertNotIn("-5561", report)            # a refusal never shows the value — every
+                # canary above carries "-5561"; the non-hex '-' can never be spelled by a random hex
+                # root name or a mktemp suffix in the report's paths (L3)
         self.assertEqual(self.scratch_roots(), before)       # a refusal before construction leaves nothing
 
     def test_with_path_adds_a_real_folder_and_is_recorded_in_the_header(self):

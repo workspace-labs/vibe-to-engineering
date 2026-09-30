@@ -198,7 +198,9 @@ class EndToEnd(unittest.TestCase):
                 self.assertIsNone(saved)                 # and no evidence exists
                 self.assertIn(".env", report)
                 self.assertIn("cannot be masked", report)
-                self.assertNotIn("9137", shown + report)
+                self.assertNotIn("-9137", shown + report)   # every canary above carries "-9137"; the
+                # non-hex '-' can never be spelled by the retained root's random hex name, whose path
+                # the report now prints (L3 — the bare "9137" flaked on v2e-run-ba82f9ad9c9137509e)
 
     def test_the_brace_regression(self):
         # Codex's reproduced case (2026-09-27): export A=x{a,b} becomes A=xb under bash — the brace pair is an

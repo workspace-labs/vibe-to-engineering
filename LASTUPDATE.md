@@ -55,10 +55,29 @@ stays closed, the must-be-unchanged list holds, and the suite is 329 tests, OK, 
 
 **The owner has not pressed Accept.** His decision: the skill must be completely clean first —
 fix R1–R3 before A3 closes. R1–R3 were fixed (2026-09-30, `89d8151`); the independent review
-**reopened R2 for two Low findings (L1, L2)**, now fixed the same day and delivered for
-re-review. Owner acceptance of A3 remains pending.
+reopened R2 for two Low findings (L1, L2), fixed the same day (`aa20333`); the re-review found
+L1 and L2 FIXED and one new Low (L3, tests only, pre-existing since 569c8f9), also fixed the
+same day and delivered for review. Owner acceptance of A3 remains pending.
 
-## L1–L2 (2026-09-30) — the review's two Low findings, fixed
+## L3 (2026-09-30) — flaky secret-canary assertions, tests only
+
+The reviewer's full suite flaked once: `assertNotIn("9137", …)` tripped on the retained root's
+random hex name in the stderr retention line — no secret had leaked. Fixed: the two canary
+assertions whose checked text can carry the root path now use tokens with a non-hex character
+(`"-9137"` in test_env_literal.py; `"-5561"` in test_evidence_stage1.py, whose `NOT A NAME=5561`
+canary became `NOT A NAME=v-5561`). Audited and left, with evidence: test_final_review_r2.py:575
+(the canary is a DECLARED value — masked wherever it appears, so a forced `…1234` root name
+arrives as `v2e-run-…<masked>` and cannot flake it), test_evidence_readings.py:167 and
+test_stage1_acceptance.py:178 (the checked text is stdout, empty on a refusal — the retention
+report is stderr-only), test_r2_confidentiality.py:199 (computed label strings, no run output).
+Proof on disposable copies with a rigged `os.urandom`: old assertions fail on the forced names,
+new ones pass, and planted real leaks still fail the new assertions. No product code changed;
+the F03 seal holds. The full suite on a disposable copy of the final committed tree, isolated
+HOME, CLT Python 3.9.6, Node v20.20.2, Chromium headless shell, the verified reader matrix,
+`V2E_REQUIRE_NODE=1` and `V2E_REQUIRE_MATRIX=1`: **335 tests, zero failures, errors or skips**.
+Next: the independent review of L3.
+
+## L1–L2 (2026-09-30) — the review's two Low findings, fixed (re-review: FIXED)
 
 - L1: the open-failure and fstat-failure refusals printed the scratch base PATH before the
   identity check had passed — after a base-level swap (the Q2 attack shape) that string
@@ -78,7 +97,7 @@ The full suite ran on a disposable copy of the final committed tree with an isol
 the documented CLT Python 3.9.6, Node v20.20.2, Chromium headless shell and the verified
 reader matrix, with `V2E_REQUIRE_NODE=1` and `V2E_REQUIRE_MATRIX=1`: **335 tests passed (333
 plus the two new ones), zero failures, errors or skips**. The F03-sealed files are
-byte-identical. Next: the independent re-review of L1–L2.
+byte-identical. The re-review found both FIXED (and raised L3, above).
 
 ## R1–R3 (2026-09-30) — fixed, reviewer-accepted for R1 and R3; R2 completed under L1–L2
 

@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+- 2026-09-30 — A3 L3 (the re-review of aa20333 found L1 and L2 FIXED and one new Low, tests
+  only, pre-existing since A3's 569c8f9), delivered for independent review. The reviewer's
+  full suite flaked once: `assertNotIn("9137", …)` tripped on the retained root's random hex
+  name (`v2e-run-ba82f9ad9c9137509e`) printed on stderr — the secret had not leaked. The two
+  canary assertions whose checked text can carry the root path now assert tokens with a
+  non-hex character: `"-9137"` in `tests/test_env_literal.py` (every canary in the loop
+  carries it) and `"-5561"` in `tests/test_evidence_stage1.py` (the one canary that lacked
+  the dash, `NOT A NAME=5561`, became `NOT A NAME=v-5561`; that report's only collision
+  channel is the mktemp suffix in a `--with-path` path, which never spells `-`). Audited and
+  LEFT, with evidence: `tests/test_final_review_r2.py:575` — its canary is a DECLARED value,
+  masked wherever it appears, so a forced root name ending in `1234` arrives as
+  `v2e-run-…<masked>` and the old assertion cannot flake; `tests/test_evidence_readings.py:167`
+  and `tests/test_stage1_acceptance.py:178` — the checked text is the tool's stdout, empty on
+  a refusal (the retention report is stderr-only), so the root path never reaches it;
+  `tests/test_r2_confidentiality.py:199` — pure computed label strings, no run output.
+  Proof, all on disposable copies: with `os.urandom` rigged so every root name ends in the
+  canary digits, the old assertions fail and the new ones pass; with the real secret planted
+  in the output (raw .env content in the refusal; the raw --env setting with masking
+  disabled), the new assertions still fail. No product code changed; the F03 seal holds.
+
 - 2026-09-30 — A3 L1–L2 (the independent review of 89d8151 REOPENED R2 for two Low findings;
   R1 and R3 stayed closed), delivered for independent re-review. (L1) The open-failure and
   fstat-failure refusals printed the scratch base PATH before the identity check had passed —
