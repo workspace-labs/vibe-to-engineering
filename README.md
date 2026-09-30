@@ -96,15 +96,28 @@ Nothing is installed and nothing uses the network.
 
 ## Platforms
 
-The recovery protocol is platform-independent: a written contract (`references/recovery.md`) and a store format any implementation can share. The bundled implementation is one Python file that calls git without a shell, with its few operating-system differences kept in one section.
+**macOS is the only supported platform in this release.** The staged release order is frozen:
+macOS → Linux → Windows, and no platform is release-validated until the revised implementation
+passes its release exam on it. On anything that is not macOS, every entry point
+(`evidence.py`, `checkpoint.py`, `render_pdf.py`) refuses to run — before any write, check,
+launch or platform-risky import — with a plain-language message naming the platform it saw,
+never a traceback. There is no bypass flag, environment variable or config.
 
 | Platform | Status in 0.1.0 |
 |---|---|
-| macOS | Validated: all tests pass (Python 3.9, git 2.54, Chromium headless shell). |
-| Linux | Expected to work unchanged; not yet validated. |
-| Windows | Designed for (`py -3`, Git for Windows); not yet validated. Known differences are listed in `references/recovery.md`. |
+| macOS | Supported and validated: all tests pass (Python 3.9, git 2.54, Chromium headless shell). |
+| Linux | Roadmap — not validated; the tools refuse to run. |
+| Windows | Roadmap — not validated; the tools refuse to run. |
 
-To validate a platform, run the tests on it.
+The recovery protocol stays platform-independent: a written contract (`references/recovery.md`)
+and a store format any implementation can share. To validate a platform, run the tests on it.
+
+### Roadmap
+
+The frozen items each later platform release must settle, in release order:
+
+- **Linux:** pin semantics without SIP; dash-vs-bash-3.2; locale detection.
+- **Windows:** PE gate; symlink/G1 settlement; native verification hardware.
 
 ## Tests
 

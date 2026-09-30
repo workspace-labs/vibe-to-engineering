@@ -18,13 +18,15 @@ INSPECT → DIAGNOSE → DESIGN TARGET ARCHITECTURE → CREATE MIGRATION PLAN �
 
 Engineering here means the right structure for this project — never more folders, layers or abstractions for their own sake. Many projects need no migration, and saying so is a correct result.
 
+**This skill runs on macOS only.** On Linux, Windows or any other platform its tools refuse to run — before any write or check — because those platforms are roadmap entries, not yet validated (staged releases: macOS → Linux → Windows).
+
 ## Start here, every time
 
 1. **Find the project.** It is the folder the human names. If none is named, it is the root of the current git repository, or else the current folder. If that is not clearly one software project (a home folder, a folder holding several projects, an empty folder), ask which one. Never guess, and name the project in your first line. The project folder itself is never moved or renamed.
 2. **Resume if a migration exists.** If `<project>/.vibe-to-engineering/ledger.md` exists, read it. Its last entry says where the migration stands: tell the human in one line and continue from exactly there. Never redo a completed phase; never skip a gate. A phase recorded as started but not completed is handled as a break (section 8). If the last entry is a completion (ALL GREEN, or COMPLETE WITH APPROVED BASELINE FAILURES) or MIGRATION STOPPED, that migration is over: say so, and begin again at INSPECT only if the human asks. A new migration keeps the same ledger and store, and gives its checkpoints a run prefix (`r2-00-baseline`), because labels are never reused.
 3. Otherwise begin at INSPECT.
 
-**Conventions.** `<skill>` is this skill's folder and `<project>` the project's folder. `checkpoint.py …` is short for `python3 <skill>/scripts/checkpoint.py --project <project> …` — on Windows use `py -3` instead of `python3`.
+**Conventions.** `<skill>` is this skill's folder and `<project>` the project's folder. `checkpoint.py …` is short for `python3 <skill>/scripts/checkpoint.py --project <project> …`.
 
 ## Human gates
 

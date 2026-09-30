@@ -51,7 +51,7 @@ Every implementation must read and write exactly this, so tools on different pla
 Python 3.8 or newer, standard library only, plus git on the PATH. `checkpoint.py` is the command; the modules beside it each own one part of the job — `gitrun.py` (running git safely, the platform helpers), `nested.py` (nested repositories), `watched.py` (ignored files: watched, not saved), `treeview.py` (the tree view) — and `evidence.py` runs a check with its secrets masked, reading each secret file with `secretformats.py` (one reader per format) and `secretforms.py` (every form a value may be printed in). git is called with argument lists, never through a shell, so the same files run on every platform.
 
 ```
-python3 <skill>/scripts/checkpoint.py --project <project> <command> …      (Windows: py -3 …)
+python3 <skill>/scripts/checkpoint.py --project <project> <command> …
 ```
 
 | Command | Does | Writes |
@@ -79,8 +79,8 @@ The tool refuses to treat a home folder or a file-system root as a project, and 
 The contract and the store format are the same everywhere; only execution differs, and the tool keeps those differences in `gitrun.py`'s platform helpers.
 
 - **macOS — validated in 0.1.0** (Python 3.9, git 2.54). Its default file system ignores letter case and Unicode normalization; the tool matches every name git reports to the on-disk entry that is the same file, and a restore deletes before it writes, so a rename that only changes letter case — `Utils.js` → `utils.js`, `Ä.txt` → `ä.txt`, or a folder — is saved once, compared and restored correctly, and a name the disk keeps decomposed keeps its exact bytes (covered by conformance tests).
-- **Linux — expected to work unchanged** (it takes the same code paths as macOS); not yet validated.
-- **Windows — designed for, not yet validated.** Needs Python 3 (`py -3`) and Git for Windows. Known differences: read-only files must be made writable before they can be deleted (handled); a file another program holds open cannot be replaced — the restore stops and names it, the saved `pre-restore` checkpoint keeps everything, and the restore can be run again after that program is closed; symbolic links need Developer Mode, otherwise git keeps them as plain files — and `verify` then accepts a link that comes back as a plain file, which G1 does not allow: this has to be settled before Windows is validated; there is no executable bit; junctions and other reparse points count as links for G7; long paths rely on `core.longpaths`.
+- **Linux — roadmap, not yet validated.** This release refuses to run there (macOS only; staged releases: macOS → Linux → Windows). For the Linux release: it takes the same code paths as macOS.
+- **Windows — roadmap, not yet validated.** This release refuses to run there. For the Windows release — needs Python 3 (`py -3`) and Git for Windows; known differences to settle first: read-only files must be made writable before they can be deleted (handled); a file another program holds open cannot be replaced — the restore stops and names it, the saved `pre-restore` checkpoint keeps everything, and the restore can be run again after that program is closed; symbolic links need Developer Mode, otherwise git keeps them as plain files — and `verify` then accepts a link that comes back as a plain file, which G1 does not allow: this has to be settled before Windows is validated; there is no executable bit; junctions and other reparse points count as links for G7; long paths rely on `core.longpaths`.
 - **Another implementation** (for example a PowerShell script for machines without Python) must follow sections 1 and 2 exactly and pass the same conformance tests.
 
 To validate a platform, run `python3 -m unittest discover -s tests -v` from the skill's source repository on it.

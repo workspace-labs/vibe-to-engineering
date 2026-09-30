@@ -14,18 +14,26 @@ tree. git is called with argument lists, never through a shell, so the tool
 runs on macOS, Linux and Windows.
 """
 
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the modules beside this file
+from platform_gate import platform_refusal  # noqa: E402 — importable on every platform (A4)
+
+_PLATFORM_REFUSAL = platform_refusal("checkpoint.py")   # A4: macOS only this release — refuse before
+if _PLATFORM_REFUSAL is not None:                       # anything is imported, checked or written
+    sys.stderr.write(_PLATFORM_REFUSAL)
+    sys.exit(1)   # this tool's error status (0 success; 1 error; 2 usage; 3 diff found differences)
+
 import argparse
 import json
-import os
 import re
 import stat
-import sys
 import tempfile
 import time
 from pathlib import Path
 from collections import namedtuple
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the modules beside this file
 from gitrun import (EXECUTABLE, Fail, GITLINK, SYMLINK, blob_id, configure_output,
     executable_bit, file_id, git, is_link, local_path, promisor_configured, refuse_sparse_index,
     remove_file, remove_temp, show, warn, write_lf)

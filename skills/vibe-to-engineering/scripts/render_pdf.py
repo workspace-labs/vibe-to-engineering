@@ -17,12 +17,21 @@ anything running into it, nothing is printed.
 Exit codes: 0 written; 1 refused or failed; 2 usage; 3 no browser found.
 """
 
-import glob
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the module beside this file
+from platform_gate import platform_refusal  # noqa: E402 — importable on every platform (A4)
+
+_PLATFORM_REFUSAL = platform_refusal("render_pdf.py")   # A4: macOS only this release — refuse before
+if _PLATFORM_REFUSAL is not None:                       # any browser lookup, launch or write
+    sys.stderr.write(_PLATFORM_REFUSAL)
+    sys.exit(1)   # this tool's "refused" (0 written; 1 refused or failed; 2 usage; 3 no browser found)
+
+import glob
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from html.parser import HTMLParser
 from pathlib import Path

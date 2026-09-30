@@ -1,30 +1,20 @@
 # Fix first
 
-## Current priority — 2026-09-29
+## Current priority — 2026-09-30
 
 Use [LASTUPDATE.md](LASTUPDATE.md) for the current status and remaining release checklist.
-A1 and A2 are accepted; independent review verified R2-F2/F4/F6, and the owner has now
-accepted the remaining F3-R1 fix following Kimi's independent re-review. **A3 is implemented:**
-the tool never deletes — every run-owned scratch root is retained under
-`~/.vibe-to-engineering/runs/` (mode 0700), confirmed by the R1 identity proof, its path recorded
-in the evidence header, on stderr and — per the protocol — in the project ledger; deletion stays
-the human's act. R2-F1 is closed by construction. The first A3 review (of 569c8f9) reopened it
-for F1–F5 (a check tampering with the scratch base), and the re-review of that corrective
-(9204241) reopened it again for N1–N5 (a swap window between identity check and chmod, an
-exit-3 regression on a removed $TMPDIR, a letter-case route past the project-containment check,
-an early refusal creating the base, a header claiming unconfirmed retention), and the third
-review (of cc5b862) for P1–P5 (base levels opened by re-walking paths, a foreign folder
-chmodded as home/, an unreadable own root misreported as a stranger, raw fstat failures, a
-vacuous swap test), and the fourth review (of 87709ab) for Q1–Q2 (a by-path restore raced by
-a real foreign directory, a root string resolved after creation). All four correctives are
-implemented — the root's descriptor is now held open from creation to retention, identity and
-mode judged on it alone, one descriptor chain from base to root to home/tmp, an honest
-header — each with
-fail-on-the-reviewed-commit regressions, and the fourth is **delivered for independent
-re-review, not accepted**. Next after acceptance is **A4: macOS-only platform
-refusal at the
-execution boundary**, then the documentation sweep, the regression re-verification and the macOS
-workflow exam. Whole-skill release and NEW-5 closure are still pending.
+A1, A2 and A3 are accepted, along with the R2 confidentiality/status slice and the R1–R3/L1–L3
+fixes. **A4 — macOS-only platform refusal at the execution boundary — is implemented:** every
+entry point (`evidence.py`, `checkpoint.py`, `render_pdf.py`) refuses on any platform other than
+macOS, before any write, check, launch or platform-risky import, with a plain-language message
+naming the platform it saw, never a traceback, and no bypass flag or environment variable.
+`tests/test_a4_platform.py` proves, for each entry point on linux, win32 and freebsd14, the
+refusal exit code and message, the nothing-written/nothing-ran guarantees and unchanged macOS
+behavior — failing on ef21f2b and passing after. Linux and Windows are roadmap entries only
+(README's Platforms and Roadmap sections; recovery.md's platform wording under the
+owner-approved narrow unseal). A4 is **delivered for independent review, not accepted**. Next
+after acceptance: the documentation sweep (C), the regression re-verification (B) and the macOS
+workflow exam (D). Whole-skill release and NEW-5 closure are still pending.
 
 The entries below are historical findings and delivery records, including their then-current
 test counts and review statuses. They are preserved as history, not a new order to redo accepted work.

@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+- 2026-09-30 — A4: macOS-only platform refusal at the execution boundary (the frozen staged
+  release decision: macOS → Linux → Windows; no platform release-validated until its own
+  release exam passes), delivered for independent review. Every entry point — `evidence.py`,
+  `checkpoint.py`, `render_pdf.py` — refuses on any platform other than macOS
+  (`sys.platform != "darwin"`, any other value included), before any write, check, launch,
+  enrollment, registry access, scratch root or platform-risky import: a plain-language message
+  naming the platform it saw, never a traceback, and no bypass flag, environment variable or
+  config. Exit codes follow each script's own refusal convention (evidence.py 2, with the usual
+  wrapper status record — `wrapper` 2, `launched` false, `saved` false; checkpoint.py 1;
+  render_pdf.py 1), through one new small stdlib-only shared guard,
+  `scripts/platform_gate.py`, importable on every platform. The historical Windows/Linux code
+  branches stay in place, now unreachable; macOS behavior is unchanged. New
+  `tests/test_a4_platform.py` proves, for each entry point on linux, win32 and freebsd14: the
+  refusal exit code and message (platform named, macOS-only, roadmap), no traceback, nothing
+  written (disposable project byte-identical; isolated HOME without `~/.vibe-to-engineering/`;
+  no evidence file, checkpoint store or PDF) and nothing ran (sentinel check never ran, no
+  browser launched) — each failing on `ef21f2b` and passing after — plus unchanged darwin
+  behavior. Documentation: README's Platforms section now names macOS the only supported
+  platform with Linux and Windows as roadmap entries, and a new Roadmap section lists the
+  frozen items (Linux: pin semantics without SIP, dash-vs-bash-3.2, locale detection; Windows:
+  PE gate, symlink/G1 settlement, native verification hardware); SKILL.md states macOS-only
+  near its top and drops the "on Windows use `py -3`" convention; recovery.md's platform
+  wording moved to macOS-only + roadmap under the owner-approved narrow unseal, its Windows
+  technical notes kept as roadmap facts — the other three sealed files stay byte-identical.
+  Honest limit: a simulated `sys.platform` is not a native Linux/Windows run — the tests prove
+  the refusal boundary, not those platforms' behavior.
+
 - 2026-09-30 — A3 L3, final form (the re-review of 79bd7a2 narrowed the same flake: the round-2
   shared tokens `"-9137"`/`"-5561"` can still be spelled at the prefix boundary — `v2e-run-`
   ends in '-', so a root name whose hex STARTS with 9137 prints `v2e-run-9137…`; the token had

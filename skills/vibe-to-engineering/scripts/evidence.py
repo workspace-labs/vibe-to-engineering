@@ -99,6 +99,19 @@ admission), a mask's label falls back to a value-free marker when the name itsel
 the final generated text passes the redaction context once more before it is printed or saved.
 """
 
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the modules beside this file
+from platform_gate import platform_refusal  # noqa: E402 — importable on every platform (A4)
+
+_PLATFORM_REFUSAL = platform_refusal("evidence.py")   # A4: macOS only this release — judged before
+if _PLATFORM_REFUSAL is not None:                     # any platform-risky import, write or launch
+    import emission as _emission   # pure standard library, safe to import on the refused platform:
+    sys.stderr.write(_emission.report([_PLATFORM_REFUSAL], _emission.Context(),   # the usual wrapper
+                                      _emission.REFUSED))   # status record (2, launched false, saved false)
+    sys.exit(_emission.REFUSED)
+
 import argparse
 import codecs
 import ctypes
@@ -106,16 +119,13 @@ import errno
 import fnmatch
 import hashlib
 import json
-import os
 import re
 import stat
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the modules beside this file
 from checkpoint import STATE_DIR, resolve_project  # noqa: E402
 import childenv  # noqa: E402 — the constructed environment every check runs with (NEW-5 stage 1)
 import emission  # noqa: E402 — the governed emission path and the wrapper status namespace (R2 slice)

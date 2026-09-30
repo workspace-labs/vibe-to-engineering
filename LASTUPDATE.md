@@ -59,8 +59,32 @@ independent review reopened R2 for two Low findings (L1, L2), fixed the same day
 the re-review found L1 and L2 FIXED and one new Low (L3, tests only, pre-existing since
 569c8f9), fixed the same day (`79bd7a2`) and — after round 3 narrowed the same flake to the
 '-'-ending prefix boundary — fixed again in final form the same day (`ec7ed3b`). With the
-skill completely clean, the owner accepted A3 on 2026-09-30. **A4 — platform refusal — is
-next** (see "What to fix and verify next").
+skill completely clean, the owner accepted A3 on 2026-09-30.
+
+**A4 — macOS-only platform refusal at the execution boundary — is now implemented** (2026-09-30)
+and delivered for independent review; it is not accepted yet. Every entry point — `evidence.py`,
+`checkpoint.py` and `render_pdf.py` — refuses on any platform other than macOS
+(`sys.platform != "darwin"`, any other value included) before any write, check, launch,
+enrollment, registry access, scratch root or platform-risky import: a plain-language message
+naming the platform it saw, never a traceback, and no bypass flag, environment variable or
+config. Exit codes follow each script's own refusal convention (evidence.py 2 — with the usual
+wrapper status record, `wrapper` 2, `launched` false, `saved` false — checkpoint.py 1,
+render_pdf.py 1), through one small stdlib-only shared guard (`scripts/platform_gate.py`),
+importable on every platform. The historical Windows/Linux code branches stay in place, now
+unreachable. `tests/test_a4_platform.py` proves, for each entry point on linux, win32 and
+freebsd14: the refusal exit code and message (platform named, macOS-only, roadmap), no
+traceback, nothing written (the disposable project's tree byte-identical, the isolated HOME
+without `~/.vibe-to-engineering/`, no evidence file, checkpoint store or PDF), nothing ran (a
+sentinel check never ran, no browser launched) — each failing on `ef21f2b` and passing after —
+and that darwin still runs normally. Linux and Windows are roadmap entries only: README's
+Platforms section says macOS is the only supported platform in this release and carries a
+Roadmap section with the frozen items (Linux: pin semantics without SIP, dash-vs-bash-3.2,
+locale detection; Windows: PE gate, symlink/G1 settlement, native verification hardware);
+SKILL.md states macOS-only near its top and drops the "on Windows use `py -3`" convention;
+recovery.md's platform wording moved to macOS-only + roadmap under the owner-approved narrow
+unseal (the other three sealed files stay byte-identical). The honest limit: a simulated
+`sys.platform` is not a native Linux/Windows run — the tests prove the refusal boundary, not
+those platforms' behavior.
 
 ## L3 (2026-09-30, final form) — flaky secret-canary assertions, tests only
 
@@ -186,6 +210,14 @@ Development branch: `fix/f03-f06-f08-new1`.
   Corrective tests cover retention survival with contents, a foreign sentinel moved inside the
   root untouched, refusal of non-run-owned paths and links, retained roots on refusals past
   construction, and the R1 swap/link/moved-root battery re-pointed at retention.
+- **A4 — macOS-only platform refusal (implemented 2026-09-30, delivered for review):** every
+  entry point (`evidence.py`, `checkpoint.py`, `render_pdf.py`) refuses on any platform other
+  than macOS, before any write, check, launch or platform-risky import — a clean message naming
+  the platform it saw, never a traceback, no bypass. Each script keeps its own refusal exit
+  code (2/1/1), evidence.py's refusal carries the usual wrapper status record, and one small
+  stdlib-only guard (`scripts/platform_gate.py`) holds the message. Linux and Windows are
+  roadmap entries only (README Roadmap; SKILL.md; recovery.md's platform wording under the
+  narrow unseal). Regressions in `tests/test_a4_platform.py` fail on `ef21f2b` and pass after.
 
 The detailed masking boundary and result schema remain in
 [emission-boundary.md](skills/vibe-to-engineering/references/emission-boundary.md).
@@ -235,9 +267,10 @@ the release workflow exam below is still pending.
 
 ## What to fix and verify next
 
-1. **A4 — platform refusal (next implementation step).** Make this release macOS-only at the
-   execution boundary. Unsupported platforms must refuse before any write or check. Keep Linux
-   and Windows in the roadmap until their own implementation and native release exams are complete.
+1. **A4 — platform refusal (implemented 2026-09-30, delivered for independent review).** This
+   release is macOS-only at the execution boundary: unsupported platforms refuse before any
+   write or check, and Linux and Windows live in the roadmap until their own implementation and
+   native release exams are complete. Acceptance awaits the independent review.
 2. **C — documentation corrections.** Describe checkpoints as covering their defined
    saved-file set. Explain that fingerprints compare covered file states and do not prove
    absence of reads, remote writes or temporary changes. Remove any suggestion to edit a
