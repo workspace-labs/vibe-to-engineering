@@ -27,8 +27,16 @@ skill-audit leftovers (the `sh <project-script>` example, neutral evidence paths
 review-round extensions on `7dd2193`) and passes after; no behavior changes. Claude's
 re-review of `28f5e85` ACCEPTED the round: M1 fixed (a failed manual check is a failing check
 like any other), D1 applied exactly (the four approved recovery.md spots; gitrun.py,
-nested.py and test_nested.py stay byte-identical to `b3ad397`), the full suite 346 OK. **Next
-is B** (the regression re-verification) **and D** (the macOS workflow exam).
+nested.py and test_nested.py stay byte-identical to `b3ad397`), the full suite 346 OK.
+**B — the release regression verification — is delivered for independent review**
+(2026-09-30, base `f524fb6`): every promised regression was proven failing on the real old
+code it guards (preserved snapshot candidates hash-verified against their manifests; slice
+bases run from `git archive`) and passing now, all recorded in
+[B-VERIFICATION.md](B-VERIFICATION.md) — fail-before counts matching the recorded histories,
+the F03 seal re-verified, every superseded expectation mapped with its reason, gaps: none (no
+tests added, no product code changed); the full suite on a disposable copy of the final tree
+is 346 tests, OK, zero failures, errors or skips. The R1-reviewed candidate is gone (`/tmp`
+wiped; recorded honestly, its 16 pass now). **Next is D** (the macOS workflow exam).
 Whole-skill release and NEW-5 closure are still pending; the skill is still in development,
 not a release.
 

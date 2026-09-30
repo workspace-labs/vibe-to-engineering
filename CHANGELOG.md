@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+- 2026-09-30 — **B delivered for independent review** (release regression verification, base
+  `f524fb6`): every promised regression proven to exist, to FAIL on the real old code it
+  guards and to pass now — the traceability record is `B-VERIFICATION.md` at the repository
+  root. All six preserved snapshot candidates re-verified hash-exact against their bundle
+  manifests; slice bases run from `git archive`. Fail-before re-runs match the recorded
+  histories: the R2 gate file on the pre-A2 candidate (46 failures; all ten RunnerIdentity
+  tests), Emission/RecordedPaths/WrapperStatus on the post-A2 pre-slice candidate (24), the
+  12-case adversarial confidentiality battery (12 leaks), the exit-status matrix's
+  post-launch rows (9 + 1 era-hook error; preserved rows pass), the R2 corrective regressions
+  (39 + 31 behavioral, 235 API-absence errors), F3-R1 (51), A2 corrective (11 + 2), A1
+  corrective (282 subtests), the A3 rounds on their named bases (13+3 / 16 / 9+2 / 7 / 6+1 /
+  1), L3's forced-name demonstration (6 on `79bd7a2`, green on the final code), A4 (9), C (7
+  on `99c8ebf`; the four extended methods on `7dd2193`). Two honest rows: the R1-reviewed and
+  pre-A1 candidates are gone (`/tmp` snapshots wiped, never committed) — their historical
+  fail-before evidence stands and every one of their tests passes now. F7/F8: the
+  interpolation models are unwired (`nodekeys.py` imported nowhere) and their tests survive
+  only as refusal tests; the four reader-matrix tests ran live. Every superseded expectation
+  has its replacement test and recorded reason. The F03 seal re-verified: `gitrun.py`,
+  `nested.py`, `test_nested.py` byte-identical to `04d941d`; `recovery.md` differs only by
+  the approved A4 (3 lines) and D1 (4 spots) unseals. Gaps: none — no tests added, no product
+  code changed. Full suite on a disposable copy of the final tree (isolated HOME, Node and
+  reader matrix required): **346 tests, OK, zero failures, errors or skips** (296.6 s). Not
+  accepted; not a release. Next: D (the macOS workflow exam).
+
 - 2026-09-30 — **C owner-ACCEPTED** (`7dd2193` + `28f5e85`). Claude's re-review of `28f5e85`
   ACCEPTED the review round: M1 fixed (the `Manual:` line carries the reported result, the
   label requires every manual check reported PASSED, a FAILED manual check is a failing check

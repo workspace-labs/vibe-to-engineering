@@ -169,6 +169,37 @@ delivery-side run was 308.2 s), and the seals hold. **Next is B — the release 
 verification — then D (the macOS workflow exam).** The skill is still in development — this
 is not a release.
 
+## B — release regression verification (2026-09-30) — delivered for independent review
+
+Every promised regression proven: it exists, FAILS on the real old code it guards and PASSES
+now — the record is `B-VERIFICATION.md` at the repository root. All six preserved snapshot
+candidates re-verified hash-exact against their bundle manifests before use; the slice bases
+ran from `git archive` (`014e979` cross-checked byte-identical to the F3-R1-fixed snapshot).
+Fail-before, all re-run 2026-09-30 and matching the recorded histories: the whole R2 gate file
+fails on the pre-A2 candidate (46 failures, all ten RunnerIdentity tests included);
+Emission/RecordedPaths/WrapperStatus all fail on the post-A2 pre-slice candidate (24
+failures); the confidentiality battery's 12 adversarial `--env` cases all leak there; the
+exit-status matrix's child-outcome and post-launch rows fail there (9 failures + 1 era-hook
+error, the preserved rows pass); the R2 corrective regressions fail on the R2-reviewed slice
+(39 + 31 behavioral, 235 API-absence errors); F3-R1 51 failures; A2 corrective 11 failures +
+2 absent-API errors; A1 corrective 282 failing subtests; A3 rounds 13+3 / 16 / 9+2 / 7 / 6+1 /
+1 on their named bases; L3's forced-`9137` demonstration reproduces 6 failures on `79bd7a2`
+and passes on the final code; A4 9; C 7 on `99c8ebf` and exactly the four extended methods on
+`7dd2193`. Two honest rows: the R1-reviewed candidate is gone (`/tmp` snapshot wiped, never
+committed) — its fail-before stands on the recorded 20-failures-plus-1-error evidence and the
+16 pass now; the pre-A1 tree is likewise gone, with the boundary-era red logs retained in the
+A1 bundles and the corrective fail-before re-run fresh. F7/F8: `nodekeys.py` is unwired (no
+import anywhere), the shell model is out of the `.env` reader, the old model tests survive
+only as refusal tests, and the four matrix tests ran live against the verified readers. Every
+superseded expectation has its replacement refusal test and recorded reason (§8(c) list in
+`B-VERIFICATION.md`). The F03 seal re-verified at this gate: `gitrun.py`, `nested.py` and
+`test_nested.py` byte-identical to `04d941d`; `recovery.md` differs only by the A4 (3 lines)
+and D1 (4 spots) unseals. **Gaps: none — no tests added, no product code changed.** The full
+suite on a disposable copy of the final tree (isolated HOME, `V2E_REQUIRE_NODE=1`,
+`V2E_REQUIRE_MATRIX=1`, the verified reader matrix): **346 tests, OK, zero failures, errors or
+skips, 296.6 s**. Claude reviews independently; the owner decides. D (the macOS workflow exam)
+is next and untouched.
+
 ## L3 (2026-09-30, final form) — flaky secret-canary assertions, tests only
 
 The reviewer's full suite flaked once: `assertNotIn("9137", …)` tripped on the retained root's
@@ -374,15 +405,12 @@ the release workflow exam below is still pending.
    back (D1: all four spots changed under a narrow unseal; gitrun.py, nested.py and
    test_nested.py stay byte-identical to `b3ad397`). Claude's re-review of `28f5e85` ACCEPTED
    the round, and the owner accepted C on 2026-09-30 (`7dd2193` + `28f5e85`).
-3. **B — release regression verification.** After the pending changes, run the complete
-   suite with Node and the reader matrix required, verify the F03 seal, and preserve the
-   accepted A1/A2 and confidentiality/status regressions. Keep explicit refusal tests and
-   the recorded reasons for superseded behavior. Passing today's suite does not replace the
-   tests still owed for A4 and the workflow exam. A3's own verification ran 2026-09-29: the
-   complete suite — **309 tests passed (307 plus A3's two new proofs), zero failures, errors
-   or skips**, in 298.4 seconds — on a disposable copy of the repository with an isolated
-   HOME, the documented CLT Python, Node v20.20.2, the pinned reader matrix and Chromium
-   headless shell, with `V2E_REQUIRE_NODE=1` and `V2E_REQUIRE_MATRIX=1`.
+3. **B — release regression verification (delivered for independent review 2026-09-30, base
+   `f524fb6`).** Complete: the full suite ran with Node and the reader matrix required, the
+   F03 seal was re-verified, and every accepted regression (A1/A2, the confidentiality/status
+   slice, A3 and its rounds, A4, C) was proven fail-before on the real old code and passing
+   now — the record is `B-VERIFICATION.md`, gaps: none, no tests added. The R1-reviewed
+   candidate is gone (recorded honestly; historical fail-before stands, 16/16 pass now).
 4. **D — full macOS workflow exam on disposable projects.** Exercise successful JavaScript
    and Python migrations; no-migration/zero-write behavior; the refusal battery;
    interruption and ledger-driven resume; failed verification and separately approved
