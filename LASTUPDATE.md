@@ -1,6 +1,31 @@
 # Latest update — 2026-09-30
 
+## Resume here (2026-09-30, end of day)
+
+- **Next is D** — the macOS workflow exam, items D1–D7 from the release handoff
+  (`~/Desktop/vibe-to-engineering-v01-release-handoff-2026-09-27.md` §5) — then the fresh-user
+  exam, the owner gate and release.
+- **Open owner decision B1:** `scripts/nodekeys.py` still ships in the skill folder, unused
+  (kept as the provenance record of the reader-model rounds; nothing imports it — verified in
+  B). The B reviewer recommends removing it before release. Removal is the owner's decision.
+- Kimi's raw B logs in `/tmp/v2e-B-verify/` are scratch (they do not survive a reboot). The
+  durable evidence is `B-VERIFICATION.md` (repo root) plus the review folder's logs
+  (`~/Desktop/vibe-to-engineering-B-review-2026-09-30/`).
+- The reader matrix lives at `/tmp/v2e-r123-work-tzvzLCWM/readers`. If it is gone after a
+  reboot, rebuild it with `tests/reader_matrix_prepare.py` (it re-fetches the exact recorded
+  versions and verifies every sha256).
+- The branch `fix/f03-f06-f08-new1` is several commits ahead of origin and has not been
+  pushed; pushing is the owner's decision.
+
 ## Current status
+
+**A1, A2, A3, A4, C and B are all owner-accepted.** **B is owner-ACCEPTED (2026-09-30,
+`c3abdc7`).** Claude's independent review of `c3abdc7` accepted it with no findings
+(`~/Desktop/vibe-to-engineering-B-review-2026-09-30/REVIEW.md`): three candidates re-verified
+against their manifests (none is today's code); the fail-before numbers re-run independently
+on the real old code all matched (F5 46; F2–F6 24; confidentiality battery 12; exit-status
+matrix 9+1; F3-R1 51); the full suite 346 OK, zero failures, errors or skips; the F03 seal
+intact. **Next is D — the macOS workflow exam.**
 
 The latest F3-R1 repair passed Kimi's independent re-review and was accepted by the owner
 on 2026-09-29. A1 and A2 were already accepted. The confidentiality/status work has no
@@ -169,7 +194,7 @@ delivery-side run was 308.2 s), and the seals hold. **Next is B — the release 
 verification — then D (the macOS workflow exam).** The skill is still in development — this
 is not a release.
 
-## B — release regression verification (2026-09-30) — delivered for independent review
+## B — release regression verification (2026-09-30) — owner-ACCEPTED (`c3abdc7`)
 
 Every promised regression proven: it exists, FAILS on the real old code it guards and PASSES
 now — the record is `B-VERIFICATION.md` at the repository root. All six preserved snapshot
@@ -197,8 +222,11 @@ superseded expectation has its replacement refusal test and recorded reason (§8
 and D1 (4 spots) unseals. **Gaps: none — no tests added, no product code changed.** The full
 suite on a disposable copy of the final tree (isolated HOME, `V2E_REQUIRE_NODE=1`,
 `V2E_REQUIRE_MATRIX=1`, the verified reader matrix): **346 tests, OK, zero failures, errors or
-skips, 296.6 s**. Claude reviews independently; the owner decides. D (the macOS workflow exam)
-is next and untouched.
+skips, 296.6 s**; the confirmation re-run on the committed archive: **346 OK, 291.5 s**.
+Claude's independent review of `c3abdc7` ACCEPTED it with no findings (three candidates
+re-verified against their manifests; the fail-before numbers independently re-run and matched;
+suite 346 OK; seal intact), and the owner accepted B on 2026-09-30. D (the macOS workflow
+exam) is next and untouched.
 
 ## L3 (2026-09-30, final form) — flaky secret-canary assertions, tests only
 
@@ -405,12 +433,13 @@ the release workflow exam below is still pending.
    back (D1: all four spots changed under a narrow unseal; gitrun.py, nested.py and
    test_nested.py stay byte-identical to `b3ad397`). Claude's re-review of `28f5e85` ACCEPTED
    the round, and the owner accepted C on 2026-09-30 (`7dd2193` + `28f5e85`).
-3. **B — release regression verification (delivered for independent review 2026-09-30, base
-   `f524fb6`).** Complete: the full suite ran with Node and the reader matrix required, the
-   F03 seal was re-verified, and every accepted regression (A1/A2, the confidentiality/status
-   slice, A3 and its rounds, A4, C) was proven fail-before on the real old code and passing
-   now — the record is `B-VERIFICATION.md`, gaps: none, no tests added. The R1-reviewed
-   candidate is gone (recorded honestly; historical fail-before stands, 16/16 pass now).
+3. **B — release regression verification (owner-ACCEPTED 2026-09-30, `c3abdc7`).** Complete:
+   the full suite ran with Node and the reader matrix required, the F03 seal was re-verified,
+   and every accepted regression (A1/A2, the confidentiality/status slice, A3 and its rounds,
+   A4, C) was proven fail-before on the real old code and passing now — the record is
+   `B-VERIFICATION.md`, gaps: none, no tests added. The R1-reviewed candidate is gone
+   (recorded honestly; historical fail-before stands, 16/16 pass now). Claude's independent
+   review accepted it with no findings.
 4. **D — full macOS workflow exam on disposable projects.** Exercise successful JavaScript
    and Python migrations; no-migration/zero-write behavior; the refusal battery;
    interruption and ledger-driven resume; failed verification and separately approved

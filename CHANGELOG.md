@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+- 2026-09-30 — **B owner-ACCEPTED** (`c3abdc7`, base `f524fb6`). Claude's independent review
+  of `c3abdc7` accepted the release regression verification with no findings: three old-code
+  candidates re-verified against their manifests (none is today's code); the fail-before
+  numbers re-run independently on the real old code and every one matched (F5 46; F2–F6 24;
+  confidentiality battery 12; exit-status matrix 9+1; F3-R1 51); the full suite 346 OK, zero
+  failures, errors or skips; the F03 seal intact. **A1, A2, A3, A4, C and B are all
+  accepted.** Open owner decision B1 recorded: `scripts/nodekeys.py` still ships unused as
+  provenance — the reviewer recommends removing it before release. Next: D (the macOS
+  workflow exam), then the fresh-user exam, the owner gate and release. The skill is still in
+  development — this is not a release.
+
 - 2026-09-30 — **B delivered for independent review** (release regression verification, base
   `f524fb6`): every promised regression proven to exist, to FAIL on the real old code it
   guards and to pass now — the traceability record is `B-VERIFICATION.md` at the repository
