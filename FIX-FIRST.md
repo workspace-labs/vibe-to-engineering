@@ -3,18 +3,18 @@
 ## Current priority — 2026-09-30
 
 Use [LASTUPDATE.md](LASTUPDATE.md) for the current status and remaining release checklist.
-A1, A2 and A3 are accepted, along with the R2 confidentiality/status slice and the R1–R3/L1–L3
-fixes. **A4 — macOS-only platform refusal at the execution boundary — is implemented:** every
-entry point (`evidence.py`, `checkpoint.py`, `render_pdf.py`) refuses on any platform other than
-macOS, before any write, check, launch or platform-risky import, with a plain-language message
-naming the platform it saw, never a traceback, and no bypass flag or environment variable.
-`tests/test_a4_platform.py` proves, for each entry point on linux, win32 and freebsd14, the
-refusal exit code and message, the nothing-written/nothing-ran guarantees and unchanged macOS
-behavior — failing on ef21f2b and passing after. Linux and Windows are roadmap entries only
-(README's Platforms and Roadmap sections; recovery.md's platform wording under the
-owner-approved narrow unseal). A4 is **delivered for independent review, not accepted**. Next
-after acceptance: the documentation sweep (C), the regression re-verification (B) and the macOS
-workflow exam (D). Whole-skill release and NEW-5 closure are still pending.
+A1, A2, A3 and **A4 are all accepted** (A4 — macOS-only platform refusal at the execution
+boundary — owner-accepted 2026-09-30, `b3ad397`: Claude's independent review found no
+findings; every entry point refuses a non-macOS platform before any write, check, launch or
+platform-risky import, with a clean message and no bypass). The R2 confidentiality/status
+slice and the R1–R3/L1–L3 fixes are accepted as well. **Next is C — the documentation
+corrections** (including the four wording notes the A4 review handed it: the checkpoint.py
+docstring's "runs on macOS, Linux and Windows", the "(Windows: py -3 …)" docstring usage
+lines, README's "Supported and validated" reading as release-validated while exam D is
+pending, and the Linux/Windows notes in stage1-acceptance.md and supported-checks.md reading
+as roadmap/design history) — then B (the regression re-verification) and D (the macOS
+workflow exam). Whole-skill release and NEW-5 closure are still pending; the skill is still
+in development, not a release.
 
 The entries below are historical findings and delivery records, including their then-current
 test counts and review statuses. They are preserved as history, not a new order to redo accepted work.

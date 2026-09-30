@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+- 2026-09-30 — **A4 owner-ACCEPTED** (`b3ad397`). Claude's independent review of `b3ad397`
+  ACCEPTED the macOS-only platform refusal with no findings: the new tests fail on `ef21f2b`
+  (failures=9) and pass on `b3ad397` (4/4); the full suite is 339 tests, OK, zero failures,
+  errors or skips (298.1 s); a harsher reviewer probe (Unix-only `os` functions removed,
+  Unix-only modules blocked, `ctypes` broken, `os.name` 'nt') gave 24/24 clean refusals — no
+  traceback, nothing written, nothing ran. The F03 seal is intact and the recovery.md narrow
+  unseal is exactly 3 lines. The review handed four wording notes to C (the checkpoint.py
+  docstring's platform claim, the "(Windows: py -3 …)" docstring usage lines, README's
+  "Supported and validated" while exam D is pending, and the Linux/Windows notes in
+  stage1-acceptance.md and supported-checks.md). Next: C (documentation corrections), then B
+  (regression re-verification), then D (the macOS workflow exam). The skill is still in
+  development — this is not a release.
+
 - 2026-09-30 — A4: macOS-only platform refusal at the execution boundary (the frozen staged
   release decision: macOS → Linux → Windows; no platform release-validated until its own
   release exam passes), delivered for independent review. Every entry point — `evidence.py`,

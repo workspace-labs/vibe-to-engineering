@@ -61,8 +61,8 @@ the re-review found L1 and L2 FIXED and one new Low (L3, tests only, pre-existin
 '-'-ending prefix boundary — fixed again in final form the same day (`ec7ed3b`). With the
 skill completely clean, the owner accepted A3 on 2026-09-30.
 
-**A4 — macOS-only platform refusal at the execution boundary — is now implemented** (2026-09-30)
-and delivered for independent review; it is not accepted yet. Every entry point — `evidence.py`,
+**A4 — macOS-only platform refusal at the execution boundary — is implemented and
+owner-ACCEPTED (2026-09-30).** Every entry point — `evidence.py`,
 `checkpoint.py` and `render_pdf.py` — refuses on any platform other than macOS
 (`sys.platform != "darwin"`, any other value included) before any write, check, launch,
 enrollment, registry access, scratch root or platform-risky import: a plain-language message
@@ -85,6 +85,15 @@ recovery.md's platform wording moved to macOS-only + roadmap under the owner-app
 unseal (the other three sealed files stay byte-identical). The honest limit: a simulated
 `sys.platform` is not a native Linux/Windows run — the tests prove the refusal boundary, not
 those platforms' behavior.
+
+**A4 is owner-ACCEPTED (2026-09-30, `b3ad397`).** Claude's independent review of `b3ad397`
+ACCEPTED it with no findings: the new tests fail on `ef21f2b` (failures=9) and pass on `b3ad397`
+(4/4); the full suite is **339 tests, OK, zero failures, errors or skips** (298.1 s); a harsher
+reviewer probe — Unix-only `os` functions removed, Unix-only modules blocked, `ctypes` broken,
+`os.name` set to 'nt' — gave 24/24 clean refusals: no traceback, nothing written, nothing ran.
+The F03 seal is intact and the recovery.md unseal is exactly 3 lines. The review handed four
+wording notes to C (item 2 below). **Next is C — the documentation corrections — then B (the
+regression re-verification) and D (the macOS workflow exam).**
 
 ## L3 (2026-09-30, final form) — flaky secret-canary assertions, tests only
 
@@ -157,8 +166,9 @@ the reviewer reran it on 89d8151 itself: 333, OK, 287.4 seconds. The F03-sealed 
 byte-identical.
 
 **The whole skill is still in development.** This state is not a v0.1.0 release or approval
-for use on real projects. A4, the documentation sweep, the regression re-verification and
-the remaining release exam are pending. NEW-5 is not declared closed.
+for use on real projects. The documentation sweep (C), the regression re-verification (B) and
+the remaining release exams (D, then the fresh-user gate) are pending. NEW-5 is not declared
+closed.
 
 Development branch: `fix/f03-f06-f08-new1`.
 
@@ -210,7 +220,7 @@ Development branch: `fix/f03-f06-f08-new1`.
   Corrective tests cover retention survival with contents, a foreign sentinel moved inside the
   root untouched, refusal of non-run-owned paths and links, retained roots on refusals past
   construction, and the R1 swap/link/moved-root battery re-pointed at retention.
-- **A4 — macOS-only platform refusal (implemented 2026-09-30, delivered for review):** every
+- **A4 — macOS-only platform refusal (implemented and owner-accepted 2026-09-30):** every
   entry point (`evidence.py`, `checkpoint.py`, `render_pdf.py`) refuses on any platform other
   than macOS, before any write, check, launch or platform-risky import — a clean message naming
   the platform it saw, never a traceback, no bypass. Each script keeps its own refusal exit
@@ -267,10 +277,10 @@ the release workflow exam below is still pending.
 
 ## What to fix and verify next
 
-1. **A4 — platform refusal (implemented 2026-09-30, delivered for independent review).** This
+1. **A4 — platform refusal (implemented and owner-accepted 2026-09-30, `b3ad397`).** This
    release is macOS-only at the execution boundary: unsupported platforms refuse before any
    write or check, and Linux and Windows live in the roadmap until their own implementation and
-   native release exams are complete. Acceptance awaits the independent review.
+   native release exams are complete. Claude's independent review accepted it with no findings.
 2. **C — documentation corrections.** Describe checkpoints as covering their defined
    saved-file set. Explain that fingerprints compare covered file states and do not prove
    absence of reads, remote writes or temporary changes. Remove any suggestion to edit a
@@ -278,7 +288,15 @@ the release workflow exam below is still pending.
    approved manual alternatives must stay visibly outside the masking guarantee. Also fold in
    the 2026-09-29 skill-audit findings: the `sh scripts/test.sh` example wording in SKILL.md
    (a static scanner reads it as a bundled-file reference) and the two `~/Desktop/...` evidence
-   paths in `references/env-boundary.md` and `references/stage1-acceptance.md`.
+   paths in `references/env-boundary.md` and `references/stage1-acceptance.md`. And the four
+   wording notes from the A4 review (2026-09-30): (a) `scripts/checkpoint.py:14` — the
+   docstring still says the tool "runs on macOS, Linux and Windows"; (b) the
+   "(Windows: py -3 …)" usage lines in `evidence.py`'s and `render_pdf.py`'s docstrings;
+   (c) `README.md`'s Platforms table says macOS is "Supported and validated" — exam D is still
+   pending, so it must not read as release-validated (suggested: "supported; all tests pass;
+   release exam pending"); (d) `references/stage1-acceptance.md` (~165–172, 207) and
+   `references/supported-checks.md` (~165) — confirm the Linux/Windows notes read as
+   roadmap/design history, not support claims.
 3. **B — release regression verification.** After the pending changes, run the complete
    suite with Node and the reader matrix required, verify the F03 seal, and preserve the
    accepted A1/A2 and confidentiality/status regressions. Keep explicit refusal tests and
