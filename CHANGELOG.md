@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+- 2026-09-30 — **C owner-ACCEPTED** (`7dd2193` + `28f5e85`). Claude's re-review of `28f5e85`
+  ACCEPTED the review round: M1 fixed (the `Manual:` line carries the reported result, the
+  label requires every manual check reported PASSED, a FAILED manual check is a failing check
+  like any other), D1 applied exactly (word-level diff shows only the four approved
+  recovery.md phrases), the extended tests fail on `7dd2193` (failures=4) and pass on
+  `28f5e85` (7/7), the full suite is **346 tests, OK, zero failures, errors or skips** (306.5
+  s), and the seals hold (gitrun.py, nested.py and test_nested.py byte-identical to `b3ad397`;
+  recovery.md changed only at the four approved spots). Next: B (release regression
+  verification), then D (the macOS workflow exam). The skill is still in development — this
+  is not a release.
+
 - 2026-09-30 — C review round: M1 (a FAILED manual check had no defined outcome) and D1
   (recovery.md narrow unseal, owner-approved 2026-09-30), delivered for independent review;
   base `7dd2193`. M1: the `Manual:` line now carries the reported result —

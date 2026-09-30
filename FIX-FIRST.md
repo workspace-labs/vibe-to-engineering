@@ -8,7 +8,7 @@ boundary — owner-accepted 2026-09-30, `b3ad397`: Claude's independent review f
 findings; every entry point refuses a non-macOS platform before any write, check, launch or
 platform-risky import, with a clean message and no bypass). The R2 confidentiality/status
 slice and the R1–R3/L1–L3 fixes are accepted as well. **C — the documentation corrections — is
-implemented and delivered for independent review** (2026-09-30, base `99c8ebf`): checkpoints
+owner-ACCEPTED** (2026-09-30, `7dd2193` + `28f5e85`, base `99c8ebf`): checkpoints
 promise their defined saved-file set (files git would not ignore; ignored files watched, not
 saved; nested repositories not saved) instead of "the whole project"; fingerprint and
 checkpoint comparisons state their limit (covered local file states — they do not prove the
@@ -23,10 +23,12 @@ wording notes are folded in (checkpoint.py's docstring is macOS-only, the "(Wind
 usage lines are gone, README's macOS row reads "supported; all tests pass; release exam
 pending", and the Linux/Windows notes read as roadmap/design history), plus the 2026-09-29
 skill-audit leftovers (the `sh <project-script>` example, neutral evidence paths).
-`tests/test_c_wording.py` (7 tests) guards the wording — each fails on `99c8ebf` and passes
-after; no behavior changes, the four sealed files stay byte-identical to `b3ad397`, and the
-audit-flagged sealed lines inside recovery.md come back as an owner decision per the seal
-rule. **Next is B** (the regression re-verification) **and D** (the macOS workflow exam).
+`tests/test_c_wording.py` (7 tests) guards the wording — each fails on `99c8ebf` (the
+review-round extensions on `7dd2193`) and passes after; no behavior changes. Claude's
+re-review of `28f5e85` ACCEPTED the round: M1 fixed (a failed manual check is a failing check
+like any other), D1 applied exactly (the four approved recovery.md spots; gitrun.py,
+nested.py and test_nested.py stay byte-identical to `b3ad397`), the full suite 346 OK. **Next
+is B** (the regression re-verification) **and D** (the macOS workflow exam).
 Whole-skill release and NEW-5 closure are still pending; the skill is still in development,
 not a release.
 

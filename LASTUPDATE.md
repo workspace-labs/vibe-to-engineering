@@ -137,7 +137,7 @@ readings recorded for judgment (G10's "report one whose contents changed" withou
 changed-and-changed-back limit, and the Windows roadmap note's "the saved pre-restore checkpoint
 keeps everything").
 
-## C review round (2026-09-30) — M1 and D1 implemented, delivered for independent review
+## C review round (2026-09-30) — M1 and D1, owner-ACCEPTED
 
 Claude's review of `7dd2193` verified items 1–7 (7/7 new tests fail on `99c8ebf` and pass
 after; the full suite 346 OK; the seals hold; no over-claims left outside recovery.md) and
@@ -158,6 +158,16 @@ set"; G10 gains the §3.7 limit sentence. gitrun.py, nested.py and test_nested.p
 byte-identical to `b3ad397`; recovery.md differs from it by exactly those four spots.
 `tests/test_c_wording.py`'s extended assertions guard both fixes — the four touched methods
 fail on `7dd2193` (failures=4) and pass after; the suite stays 346 tests.
+
+**C is owner-ACCEPTED (2026-09-30, `7dd2193` + `28f5e85`).** Claude's re-review of `28f5e85`
+ACCEPTED the round: M1 fixed (the `Manual:` line carries the reported result, the label
+requires every manual check reported PASSED, a failed manual check is a failing check like
+any other), D1 applied exactly (word-level diff shows only the four approved recovery.md
+phrases), the extended tests fail on `7dd2193` (4) and pass on `28f5e85` (7/7), the full
+suite is **346 tests, OK, zero failures, errors or skips** (306.5 s on the review side; the
+delivery-side run was 308.2 s), and the seals hold. **Next is B — the release regression
+verification — then D (the macOS workflow exam).** The skill is still in development — this
+is not a release.
 
 ## L3 (2026-09-30, final form) — flaky secret-canary assertions, tests only
 
@@ -345,8 +355,8 @@ the release workflow exam below is still pending.
    release is macOS-only at the execution boundary: unsupported platforms refuse before any
    write or check, and Linux and Windows live in the roadmap until their own implementation and
    native release exams are complete. Claude's independent review accepted it with no findings.
-2. **C — documentation corrections (implemented 2026-09-30, base `99c8ebf`; delivered for
-   independent review).** Checkpoints are described as covering their defined saved-file set;
+2. **C — documentation corrections (owner-ACCEPTED 2026-09-30, `7dd2193` + `28f5e85`).**
+   Checkpoints are described as covering their defined saved-file set;
    fingerprints and checkpoint comparisons state they compare covered local file states and do
    not prove absence of reads, remote writes or temporary changes; the `.env` boundary states
    the file is never edited, rewritten or converted to gain admission and names the acceptable
@@ -362,7 +372,8 @@ the release workflow exam below is still pending.
    of it and reopened narrowly for M1 (a FAILED manual check had no defined outcome) — fixed
    with the review's prescription; the owner decided the recovery.md lines the audit brought
    back (D1: all four spots changed under a narrow unseal; gitrun.py, nested.py and
-   test_nested.py stay byte-identical to `b3ad397`). Delivered for re-review.
+   test_nested.py stay byte-identical to `b3ad397`). Claude's re-review of `28f5e85` ACCEPTED
+   the round, and the owner accepted C on 2026-09-30 (`7dd2193` + `28f5e85`).
 3. **B — release regression verification.** After the pending changes, run the complete
    suite with Node and the reader matrix required, verify the F03 seal, and preserve the
    accepted A1/A2 and confidentiality/status regressions. Keep explicit refusal tests and
