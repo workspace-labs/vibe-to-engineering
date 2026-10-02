@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+- 2026-10-01/02 — **D delivered for independent review** (the macOS workflow exam, base
+  `e0e683e`): the skill's real workflow run end to end by fresh agents on disposable
+  projects, recorded in `D-EXAM.md` at the repository root with its durable evidence in
+  `~/Desktop/vibe-to-engineering-D-exam-2026-10-01/`. 17 rows: **16 PASS, 0 FAIL, 0 NOT
+  RUN, 1 PARTIAL**. Both D1 migrations (JS and Python fixtures) reached
+  `VIBE-TO-ENGINEERING — ALL GREEN` with every gate honored and **zero canary bytes**
+  across the zero-canary set (plan + PDF including inflated streams, reports, wrapper
+  output, evidence, the ledger, the checkpoint store) — scratch scanned separately and
+  reported, never claimed secret-free. D2: `NO MIGRATION REQUIRED`, zero writes. D3: all
+  six refusals (non-literal `.env`, `.env.vault`, unenrolled runner, tampered registry,
+  updated binary naming manual re-enrollment with no automatic re-enroll, non-macOS —
+  simulated `sys.platform`, recorded as such), each exit 2 (checkpoint.py/render_pdf.py
+  their own 1) with the project byte-identical. D4: killed mid-phase, a fresh agent did
+  ledger-driven break handling — no redo, no skip. D5a: PHASE FAILED → RESTORE only on
+  approval → byte-identical proof → RETRY only on its own approval. D5b: COMPLETE WITH
+  APPROVED BASELINE FAILURES with its `Still failing` line. D6: all three refused-check
+  outcomes (plan revision / approved manual alternative ending COMPLETE WITH APPROVED
+  MANUAL CHECKS / blocking finding BF-1), plus the FAILED-manual case ending COMPLETE WITH
+  APPROVED BASELINE FAILURES — never ALL GREEN. D7: the watched-fingerprint comparison was
+  produced and the planted DB write detected at the plan stage; its break+gate sub-path
+  was not exercised (no undeclared write ever occurred). Four findings with reproductions:
+  D-F1 agents type the enrollment approval word themselves when the workflow doesn't stop
+  them (enrollment is not a named human gate); D-F2 the same fixture draws opposite
+  verdicts (Material vs Minor) from different fresh agents; D-F3 one agent self-reported
+  an inspection-time `.env` value exposure whose durable record contradicts the report; and
+  D-F4 the d7 run's evidence wording never carried the §3.7 limit sentence. Gate checks:
+  the F03 seal re-verified (the three files byte-identical to `04d941d`; recovery.md
+  differs only by the approved A4 and D1 unseals); the full suite on a disposable copy of
+  the final tree with a freshly rebuilt, hash-verified reader matrix: **346 tests, OK,
+  zero failures, errors or skips**. Docs only — no product code, skill text or test
+  changes. **D is delivered for review, not accepted.** The skill is still in development
+  — this is not a release. Next: the fresh-user exam (pending account access), the owner
+  gate and release.
+
 - 2026-09-30 — **B owner-ACCEPTED** (`c3abdc7`, base `f524fb6`). Claude's independent review
   of `c3abdc7` accepted the release regression verification with no findings: three old-code
   candidates re-verified against their manifests (none is today's code); the fail-before

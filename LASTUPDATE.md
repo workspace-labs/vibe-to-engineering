@@ -1,31 +1,41 @@
-# Latest update — 2026-09-30
+# Latest update — 2026-10-02
 
-## Resume here (2026-09-30, end of day)
+## Resume here (2026-10-02, end of day)
 
-- **Next is D** — the macOS workflow exam, items D1–D7 from the release handoff
-  (`~/Desktop/vibe-to-engineering-v01-release-handoff-2026-09-27.md` §5) — then the fresh-user
-  exam, the owner gate and release.
+- **D — the macOS workflow exam — is DELIVERED FOR REVIEW.** The record is
+  [D-EXAM.md](D-EXAM.md) at the repository root; the durable evidence is
+  `~/Desktop/vibe-to-engineering-D-exam-2026-10-01/` (its README says how to re-run a
+  scenario). 17 rows: 16 PASS, 0 FAIL, 0 NOT RUN, 1 PARTIAL (D7 — its §3.7-wording finding
+  D-F4, and the break+gate sub-path not exercised). Four findings with reproductions
+  (D-F1 enrollment is not a human gate in practice; D-F2 opposite verdicts on the same
+  fixture from different fresh agents; D-F3 a self-reported inspection-time `.env` value
+  exposure whose record contradicts the report; D-F4 the d7 run's evidence wording never
+  carried the §3.7 limit sentence). The F03 seal re-verified; the full suite re-run on a
+  disposable copy of the final tree with a freshly rebuilt reader matrix:
+  **346 tests, OK, zero failures, errors or skips**. D is delivered for review, **not
+  accepted** — review and any fix round for the findings are the owner's decision.
+- **Next:** the fresh-user exam — still pending until account access is arranged with the
+  owner; no account may be created or modified by an agent — then the owner gate and
+  release.
 - **Open owner decision B1:** `scripts/nodekeys.py` still ships in the skill folder, unused
   (kept as the provenance record of the reader-model rounds; nothing imports it — verified in
   B). The B reviewer recommends removing it before release. Removal is the owner's decision.
-- Kimi's raw B logs in `/tmp/v2e-B-verify/` are scratch (they do not survive a reboot). The
-  durable evidence is `B-VERIFICATION.md` (repo root) plus the review folder's logs
-  (`~/Desktop/vibe-to-engineering-B-review-2026-09-30/`).
-- The reader matrix lives at `/tmp/v2e-r123-work-tzvzLCWM/readers`. If it is gone after a
-  reboot, rebuild it with `tests/reader_matrix_prepare.py` (it re-fetches the exact recorded
-  versions and verifies every sha256).
+- The reader matrix for the suite was rebuilt at `/tmp/v2e-r123-readers-D` (the previous
+  `/tmp/v2e-r123-work-tzvzLCWM/readers` was gone). If it too is gone after a reboot, rebuild
+  with `tests/reader_matrix_prepare.py <new dir>` (it re-fetches the exact recorded versions
+  and verifies every sha256) and point `V2E_READER_MATRIX_DIR` at the new dir.
 - The branch `fix/f03-f06-f08-new1` is several commits ahead of origin and has not been
   pushed; pushing is the owner's decision.
 
 ## Current status
 
-**A1, A2, A3, A4, C and B are all owner-accepted.** **B is owner-ACCEPTED (2026-09-30,
-`c3abdc7`).** Claude's independent review of `c3abdc7` accepted it with no findings
-(`~/Desktop/vibe-to-engineering-B-review-2026-09-30/REVIEW.md`): three candidates re-verified
-against their manifests (none is today's code); the fail-before numbers re-run independently
-on the real old code all matched (F5 46; F2–F6 24; confidentiality battery 12; exit-status
-matrix 9+1; F3-R1 51); the full suite 346 OK, zero failures, errors or skips; the F03 seal
-intact. **Next is D — the macOS workflow exam.**
+**A1, A2, A3, A4, C and B are all owner-accepted.** **D — the macOS workflow exam — is
+DELIVERED FOR REVIEW (2026-10-01/02, base `e0e683e`): 17 rows, 16 PASS / 0 FAIL / 0 NOT RUN /
+1 PARTIAL; four findings with reproductions (D-F1–D-F4); the F03 seal re-verified; the full
+suite re-run on the final tree with a rebuilt reader matrix — 346 tests, OK, zero failures,
+errors or skips. The record is `D-EXAM.md`; the evidence is
+`~/Desktop/vibe-to-engineering-D-exam-2026-10-01/`. D is delivered for review, not
+accepted.** Next: the fresh-user exam (pending account access), the owner gate and release.
 
 The latest F3-R1 repair passed Kimi's independent re-review and was accepted by the owner
 on 2026-09-29. A1 and A2 were already accepted. The confidentiality/status work has no
@@ -440,13 +450,26 @@ the release workflow exam below is still pending.
    `B-VERIFICATION.md`, gaps: none, no tests added. The R1-reviewed candidate is gone
    (recorded honestly; historical fail-before stands, 16/16 pass now). Claude's independent
    review accepted it with no findings.
-4. **D — full macOS workflow exam on disposable projects.** Exercise successful JavaScript
-   and Python migrations; no-migration/zero-write behavior; the refusal battery;
-   interruption and ledger-driven resume; failed verification and separately approved
-   restore/retry; approved baseline failures; all required-check refusal outcomes; and
-   data-safety detection, including a check that writes to a planted database. Hash originals
-   before and after, and scan the defined output locations for synthetic secret canaries —
-   now including the retained scratch roots under `~/.vibe-to-engineering/runs/`.
+4. **D — full macOS workflow exam on disposable projects (DELIVERED FOR REVIEW 2026-10-01/02,
+   base `e0e683e`).** Every obligation D1–D7 ran on fresh agents against disposable copies of
+   hashed fixtures, in isolated HOMEs, with owner scripts played verbatim and the pristine
+   fixtures proven byte-identical afterwards: successful JavaScript and Python migrations to
+   ALL GREEN with zero canary bytes in the zero-canary set (scratch scanned separately,
+   never claimed secret-free); no-migration/zero-write behavior; the six-refusal battery
+   (exit 2, byte-identical, registries never rewritten); interruption and ledger-driven
+   resume after a real mid-phase kill; failed verification with separately approved
+   restore/retry and a byte-identical proof; approved baseline failures; all three
+   required-check refusal outcomes plus the FAILED-manual case (never ALL GREEN); and
+   data-safety detection of a planted DB write (at the plan stage; the fingerprint-break
+   sub-path not exercised). The record is `D-EXAM.md`; the evidence (owner scripts,
+   transcripts, console logs, manifests, canary scans, ledgers, checkpoints) is
+   `~/Desktop/vibe-to-engineering-D-exam-2026-10-01/`. Four findings with reproductions
+   (D-F1 enrollment is not a human gate in practice; D-F2 opposite verdicts on the same
+   fixture; D-F3 a self-reported inspection-time value exposure whose record contradicts it;
+   D-F4 the d7 run's evidence wording never carried the §3.7 limit sentence). The F03 seal
+   re-verified; the full suite re-run on the final tree with a rebuilt reader matrix:
+   346 tests, OK, zero failures, errors or skips. **D is delivered for review, not
+   accepted** — the review and any fix round for the findings are the owner's decision.
 5. **Fresh-user and final release gates.** The real fresh-user exam remains pending until
    account access is arranged with the owner; do not create or modify accounts as a shortcut.
    Complete the remaining evidence, owner gate and separately authorized final independent

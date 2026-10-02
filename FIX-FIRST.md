@@ -1,47 +1,33 @@
 # Fix first
 
-## Current priority — 2026-09-30
+## Current priority — 2026-10-02
 
 Use [LASTUPDATE.md](LASTUPDATE.md) for the current status and remaining release checklist.
-A1, A2, A3 and **A4 are all accepted** (A4 — macOS-only platform refusal at the execution
-boundary — owner-accepted 2026-09-30, `b3ad397`: Claude's independent review found no
-findings; every entry point refuses a non-macOS platform before any write, check, launch or
-platform-risky import, with a clean message and no bypass). The R2 confidentiality/status
-slice and the R1–R3/L1–L3 fixes are accepted as well. **C — the documentation corrections — is
-owner-ACCEPTED** (2026-09-30, `7dd2193` + `28f5e85`, base `99c8ebf`): checkpoints
-promise their defined saved-file set (files git would not ignore; ignored files watched, not
-saved; nested repositories not saved) instead of "the whole project"; fingerprint and
-checkpoint comparisons state their limit (covered local file states — they do not prove the
-absence of reads, remote writes or temporary changes); the `.env` boundary states the file is
-never edited, rewritten or converted to gain admission (the audit found no such suggestion to
-remove); a required check passes only with passing recorded evidence, a refused or unrunnable
-one has exactly three outcomes — plan revision, owner-approved manual alternative
-(ledger-recorded, marked `MANUAL — OUTSIDE THE MASKING GUARANTEE`), or blocking finding — and
-a migration completed with one ends in the new `VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED
-MANUAL CHECKS` outcome with one `Manual:` line per such check, never ALL GREEN. The four A4
-wording notes are folded in (checkpoint.py's docstring is macOS-only, the "(Windows: py -3 …)"
-usage lines are gone, README's macOS row reads "supported; all tests pass; release exam
-pending", and the Linux/Windows notes read as roadmap/design history), plus the 2026-09-29
-skill-audit leftovers (the `sh <project-script>` example, neutral evidence paths).
-`tests/test_c_wording.py` (7 tests) guards the wording — each fails on `99c8ebf` (the
-review-round extensions on `7dd2193`) and passes after; no behavior changes. Claude's
-re-review of `28f5e85` ACCEPTED the round: M1 fixed (a failed manual check is a failing check
-like any other), D1 applied exactly (the four approved recovery.md spots; gitrun.py,
-nested.py and test_nested.py stay byte-identical to `b3ad397`), the full suite 346 OK.
-**B — the release regression verification — is owner-ACCEPTED** (2026-09-30, `c3abdc7`, base
-`f524fb6`): every promised regression was proven failing on the real old code it guards
-(preserved snapshot candidates hash-verified against their manifests; slice bases run from
-`git archive`) and passing now, all recorded in
-[B-VERIFICATION.md](B-VERIFICATION.md) — fail-before counts matching the recorded histories,
-the F03 seal re-verified, every superseded expectation mapped with its reason, gaps: none (no
-tests added, no product code changed); the full suite on a disposable copy of the final tree
-is 346 tests, OK, zero failures, errors or skips. Claude's independent review of `c3abdc7`
-accepted it with no findings (candidates re-verified; fail-before numbers independently
-re-run and matched; suite 346 OK; seal intact). The R1-reviewed candidate is gone (`/tmp`
-wiped; recorded honestly, its 16 pass now). **A1, A2, A3, A4, C and B are all accepted. Next
-is D** (the macOS workflow exam).
-Whole-skill release and NEW-5 closure are still pending; the skill is still in development,
-not a release.
+A1, A2, A3, A4, C and **B are all accepted** (B — the release regression verification —
+owner-accepted 2026-09-30, `c3abdc7`: every promised regression proven failing on the real
+old code it guards and passing now; Claude's independent review accepted it with no
+findings). **D — the macOS workflow exam — is DELIVERED FOR REVIEW** (2026-10-01/02, base
+`e0e683e`): the skill's real workflow run end to end by fresh agents on disposable projects,
+recorded in [D-EXAM.md](D-EXAM.md) with durable evidence in
+`~/Desktop/vibe-to-engineering-D-exam-2026-10-01/`. 17 rows, 16 PASS / 0 FAIL / 0 NOT RUN /
+1 PARTIAL: both D1 migrations reached ALL GREEN with zero canary bytes in the zero-canary
+set (scratch scanned separately); D2 NO MIGRATION REQUIRED with zero writes; all six D3
+refusals exit 2 (checkpoint/render their own 1) with byte-identical projects and registries
+never rewritten; D4 ledger-driven break handling after a real mid-phase kill; D5a
+PHASE FAILED → approved RESTORE → byte-identical proof → separately approved RETRY; D5b
+COMPLETE WITH APPROVED BASELINE FAILURES; all three D6 refused-check outcomes plus the
+FAILED-manual case, never ALL GREEN; D7's planted DB write detected at the plan stage (its
+break+gate sub-path not exercised). Four findings with reproductions: enrollment is not a
+human gate in practice (agents type the approval word themselves, D-F1); the same fixture
+draws opposite verdicts from different fresh agents (D-F2); one agent's self-reported
+inspection-time `.env` value exposure whose record contradicts the report (D-F3); the d7
+run's evidence wording never carried the §3.7 limit sentence (D-F4). The F03 seal
+re-verified and the full suite (346 tests, OK, zero failures, errors or skips) re-run on a
+disposable copy of the final tree with a freshly rebuilt, hash-verified reader matrix.
+**D is delivered for review, not accepted** — review findings and any fix round are the
+owner's decision. Next: the fresh-user exam (stays pending until account access is arranged;
+no account may be created or modified by an agent), the owner gate and release. The skill is
+still in development, not a release.
 
 The entries below are historical findings and delivery records, including their then-current
 test counts and review statuses. They are preserved as history, not a new order to redo accepted work.
