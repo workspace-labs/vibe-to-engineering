@@ -2,14 +2,23 @@
 
 ## Resume here (2026-10-02, end of day)
 
+- **Desktop evidence has a new home.** All `~/Desktop/vibe-to-engineering-*` folders and
+  files were consolidated into `~/Desktop/Vibe-to-Engineering/` (2026-10-02). **Every older
+  `~/Desktop/vibe-to-engineering-…` path named in this repository's documents now resolves
+  inside that folder** — for example the D evidence is at
+  `~/Desktop/Vibe-to-Engineering/vibe-to-engineering-D-exam-2026-10-01/`, the D review and
+  re-review at `~/Desktop/Vibe-to-Engineering/vibe-to-engineering-D-review-2026-10-02/`,
+  and the release handoff at
+  `~/Desktop/Vibe-to-Engineering/vibe-to-engineering-v01-release-handoff-2026-09-27.md`.
+  Historical documents keep their original path text; resolve them by this rule.
 - **D is owner-ACCEPTED (2026-10-02, `7cdae4e` + `e8644b1` + `7114520`).** Claude's
-  re-review of the fix round (`~/Desktop/vibe-to-engineering-D-review-2026-10-02/RE-REVIEW.md`)
+  re-review of the fix round (`…/vibe-to-engineering-D-review-2026-10-02/RE-REVIEW.md`)
   ACCEPTED D: all three blockers from the first review closed (D7 break+gate exercised in
   S2; enrollment a named human gate honored in S1–S3; the limit sentence templated, 7× in
   S1's ledger), with its own suite run 350 OK, the seal intact and the supplementary canary
   scan clean. Kimi's S2-O1 was judged no-fix; S3's excluded-folder kill-state recorded as
   honest with the D4 obligation met; D-F2 stays a recorded known limit. The acceptance
-  commit (HEAD) carries the re-review's two cleanups: R1 (the final-report wording
+  commit (`2513a17`) carries the re-review's two cleanups: R1 (the final-report wording
   assertion checks the new sentence's own words inside its paragraph only — shown failing
   without it, passing with it) and R2 (the enrollment rule now says plainly: the human runs
   the enrollment command and types the approval word; the agent records the human's words
@@ -19,10 +28,12 @@
 - **Open owner decision B1:** `scripts/nodekeys.py` still ships in the skill folder, unused
   (kept as the provenance record of the reader-model rounds; nothing imports it — verified in
   B). The B reviewer recommends removing it before release. Removal is the owner's decision.
-- The reader matrix for the suite was rebuilt at `/tmp/v2e-r123-readers-D` (the previous
-  `/tmp/v2e-r123-work-tzvzLCWM/readers` was gone). If it too is gone after a reboot, rebuild
-  with `tests/reader_matrix_prepare.py <new dir>` (it re-fetches the exact recorded versions
-  and verifies every sha256) and point `V2E_READER_MATRIX_DIR` at the new dir.
+- **The reader matrix is at `/tmp/v2e-r123-readers-D`** (93 readers, every artifact
+  hash-verified; the previous `/tmp/v2e-r123-work-tzvzLCWM/readers` was wiped by a reboot).
+  `/tmp` does not survive a reboot: rebuild with
+  `python3 tests/reader_matrix_prepare.py <new dir>` from the repository root (it re-fetches
+  the exact recorded versions or reuses the experiment's copies and verifies every sha256 —
+  network for the fetches only), then run the suite with `V2E_READER_MATRIX_DIR=<new dir>`.
 - The branch `fix/f03-f06-f08-new1` is several commits ahead of origin and has not been
   pushed; pushing is the owner's decision.
 
