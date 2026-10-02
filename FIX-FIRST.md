@@ -26,13 +26,21 @@ re-verified and the full suite (346 tests, OK, zero failures, errors or skips) r
 disposable copy of the final tree with a freshly rebuilt, hash-verified reader matrix.
 **D is delivered for review, not accepted** — the review (2026-10-02) found the exam honest
 and its record accurate but D not yet accepted (D7's break+gate NOT RUN; D-F1 and D-F4
-blocking), and the owner approved one fix round: part 1 is the skill text fixes for
-D-F1–D-F4 (enrollment a named human gate; the limit sentence in the report templates; NO
-MIGRATION REQUIRED lists its Minor findings; key names only through the shown form), guarded
-by `tests/test_d_wording.py` (each failing on `7cdae4e` and passing after); part 2 is the
-supplementary exam (S1 the D1 rerun, S2 an undeclared DB write, S3 a kill after a partial
-edit). Next: the re-review; the fresh-user exam stays pending until account access is
-arranged (no account may be created or modified by an agent), then the owner gate and
+blocking), and the owner approved one fix round, now **delivered**: part 1 (`e8644b1`,
+skill text only) fixed D-F1–D-F4 (enrollment a named human gate; the limit sentence in the
+report templates; NO MIGRATION REQUIRED lists its Minor findings with the human's option;
+key names only through the shown form), each guarded by `tests/test_d_wording.py` (each
+failing on `7cdae4e` and passing after), the F03 seal re-verified, the full suite 350 OK.
+Part 2 is the supplementary exam on the fixed skill with fresh agents (recorded in
+[D-EXAM.md](D-EXAM.md)'s Supplementary round): **S1 PASS** (the D1 rerun — enrollment gate
+honored with the human enrolling, ALL GREEN, the limit sentence at every comparison, zero
+canary bytes), **S3 PASS** (a kill after a partial edit — ledger-driven break handling, the
+partial state shown and accounted for, no redo, stop at the gate), and **S2 PARTIAL** (the
+D7b mechanism proven — an undeclared database write invisible at plan time caught from the
+fingerprint comparison and stopped at the gate — but the unexpected-change gate report does
+not carry the limit sentence: observation S2-O1, the owner's decision whether it needs a
+further round). Next: the re-review; the fresh-user exam stays pending until account access
+is arranged (no account may be created or modified by an agent), then the owner gate and
 release. The skill is still in development, not a release.
 
 The entries below are historical findings and delivery records, including their then-current

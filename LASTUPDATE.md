@@ -14,12 +14,19 @@
   disposable copy of the final tree with a freshly rebuilt reader matrix:
   **346 tests, OK, zero failures, errors or skips**. D is delivered for review, **not
   accepted** — review and any fix round for the findings are the owner's decision.
-- **Next:** the review outcome and the owner's decision on the findings — the D review
-  (2026-10-02) found the exam honest and its record accurate but D not yet accepted, and
-  the owner approved one fix round, now in progress (part 1: the skill text fixes D-F1–D-F4;
-  part 2: the supplementary exam). The fresh-user exam stays pending until account access is
-  arranged with the owner (no account may be created or modified by an agent); then the
-  owner gate and release.
+- **Next:** the **re-review of the D fix round** — the owner approved one fix round after
+  the D review and it is now delivered: part 1 (commit `e8644b1`, skill text only) fixed
+  D-F1–D-F4, each guarded by `tests/test_d_wording.py` (fails on `7cdae4e`, passes after),
+  F03 seal re-verified, full suite 350 OK; part 2 (commit at HEAD, docs only) is the
+  supplementary exam — S1 PASS (D1 rerun: enrollment gate honored, ALL GREEN, limit
+  sentence at every comparison, zero canaries), S2 PARTIAL (the D7b mechanism proven —
+  undeclared write caught from the fingerprint comparison and stopped at the gate — but
+  the unexpected-change gate report does not carry the limit sentence, observation
+  S2-O1 for the owner's decision), S3 PASS (kill after a partial edit, ledger-driven
+  break handling). D stands **delivered for review, not accepted**; the S2-O1 observation
+  and any further fix are the owner's decision. The fresh-user exam stays pending until
+  account access is arranged with the owner (no account may be created or modified by an
+  agent); then the owner gate and release.
 - **Open owner decision B1:** `scripts/nodekeys.py` still ships in the skill folder, unused
   (kept as the provenance record of the reader-model rounds; nothing imports it — verified in
   B). The B reviewer recommends removing it before release. Removal is the owner's decision.
@@ -38,8 +45,10 @@ DELIVERED FOR REVIEW (2026-10-01/02, base `e0e683e`): 17 rows, 16 PASS / 0 FAIL 
 suite re-run on the final tree with a rebuilt reader matrix — 346 tests, OK, zero failures,
 errors or skips. The record is `D-EXAM.md`; the evidence is
 `~/Desktop/vibe-to-engineering-D-exam-2026-10-01/`. D is delivered for review, not
-accepted.** Next: the review outcome and this fix round (owner-approved 2026-10-02); the
-fresh-user exam stays pending account access, then the owner gate and release.
+accepted.** Next: the re-review of the fix round (delivered 2026-10-02: part 1 `e8644b1`
+skill text fixes D-F1–D-F4 with wording tests; part 2 the supplementary exam — S1/S3 PASS,
+S2 PARTIAL with observation S2-O1); the fresh-user exam stays pending account access, then
+the owner gate and release.
 
 The latest F3-R1 repair passed Kimi's independent re-review and was accepted by the owner
 on 2026-09-29. A1 and A2 were already accepted. The confidentiality/status work has no

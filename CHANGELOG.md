@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+- 2026-10-02 — **D fix round, part 2** (the supplementary exam on the fixed skill; docs
+  only), delivered for re-review. Part 1 landed as `e8644b1` (skill text fixes for
+  D-F1–D-F4; `tests/test_d_wording.py` fails on `7cdae4e` and passes after; F03 seal
+  re-verified; full suite **350 tests (346 + 4), OK**, 302.9 s on the working-tree copy,
+  294.8 s on the committed archive). Part 2 ran the supplementary exam on `git archive`
+  of `e8644b1` with fresh agents, evidence in
+  `~/Desktop/vibe-to-engineering-D-exam-2026-10-01/supplementary/`, recorded in
+  `D-EXAM.md`'s new Supplementary round: **S1 PASS** (the D1 rerun on fixture-js — the
+  agent stopped at the new Enrollment gate, showed the disclosure running the enrollment
+  only without stdin and never supplied the word; the human enrolled; ALL GREEN; the
+  templated `Data-safety:` line in every phase block and the final report, the limit
+  sentence 7× in the ledger; zero canary bytes in the zero-canary set, scratch scanned
+  separately), **S2 PARTIAL** (the D7b mechanism proven: an undeclared write to
+  `data/expenses.db`, invisible at plan time, was caught from the watched fingerprint
+  comparison — `changed data/expenses.db (8215 bytes, was 8192)` — and stopped at the
+  Unexpected change gate with the correct consequences; MIGRATION STOPPED. The gate report
+  and the stop entry do NOT carry the §3.7 limit sentence — the fix templated the
+  phase-complete/restored/final blocks and the ledger comparison rule, not that report
+  shape: observation S2-O1 for the owner's decision; S2's fresh agent also exercised the
+  new D-F2 wording, returning NO MIGRATION REQUIRED with the Minor findings listed and the
+  human's option, which the human took), **S3 PASS** (a kill after phase 1's first file
+  write: the fresh resume agent read the ledger, treated the half-done phase as a break,
+  created `failed-01-phase-1`, showed the state — including the deliverable the checkpoint
+  diff cannot see, `checks/smoke.py` in the skill's own folder — did not redo or finish
+  the phase, and stopped at the gate with the Data-safety note; MIGRATION STOPPED).
+  Supplementary rows: 2 PASS / 0 FAIL / 0 NOT RUN / 1 PARTIAL. D stands **delivered for
+  review, not accepted** — S2-O1 and any further fix are the owner's decision. The skill
+  is still in development — this is not a release. Next: the re-review.
+
 - 2026-10-02 — **D fix round, part 1** (skill text only; no script changes; the F03-sealed
   files and `references/recovery.md` untouched), delivered for the supplementary exam and
   re-review. **D-F1:** enrollment is now a named **human gate** in SKILL.md's gates table
