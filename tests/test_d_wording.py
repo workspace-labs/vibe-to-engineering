@@ -40,11 +40,12 @@ class DWording(unittest.TestCase):
         self.assertIn("| Enrollment |", self.skill)
         for words in ("never supply the approval word",
                       "not typed, not piped, not through stdin by any means",
-                      "gives explicit approval of that exact disclosed identity",
+                      "The human runs the enrollment command and types the approval word themselves",
                       "never covers enrollment"):
             self.assertIn(words, self.skill_flat)
         for words in ("never supplies the approval word itself",
                       "not typed, not piped, not through stdin by any means",
+                      "The human runs the enrollment command and types the approval word themselves",
                       "never covers enrollment"):
             self.assertIn(words, self.registry_flat)
 
@@ -53,8 +54,13 @@ class DWording(unittest.TestCase):
         self.assertIn(LIMIT, phase)
         restored = fenced_block(self.skill, "RESTORED <label>")
         self.assertIn(LIMIT, restored)
-        final_report = self.skill[self.skill.index("Follow the outcome with the before and after trees"):]
-        self.assertIn(LIMIT, final_report)
+        # the final-report paragraph only, and the new sentence's own words — the older statement
+        # near the end of the file ("They **do not prove…**") must not be able to satisfy this
+        start = self.skill.index("Follow the outcome with the before and after trees")
+        paragraph = self.skill[start:self.skill.index("No commits were made unless they asked for"
+                                                      " them.", start)]
+        self.assertIn("it carries the limit sentence: the comparison covers local file states and does"
+                      " not prove the absence of reads, remote writes or temporary changes", paragraph)
         self.assertIn("wherever the ledger reports a fingerprint or checkpoint comparison as data-safety"
                       " evidence, the limit sentence", self.skill)
 

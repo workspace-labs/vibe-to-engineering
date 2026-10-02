@@ -3,45 +3,27 @@
 ## Current priority — 2026-10-02
 
 Use [LASTUPDATE.md](LASTUPDATE.md) for the current status and remaining release checklist.
-A1, A2, A3, A4, C and **B are all accepted** (B — the release regression verification —
-owner-accepted 2026-09-30, `c3abdc7`: every promised regression proven failing on the real
-old code it guards and passing now; Claude's independent review accepted it with no
-findings). **D — the macOS workflow exam — is DELIVERED FOR REVIEW** (2026-10-01/02, base
-`e0e683e`): the skill's real workflow run end to end by fresh agents on disposable projects,
-recorded in [D-EXAM.md](D-EXAM.md) with durable evidence in
-`~/Desktop/vibe-to-engineering-D-exam-2026-10-01/`. 17 rows, 16 PASS / 0 FAIL / 0 NOT RUN /
-1 PARTIAL: both D1 migrations reached ALL GREEN with zero canary bytes in the zero-canary
-set (scratch scanned separately); D2 NO MIGRATION REQUIRED with zero writes; all six D3
-refusals exit 2 (checkpoint/render their own 1) with byte-identical projects and registries
-never rewritten; D4 ledger-driven break handling after a real mid-phase kill; D5a
-PHASE FAILED → approved RESTORE → byte-identical proof → separately approved RETRY; D5b
-COMPLETE WITH APPROVED BASELINE FAILURES; all three D6 refused-check outcomes plus the
-FAILED-manual case, never ALL GREEN; D7's planted DB write detected at the plan stage (its
-break+gate sub-path not exercised). Four findings with reproductions: enrollment is not a
-human gate in practice (agents type the approval word themselves, D-F1); the same fixture
-draws opposite verdicts from different fresh agents (D-F2); one agent's self-reported
-inspection-time `.env` value exposure whose record contradicts the report (D-F3); the d7
-run's evidence wording never carried the §3.7 limit sentence (D-F4). The F03 seal
-re-verified and the full suite (346 tests, OK, zero failures, errors or skips) re-run on a
-disposable copy of the final tree with a freshly rebuilt, hash-verified reader matrix.
-**D is delivered for review, not accepted** — the review (2026-10-02) found the exam honest
-and its record accurate but D not yet accepted (D7's break+gate NOT RUN; D-F1 and D-F4
-blocking), and the owner approved one fix round, now **delivered**: part 1 (`e8644b1`,
-skill text only) fixed D-F1–D-F4 (enrollment a named human gate; the limit sentence in the
-report templates; NO MIGRATION REQUIRED lists its Minor findings with the human's option;
-key names only through the shown form), each guarded by `tests/test_d_wording.py` (each
-failing on `7cdae4e` and passing after), the F03 seal re-verified, the full suite 350 OK.
-Part 2 is the supplementary exam on the fixed skill with fresh agents (recorded in
-[D-EXAM.md](D-EXAM.md)'s Supplementary round): **S1 PASS** (the D1 rerun — enrollment gate
-honored with the human enrolling, ALL GREEN, the limit sentence at every comparison, zero
-canary bytes), **S3 PASS** (a kill after a partial edit — ledger-driven break handling, the
-partial state shown and accounted for, no redo, stop at the gate), and **S2 PARTIAL** (the
-D7b mechanism proven — an undeclared database write invisible at plan time caught from the
-fingerprint comparison and stopped at the gate — but the unexpected-change gate report does
-not carry the limit sentence: observation S2-O1, the owner's decision whether it needs a
-further round). Next: the re-review; the fresh-user exam stays pending until account access
-is arranged (no account may be created or modified by an agent), then the owner gate and
-release. The skill is still in development, not a release.
+A1, A2, A3, A4, C, B and **D are all accepted.** **D is owner-ACCEPTED (2026-10-02,
+`7cdae4e` + `e8644b1` + `7114520`):** the macOS workflow exam (17 rows, 16 PASS / 1
+PARTIAL) plus its fix round — skill text fixes for the exam's findings (enrollment a named
+human gate the agent never crosses; the §3.7 limit sentence templated in the report blocks
+and ledger rule; NO MIGRATION REQUIRED listing its Minor findings with the human's option;
+secret key names read only through the shown form) and the supplementary exam proving them
+on the fixed skill with fresh agents (S1 the D1 rerun to ALL GREEN with the enrollment gate
+honored and zero canary bytes; S2 the D7b undeclared-write break at the gate; S3 the
+kill-after-partial-edit resume) — was ACCEPTED on Claude's re-review: all three
+first-review blockers closed, its own checks confirming the seal, the 350-test suite and
+the canary scans. The acceptance commit at HEAD carries the re-review's two small cleanups:
+R1 (the final-report wording assertion checks the new sentence's own words inside its
+paragraph only — shown failing without it, passing with it) and R2 (the enrollment rule
+states plainly that the human runs the enrollment command and types the approval word; the
+agent records the human's words in the ledger). Recorded, not blocking: S2-O1 (no fix —
+a report of a change is the opposite of a data-safety claim), S3's excluded-folder
+kill-state (the D4 obligation met), and D-F2 as a known limit (the verdict varies between
+agents; the report now always shows its reasoning). **A1, A2, A3, A4, C, B and D are all
+accepted. Next: the fresh-user exam**, pending account access arranged by the owner (no
+account may be created or modified by an agent), then the owner gate and release. The skill
+is still in development, not a release.
 
 The entries below are historical findings and delivery records, including their then-current
 test counts and review statuses. They are preserved as history, not a new order to redo accepted work.

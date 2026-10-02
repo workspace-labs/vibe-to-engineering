@@ -21,8 +21,8 @@ Enrollment is the only way a runner enters the registry, and it is a deliberate 
 automatic enrollment and no automatic re-enrollment. The workflow treats it as a **human gate** (SKILL.md,
 Human gates): the agent shows the human the disclosure below and stops, and **the agent never supplies the
 approval word itself** — not typed, not piped, not through stdin by any means. The human runs the enrollment
-command, or gives explicit approval of that exact disclosed identity, recorded in the project ledger with
-their words; approval of a plan or of anything else never covers enrollment:
+command and types the approval word themselves; the agent records the human's words in the project ledger;
+approval of a plan or of anything else never covers enrollment:
 
 1. `python3 scripts/evidence.py --enroll-runner <runner> [--with-path /abs/dir]…` resolves the candidate the
    same way the gate does (an absolute path, or a name on the system folders plus the given `--with-path`

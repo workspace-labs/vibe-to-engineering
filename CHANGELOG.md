@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+- 2026-10-02 — **D owner-ACCEPTED** (`7cdae4e` + `e8644b1` + `7114520`). Claude's re-review
+  of the fix round (`~/Desktop/vibe-to-engineering-D-review-2026-10-02/RE-REVIEW.md`)
+  ACCEPTED D: all three blockers from the first review closed (D7's break+gate exercised in
+  S2 — an undeclared write reported from the fingerprint comparison and stopped at the gate;
+  enrollment a named human gate no agent crossed in S1–S3; the §3.7 limit sentence templated
+  in the report blocks, 7× in S1's ledger), the re-review's own checks confirmed (docs-only
+  commits, no script changes, the F03 seal intact, its own suite run 350 OK, the wording
+  tests failing on the old text and passing on the new, the supplementary skill copy and
+  canary scan clean, no `printf "enroll"` pipe in any supplementary log). Kimi's S2-O1
+  observation was judged no-fix (a report of a change is the opposite of a data-safety
+  claim), S3's excluded-folder kill-state recorded as honest-with-the-D4-obligation-met,
+  and D-F2 stays a recorded known limit (the verdict varies; the report now always shows
+  its reasoning). This acceptance commit carries the re-review's two small cleanups: R1 —
+  the final-report wording assertion now checks the new sentence's own words inside its
+  paragraph only (shown failing when that sentence is removed, passing with it); R2 — the
+  enrollment rule now says plainly that the human runs the enrollment command and types the
+  approval word, and the agent records the human's words in the ledger (SKILL.md and
+  `references/supported-checks.md`; the wording test is in step — shown failing on
+  `7114520`'s phrasing and passing after). No script changes; the F03 seal re-verified;
+  the full suite stays **350 tests, OK, zero failures, errors or skips**. **A1, A2, A3, A4,
+  C, B and D are all accepted.** Next: the fresh-user exam, pending account access arranged
+  by the owner — then the owner gate and release. The skill is still in development — this
+  is not a release.
+
 - 2026-10-02 — **D fix round, part 2** (the supplementary exam on the fixed skill; docs
   only), delivered for re-review. Part 1 landed as `e8644b1` (skill text fixes for
   D-F1–D-F4; `tests/test_d_wording.py` fails on `7cdae4e` and passes after; F03 seal

@@ -2,31 +2,20 @@
 
 ## Resume here (2026-10-02, end of day)
 
-- **D — the macOS workflow exam — is DELIVERED FOR REVIEW.** The record is
-  [D-EXAM.md](D-EXAM.md) at the repository root; the durable evidence is
-  `~/Desktop/vibe-to-engineering-D-exam-2026-10-01/` (its README says how to re-run a
-  scenario). 17 rows: 16 PASS, 0 FAIL, 0 NOT RUN, 1 PARTIAL (D7 — its §3.7-wording finding
-  D-F4, and the break+gate sub-path not exercised). Four findings with reproductions
-  (D-F1 enrollment is not a human gate in practice; D-F2 opposite verdicts on the same
-  fixture from different fresh agents; D-F3 a self-reported inspection-time `.env` value
-  exposure whose record contradicts the report; D-F4 the d7 run's evidence wording never
-  carried the §3.7 limit sentence). The F03 seal re-verified; the full suite re-run on a
-  disposable copy of the final tree with a freshly rebuilt reader matrix:
-  **346 tests, OK, zero failures, errors or skips**. D is delivered for review, **not
-  accepted** — review and any fix round for the findings are the owner's decision.
-- **Next:** the **re-review of the D fix round** — the owner approved one fix round after
-  the D review and it is now delivered: part 1 (commit `e8644b1`, skill text only) fixed
-  D-F1–D-F4, each guarded by `tests/test_d_wording.py` (fails on `7cdae4e`, passes after),
-  F03 seal re-verified, full suite 350 OK; part 2 (commit at HEAD, docs only) is the
-  supplementary exam — S1 PASS (D1 rerun: enrollment gate honored, ALL GREEN, limit
-  sentence at every comparison, zero canaries), S2 PARTIAL (the D7b mechanism proven —
-  undeclared write caught from the fingerprint comparison and stopped at the gate — but
-  the unexpected-change gate report does not carry the limit sentence, observation
-  S2-O1 for the owner's decision), S3 PASS (kill after a partial edit, ledger-driven
-  break handling). D stands **delivered for review, not accepted**; the S2-O1 observation
-  and any further fix are the owner's decision. The fresh-user exam stays pending until
-  account access is arranged with the owner (no account may be created or modified by an
-  agent); then the owner gate and release.
+- **D is owner-ACCEPTED (2026-10-02, `7cdae4e` + `e8644b1` + `7114520`).** Claude's
+  re-review of the fix round (`~/Desktop/vibe-to-engineering-D-review-2026-10-02/RE-REVIEW.md`)
+  ACCEPTED D: all three blockers from the first review closed (D7 break+gate exercised in
+  S2; enrollment a named human gate honored in S1–S3; the limit sentence templated, 7× in
+  S1's ledger), with its own suite run 350 OK, the seal intact and the supplementary canary
+  scan clean. Kimi's S2-O1 was judged no-fix; S3's excluded-folder kill-state recorded as
+  honest with the D4 obligation met; D-F2 stays a recorded known limit. The acceptance
+  commit (HEAD) carries the re-review's two cleanups: R1 (the final-report wording
+  assertion checks the new sentence's own words inside its paragraph only — shown failing
+  without it, passing with it) and R2 (the enrollment rule now says plainly: the human runs
+  the enrollment command and types the approval word; the agent records the human's words
+  in the ledger). No script changes; the F03 seal re-verified; the full suite 350 OK.
+- **Next: the fresh-user exam** — pending until account access is arranged by the owner;
+  no account may be created or modified by an agent — then the owner gate and release.
 - **Open owner decision B1:** `scripts/nodekeys.py` still ships in the skill folder, unused
   (kept as the provenance record of the reader-model rounds; nothing imports it — verified in
   B). The B reviewer recommends removing it before release. Removal is the owner's decision.
@@ -39,16 +28,16 @@
 
 ## Current status
 
-**A1, A2, A3, A4, C and B are all owner-accepted.** **D — the macOS workflow exam — is
-DELIVERED FOR REVIEW (2026-10-01/02, base `e0e683e`): 17 rows, 16 PASS / 0 FAIL / 0 NOT RUN /
-1 PARTIAL; four findings with reproductions (D-F1–D-F4); the F03 seal re-verified; the full
-suite re-run on the final tree with a rebuilt reader matrix — 346 tests, OK, zero failures,
-errors or skips. The record is `D-EXAM.md`; the evidence is
-`~/Desktop/vibe-to-engineering-D-exam-2026-10-01/`. D is delivered for review, not
-accepted.** Next: the re-review of the fix round (delivered 2026-10-02: part 1 `e8644b1`
-skill text fixes D-F1–D-F4 with wording tests; part 2 the supplementary exam — S1/S3 PASS,
-S2 PARTIAL with observation S2-O1); the fresh-user exam stays pending account access, then
-the owner gate and release.
+**A1, A2, A3, A4, C, B and D are all owner-accepted.** **D is owner-ACCEPTED (2026-10-02,
+`7cdae4e` + `e8644b1` + `7114520`):** Claude's re-review of the fix round accepted it with
+all three first-review blockers closed, its own checks confirming the docs-only commits, the
+seal, the 350-test suite and the supplementary canary scan. The acceptance commit at HEAD
+carries the re-review's two small cleanups (R1, the final-report wording assertion made
+precise; R2, the enrollment rule stating plainly that the human runs the command and types
+the word) — no script changes, the F03 seal re-verified, the full suite 350 OK. The record
+is `D-EXAM.md`; the evidence is `~/Desktop/vibe-to-engineering-D-exam-2026-10-01/`. **Next:
+the fresh-user exam, pending account access arranged by the owner — then the owner gate and
+release.**
 
 The latest F3-R1 repair passed Kimi's independent re-review and was accepted by the owner
 on 2026-09-29. A1 and A2 were already accepted. The confidentiality/status work has no
