@@ -24,10 +24,16 @@ inspection-time `.env` value exposure whose record contradicts the report (D-F3)
 run's evidence wording never carried the §3.7 limit sentence (D-F4). The F03 seal
 re-verified and the full suite (346 tests, OK, zero failures, errors or skips) re-run on a
 disposable copy of the final tree with a freshly rebuilt, hash-verified reader matrix.
-**D is delivered for review, not accepted** — review findings and any fix round are the
-owner's decision. Next: the fresh-user exam (stays pending until account access is arranged;
-no account may be created or modified by an agent), the owner gate and release. The skill is
-still in development, not a release.
+**D is delivered for review, not accepted** — the review (2026-10-02) found the exam honest
+and its record accurate but D not yet accepted (D7's break+gate NOT RUN; D-F1 and D-F4
+blocking), and the owner approved one fix round: part 1 is the skill text fixes for
+D-F1–D-F4 (enrollment a named human gate; the limit sentence in the report templates; NO
+MIGRATION REQUIRED lists its Minor findings; key names only through the shown form), guarded
+by `tests/test_d_wording.py` (each failing on `7cdae4e` and passing after); part 2 is the
+supplementary exam (S1 the D1 rerun, S2 an undeclared DB write, S3 a kill after a partial
+edit). Next: the re-review; the fresh-user exam stays pending until account access is
+arranged (no account may be created or modified by an agent), then the owner gate and
+release. The skill is still in development, not a release.
 
 The entries below are historical findings and delivery records, including their then-current
 test counts and review statuses. They are preserved as history, not a new order to redo accepted work.

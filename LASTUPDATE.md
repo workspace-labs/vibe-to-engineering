@@ -14,9 +14,12 @@
   disposable copy of the final tree with a freshly rebuilt reader matrix:
   **346 tests, OK, zero failures, errors or skips**. D is delivered for review, **not
   accepted** — review and any fix round for the findings are the owner's decision.
-- **Next:** the fresh-user exam — still pending until account access is arranged with the
-  owner; no account may be created or modified by an agent — then the owner gate and
-  release.
+- **Next:** the review outcome and the owner's decision on the findings — the D review
+  (2026-10-02) found the exam honest and its record accurate but D not yet accepted, and
+  the owner approved one fix round, now in progress (part 1: the skill text fixes D-F1–D-F4;
+  part 2: the supplementary exam). The fresh-user exam stays pending until account access is
+  arranged with the owner (no account may be created or modified by an agent); then the
+  owner gate and release.
 - **Open owner decision B1:** `scripts/nodekeys.py` still ships in the skill folder, unused
   (kept as the provenance record of the reader-model rounds; nothing imports it — verified in
   B). The B reviewer recommends removing it before release. Removal is the owner's decision.
@@ -35,7 +38,8 @@ DELIVERED FOR REVIEW (2026-10-01/02, base `e0e683e`): 17 rows, 16 PASS / 0 FAIL 
 suite re-run on the final tree with a rebuilt reader matrix — 346 tests, OK, zero failures,
 errors or skips. The record is `D-EXAM.md`; the evidence is
 `~/Desktop/vibe-to-engineering-D-exam-2026-10-01/`. D is delivered for review, not
-accepted.** Next: the fresh-user exam (pending account access), the owner gate and release.
+accepted.** Next: the review outcome and this fix round (owner-approved 2026-10-02); the
+fresh-user exam stays pending account access, then the owner gate and release.
 
 The latest F3-R1 repair passed Kimi's independent re-review and was accepted by the owner
 on 2026-09-29. A1 and A2 were already accepted. The confidentiality/status work has no

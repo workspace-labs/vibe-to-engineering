@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+- 2026-10-02 — **D fix round, part 1** (skill text only; no script changes; the F03-sealed
+  files and `references/recovery.md` untouched), delivered for the supplementary exam and
+  re-review. **D-F1:** enrollment is now a named **human gate** in SKILL.md's gates table
+  (stop when a check needs a runner that is not enrolled, or whose enrolled identity no
+  longer matches), and where enrollment is described the agent is told to show the human the
+  disclosure (runner, resolved path, size, SHA-256, pin mode, the one probe) and stop — and
+  that it **never supplies the approval word itself** (not typed, not piped, not through
+  stdin by any means): the human runs the enrollment command, or gives explicit approval of
+  that exact disclosed identity, recorded in the ledger with their words; plan approval, or
+  approval of anything else, never covers enrollment — mirrored in
+  `references/supported-checks.md`. **D-F4:** the §3.7 limit sentence now travels inside the
+  report blocks the skill templates — the `PHASE n COMPLETE` block, the `RESTORED <label>`
+  block, the final report's comparison paragraph — and in what the ledger records for those
+  comparisons (the comparison covers local file states and does not prove the absence of
+  reads, remote writes or temporary changes), so the agent copies it rather than remembers
+  it; the two existing statements are unchanged. **D-F2:** `NO MIGRATION REQUIRED` now lists
+  every finding judged Minor with its one-line reason and says the human may still ask for
+  a migration; the Material bar in `references/engineering-standard.md` is unchanged.
+  **D-F3:** secret files are read for their key names only through the exact form the skill
+  shows (`sed 's/=.*//'`, which can print nothing but the names), never through the agent's
+  own ad-hoc command. Each fix is guarded by a new wording test in
+  `tests/test_d_wording.py` — all four fail on `7cdae4e` (shown against a `git archive` of
+  its skill) and pass after; `tests/test_protocol.py` and `tests/test_c_wording.py` stay
+  green. Docs corrections from the review: N1 (the D3 sentence below) and N3 (LASTUPDATE's
+  Next). Gate: the F03 seal re-verified; the full suite on a `git archive` copy with the
+  brief's command and the rebuilt reader matrix: **350 tests (346 + the 4 new), OK, zero
+  failures, errors or skips**. The skill is still in development — this is not a release.
+  Next: the supplementary exam (part 2), then re-review.
+
 - 2026-10-01/02 — **D delivered for independent review** (the macOS workflow exam, base
   `e0e683e`): the skill's real workflow run end to end by fresh agents on disposable
   projects, recorded in `D-EXAM.md` at the repository root with its durable evidence in
@@ -14,7 +43,8 @@
   six refusals (non-literal `.env`, `.env.vault`, unenrolled runner, tampered registry,
   updated binary naming manual re-enrollment with no automatic re-enroll, non-macOS —
   simulated `sys.platform`, recorded as such), each exit 2 (checkpoint.py/render_pdf.py
-  their own 1) with the project byte-identical. D4: killed mid-phase, a fresh agent did
+  their own 1); the project's own files byte-identical, with `.vibe-to-engineering/`
+  holding the workflow's documented records. D4: killed mid-phase, a fresh agent did
   ledger-driven break handling — no redo, no skip. D5a: PHASE FAILED → RESTORE only on
   approval → byte-identical proof → RETRY only on its own approval. D5b: COMPLETE WITH
   APPROVED BASELINE FAILURES with its `Still failing` line. D6: all three refused-check
