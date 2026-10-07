@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+- **Final-check CLI fixes (2026-10-07, owner-authorized).** Checkpoint
+  commands now report unresolvable home paths and symlink loops as plain errors;
+  newline-ended checkpoint labels are refused before a state folder can be created.
+  The PDF renderer now reports path, UTF-8 decoding and browser-launch failures as
+  plain errors while retaining its existing status codes and browser cleanup.
+  Seven new CLI regression tests reproduce the defects against the original code
+  (seven failing assertions, no errors) and pass after the minimal fixes, including
+  a valid 64-character-label control and preservation of an existing PDF on input
+  refusal. Corrected README's stale two-tool wording and recorded the pending
+  independent review. Full verification: **357 tests, OK, zero failures, errors or
+  skips** in the permitted macOS environment; 19 documentation/protocol checks pass;
+  the F03 seal holds and the static audit adds no hard error or new advisory finding.
+  The first full attempt's browser/localhost sandbox blocks and the original-code
+  renderer control are retained in the evidence. No dependency, architecture,
+  enrollment, masking or release change.
+
 - 2026-10-02 — **D owner-ACCEPTED** (`7cdae4e` + `e8644b1` + `7114520`). Claude's re-review
   of the fix round (`~/Desktop/vibe-to-engineering-D-review-2026-10-02/RE-REVIEW.md`)
   ACCEPTED D: all three blockers from the first review closed (D7's break+gate exercised in

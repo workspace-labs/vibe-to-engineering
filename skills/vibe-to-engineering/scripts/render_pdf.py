@@ -208,7 +208,7 @@ def page_count(pdf):
     return count or None
 
 
-def main(argv):
+def _render(argv):
     if len(argv) != 3:
         print("usage: render_pdf.py <plan.html> <plan.pdf>", file=sys.stderr)
         return 2
@@ -283,6 +283,14 @@ def main(argv):
     pages = page_count(pdf)
     print("wrote %s (%s pages, %d KB) with %s" % (pdf, pages if pages else "?", pdf.stat().st_size // 1024, browser))
     return 0
+
+
+def main(argv):
+    try:
+        return _render(argv)
+    except (OSError, UnicodeError, RuntimeError) as error:
+        print("render_pdf.py: error: %s" % error, file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

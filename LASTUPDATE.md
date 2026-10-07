@@ -1,5 +1,41 @@
 # Latest update — 2026-10-07
 
+## Final check and targeted repairs (2026-10-07)
+
+- The owner requested a final check and repair of anything wrong. The check used
+  branch `fix/f03-f06-f08-new1`, base commit
+  `b9c89e9d916af363d683c7122710f9a1bceeef34`; all 70 original tracked files matched
+  the October 7 automated-test snapshot before repairs. The static skill audit
+  repeated zero hard errors and the nine existing advisory findings.
+- Three low-severity CLI findings were reproduced twice on disposable projects:
+  checkpoint path-resolution failures printed tracebacks; a label ending in a newline
+  passed validation and created state before Git rejected it; renderer path, invalid
+  UTF-8 and browser-launch errors printed tracebacks. Causes and minimal fixes were
+  reported before existing files changed, and the original tree was backed up.
+- Repaired only the two CLI boundaries, with seven new regression tests. Against the
+  original scripts they report seven failing assertions and zero errors; after the
+  fixes all seven pass. The valid maximum-length-label control still passes, invalid
+  labels create no state, and input refusals preserve an existing PDF. The changed
+  runtime's full suite is now **357 tests, OK, zero failures, errors or skips**
+  (334.237 s), with Node and all reader-matrix coverage required; all 14 PDF-renderer
+  tests and four reader-matrix tests ran. The first full attempt was blocked by the
+  execution sandbox (seven browser failures and one localhost-bind error); an
+  original-code 14-test renderer control passed in the permitted environment, then
+  the unchanged repaired snapshot passed the full suite there. Both attempts are
+  retained. The previous 350-test result remains evidence for the original commit.
+- Corrected README's stale two-tool wording and recorded the repairs' pending
+  independent review. All 19 existing documentation/protocol checks pass.
+- Evidence: `~/Desktop/Vibe-to-Engineering/final-check-2026-10-07-2r21fmqo/`.
+  This repair was authored by Codex, so its verification is **SELF-REVIEW**, not a
+  fresh independent acceptance. The owner authorized a local commit on 2026-10-07.
+  Independent review and the fresh-user exam remain pending.
+  The F03-protected files and per-user enrollment protocol remain
+  outside this repair.
+- **Next: independent review of the CLI repairs and the real fresh-user exam.**
+  The fresh-user preflight found only the owner's existing account; zero fresh-user
+  scenarios ran. Account access must still be arranged by the owner, and the prepared
+  procedure's location supplied, before that separate gate can be completed.
+
 ## Resume here (2026-10-07)
 
 - **Documentation status corrected.** README now records A1, A2, A3, A4, C, B and D as

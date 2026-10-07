@@ -420,7 +420,7 @@ def verify_commit(project, store, commit, label):
 # ---------------------------------------------------------------- checkpoints
 
 def check_label(label):
-    if not LABEL_RE.match(label) or ".." in label or label.endswith((".", ".lock")):
+    if not LABEL_RE.fullmatch(label) or ".." in label or label.endswith((".", ".lock")):
         raise Fail("invalid label %r: use lowercase letters, digits, '.', '_' and '-' (at most 64 characters)" % label)
 
 
@@ -840,7 +840,7 @@ def main(argv=None):
         return COMMANDS[args.command](project, args)
     except Fail as error:
         print("checkpoint.py: error: %s" % error, file=sys.stderr)
-    except OSError as error:
+    except (OSError, RuntimeError) as error:
         print("checkpoint.py: error: %s" % error, file=sys.stderr)
     return 1
 

@@ -34,6 +34,8 @@ with CLT Python 3.9.6. The current output and
 caller result contract is in [emission-boundary.md](skills/vibe-to-engineering/references/emission-boundary.md).
 This is not a released or generally approved skill. A1, A2, A3, A4, C, B and D are
 recorded as owner-accepted. The fresh-user exam, final owner gate and release remain pending.
+The owner-authorized final-check CLI repairs of 2026-10-07 are awaiting
+independent review; their verification and evidence are recorded in LASTUPDATE.md.
 Keep evaluation on disposable projects with synthetic secrets until the release gates are
 satisfied. See `skills/vibe-to-engineering/references/env-boundary.md`.
 
@@ -90,7 +92,7 @@ When the migration is finished, keeping or deleting this folder is the human's d
 
 ## Requirements
 
-- **Python 3.8 or newer**, standard library only, for the two bundled scripts.
+- **Python 3.8 or newer**, standard library only, for the bundled tools.
 - **git** — checkpoints are git objects in their own store, for projects with or without git.
 - **A Chrome-family browser** (Chrome, Chromium, Edge, Brave, or one downloaded by Playwright) to print the plan as a PDF. Without one, the plan stays readable as HTML.
 
