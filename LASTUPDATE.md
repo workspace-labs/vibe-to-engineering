@@ -1,6 +1,24 @@
-# Latest update — 2026-10-02
+# Latest update — 2026-10-07
 
-## Resume here (2026-10-02, end of day)
+## Resume here (2026-10-07)
+
+- **Documentation status corrected.** README now records A1, A2, A3, A4, C, B and D as
+  owner-accepted and names the fresh-user exam as the next step, replacing the stale
+  A3/A4-pending statements.
+- **GitHub status clarified.** The reviewed implementation is already published on
+  `fix/f03-f06-f08-new1`; `main` still holds the older version (verified 2026-10-07).
+  This documentation update follows the same development branch. Merging and release
+  remain the owner's decisions.
+- **Verification for this documentation update:** the corrected status text and diff
+  were checked; the installable skill package, runtime code and tests are unchanged.
+  The read-only skill audit reports zero hard errors and nine existing heuristic
+  warnings. The runtime suite was not rerun for these prose changes; the 350-test
+  result below remains historical evidence.
+- **Next: the fresh-user exam**, with account access arranged by the owner, then the
+  final owner gate and release. B1 (the unused `nodekeys.py` provenance module) remains
+  an owner decision. No release-readiness claim is added by this update.
+
+## Previous resume note (2026-10-02, end of day)
 
 - **Desktop evidence has a new home.** All `~/Desktop/vibe-to-engineering-*` folders and
   files were consolidated into `~/Desktop/Vibe-to-Engineering/` (2026-10-02). **Every older
@@ -34,8 +52,9 @@
   `python3 tests/reader_matrix_prepare.py <new dir>` from the repository root (it re-fetches
   the exact recorded versions or reuses the experiment's copies and verifies every sha256 —
   network for the fetches only), then run the suite with `V2E_READER_MATRIX_DIR=<new dir>`.
-- The branch `fix/f03-f06-f08-new1` is several commits ahead of origin and has not been
-  pushed; pushing is the owner's decision.
+- The accepted fixes are published on GitHub's `fix/f03-f06-f08-new1` branch; the
+  default `main` branch still holds the older version (verified 2026-10-07).
+  Merging and release remain the owner's decisions.
 
 ## Current status
 

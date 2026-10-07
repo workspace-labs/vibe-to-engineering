@@ -32,14 +32,15 @@ ambiguous-attached-option correction, and the owner accepted F3-R1 on 2026-09-29
 Kimi reproduced all 307 tests passing, including the four required reader-matrix tests, on macOS arm64
 with CLT Python 3.9.6. The current output and
 caller result contract is in [emission-boundary.md](skills/vibe-to-engineering/references/emission-boundary.md).
-This is not a released or generally approved skill: A3, A4 and the
-remaining release checklist are still pending. Keep evaluation on disposable projects with
-synthetic secrets until the release gates are satisfied. See `skills/vibe-to-engineering/references/env-boundary.md`.
+This is not a released or generally approved skill. A1, A2, A3, A4, C, B and D are
+recorded as owner-accepted. The fresh-user exam, final owner gate and release remain pending.
+Keep evaluation on disposable projects with synthetic secrets until the release gates are
+satisfied. See `skills/vibe-to-engineering/references/env-boundary.md`.
 
 **Latest update:** [LASTUPDATE.md](LASTUPDATE.md) records what is fixed, the review evidence,
-and the remaining work in order. **Next: A3 — retain temporary check files and record their location
-and sensitivity.** Historical delivery notes describe their status at the time; use LASTUPDATE.md
-for current release status.
+and the remaining work in order. **Next: the fresh-user exam — account access must be
+arranged by the owner.** Historical delivery notes describe their status at the time; use
+LASTUPDATE.md for current release status.
 
 ## Install
 
