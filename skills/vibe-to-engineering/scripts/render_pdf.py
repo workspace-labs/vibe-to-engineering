@@ -216,6 +216,10 @@ def _render(argv):
     if not html.is_file():
         print("render_pdf.py: error: plan not found: %s" % html, file=sys.stderr)
         return 2
+    if html == pdf or (pdf.exists() and html.samefile(pdf)):
+        print("render_pdf.py: error: plan and PDF must be different files; choose a separate output path.",
+              file=sys.stderr)
+        return 2
     text = html.read_text(encoding="utf-8")
     left = sorted(set(PLACEHOLDER.findall(text)))
     if left:

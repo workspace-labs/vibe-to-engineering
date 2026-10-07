@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+- **Review-note fixes (2026-10-07, owner-authorized).** Refuse a PDF
+  output that identifies the HTML input, including normalized, symbolic-link and
+  hard-link aliases, with exit 2 before any write or browser launch. Add three
+  regression methods covering five alias cases. Strengthen checkpoint path-refusal
+  tests to detect unexpected writes in their complete disposable fixture; four
+  injected writes accepted by the old tests are now caught. Full changed-code
+  verification: **360 tests, OK, zero failures, errors or skips**, including ten CLI
+  boundary, 14 PDF-renderer and four required reader-matrix tests. The F03 seal is
+  intact; the static audit adds no hard error or new advisory finding. Claude
+  independently accepted the preceding `036ec7f` repairs; this follow-up awaits its
+  own review.
+  No dependency, enrollment, state-format or release change.
+
 - **Final-check CLI fixes (2026-10-07, owner-authorized).** Checkpoint
   commands now report unresolvable home paths and symlink loops as plain errors;
   newline-ended checkpoint labels are refused before a state folder can be created.

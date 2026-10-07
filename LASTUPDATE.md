@@ -1,5 +1,38 @@
 # Latest update — 2026-10-07
 
+## Review-note fixes (2026-10-07)
+
+- Claude independently reviewed `036ec7f` and recommended **ACCEPT** for that commit,
+  closing F01–F04. The report is
+  `~/Desktop/Vibe-to-Engineering/final-check-review-2026-10-07/REVIEW.md`.
+  The owner then requested repairs for the reported PDF overwrite and weak tests.
+  The owner authorized a local commit and a Claude review handoff on 2026-10-07.
+- Baseline: `036ec7f1b79931eb4384cbf5d423cad2aa8d0019` on
+  `fix/f03-f06-f08-new1`, with a clean working tree. All 71 source files were backed
+  up and verified before edits. Causes and minimal corrections were reported first.
+- **N3:** the renderer now refuses with exit 2 if the plan and PDF identify the same
+  file, before reading the plan, writing anything or finding/launching a browser.
+  Identical paths, normalized paths and symlink aliases had overwritten the HTML in
+  two trials each. Hard-link aliases are also refused. Three new regression methods
+  exercise five alias cases, retain every fixture's identities and bytes, and prove
+  no browser launches. They fail with five assertions against `036ec7f` and pass now.
+- **N2:** unknown-home and symlink-loop tests now compare the whole disposable
+  fixture, including their actual working directory, home and temporary folder.
+  Four injected unexpected writes passed the old assertions; all four are detected
+  by the strengthened tests. All ten CLI boundary tests pass after the changes.
+- Full changed-code verification: **360 tests, OK, zero failures, errors or skips**
+  (348.680 s), with Node and the reader matrix required. All ten CLI boundary tests,
+  14 PDF-renderer tests and four reader-matrix tests ran. The F03-protected files
+  match their accepted baselines; the static audit has zero hard errors and exactly
+  the same nine advisory findings. This is **SELF-REVIEW** by the repair's author.
+  Evidence, the frozen tested-source manifest and command logs:
+  `~/Desktop/Vibe-to-Engineering/review-note-fixes-2026-10-07-zojf5kwv/`.
+- **N1 remains unverified on Python 3.10+:** this Mac's checked interpreter is
+  CLT Python 3.9.6. No runtime installation or speculative parser change is included.
+- These follow-up repairs require their own independent review. The real fresh-user
+  exam still has zero scenarios run; account access and the procedure's location
+  must be supplied by the owner. Enrollment and release gates remain pending.
+
 ## Final check and targeted repairs (2026-10-07)
 
 - The owner requested a final check and repair of anything wrong. The check used

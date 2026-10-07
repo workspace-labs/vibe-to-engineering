@@ -39,23 +39,19 @@ class CliBoundaries(Fixture):
         return "~v2e-no-such-user-" + self.tmp.name + "/project"
 
     def test_checkpoint_unknown_home_is_a_plain_error_with_no_state(self):
-        project = self.project()
-        before = identities(project)
+        before = identities(self.tmp)
         done = self.run_script(TOOL, "--project", self.unknown_home(), "tree", "--current")
         self.assert_plain_error(done, "checkpoint.py")
-        self.assertEqual(identities(project), before)
-        self.assertFalse((self.home / STATE).exists())
+        self.assertEqual(identities(self.tmp), before)
 
     def test_checkpoint_symlink_loop_is_a_plain_error_and_is_not_changed(self):
         loop = self.tmp / "loop"
         loop.symlink_to("loop")
-        before = loop.lstat()
+        before = identities(self.tmp)
         done = self.run_script(TOOL, "--project", loop, "tree", "--current")
         self.assert_plain_error(done, "checkpoint.py")
         self.assertEqual(os.readlink(loop), "loop")
-        self.assertEqual((loop.lstat().st_ino, loop.lstat().st_mtime_ns),
-                         (before.st_ino, before.st_mtime_ns))
-        self.assertFalse((self.home / STATE).exists())
+        self.assertEqual(identities(self.tmp), before)
 
     def test_newline_checkpoint_labels_are_refused_before_any_project_write(self):
         for number, label in enumerate(("baseline\n", "a" * 64 + "\n", "baseline\r\n")):
@@ -97,6 +93,46 @@ class CliBoundaries(Fixture):
         self.assertEqual(pdf.read_bytes(), b"%PDF-synthetic-existing")
         self.assertEqual((pdf.stat().st_ino, pdf.stat().st_mtime_ns),
                          (before.st_ino, before.st_mtime_ns))
+
+    def assert_renderer_same_file_refused(self, html, pdf):
+        marker, browser = self.tmp / "browser-launched", self.tmp / "browser"
+        browser.write_text('#!/bin/sh\nprintf "%s" launched > "$V2E_BROWSER_MARKER"\n'
+                           'for arg in "$@"; do case "$arg" in --print-to-pdf=*) '
+                           'printf "%s" "%PDF-1.4 synthetic" > "${arg#--print-to-pdf=}";; esac; done\n')
+        browser.chmod(0o755)
+        before = identities(self.tmp)
+        done = self.run_script(RENDERER, html, pdf,
+                               env={"V2E_BROWSER": str(browser), "V2E_BROWSER_MARKER": str(marker)})
+        shown = (done.stdout + done.stderr).decode("utf-8", "replace")
+        self.assertEqual(done.returncode, 2, shown)
+        self.assertIn("plan and PDF must be different files", shown)
+        self.assertNotIn("Traceback (most recent call last)", shown)
+        self.assertEqual(identities(self.tmp), before)
+        self.assertFalse(marker.exists(), "the browser launched before the same-file refusal")
+
+    def test_renderer_refuses_identical_and_normalized_input_output_paths(self):
+        for name in ("same", "normalized"):
+            with self.subTest(path=name):
+                html = self.tmp / name / "plan.html"
+                write(html, b'<!DOCTYPE html>\n<html><body>Synthetic plan</body></html>\n')
+                pdf = html if name == "same" else str(html.parent) + "/./plan.html"
+                self.assert_renderer_same_file_refused(html, pdf)
+
+    def test_renderer_refuses_symlink_aliases_of_the_input(self):
+        for side in ("input", "output"):
+            with self.subTest(symlink=side):
+                html = self.tmp / side / "plan.html"
+                write(html, b'<!DOCTYPE html>\n<html><body>Synthetic plan</body></html>\n')
+                alias = html.parent / "alias"
+                alias.symlink_to("plan.html")
+                self.assert_renderer_same_file_refused(alias if side == "input" else html,
+                                                       html if side == "input" else alias)
+
+    def test_renderer_refuses_hard_link_aliases_of_the_input(self):
+        html, pdf = self.tmp / "plan.html", self.tmp / "plan.pdf"
+        write(html, b'<!DOCTYPE html>\n<html><body>Synthetic plan</body></html>\n')
+        os.link(html, pdf)
+        self.assert_renderer_same_file_refused(html, pdf)
 
     def test_renderer_browser_launch_failure_is_plain_and_leaves_no_pdf_or_profile(self):
         html, pdf = self.tmp / "plan.html", self.tmp / "plan.pdf"
