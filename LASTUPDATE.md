@@ -1,6 +1,18 @@
 # Latest update — 2026-10-07
 
-## Review-note fixes (2026-10-07)
+## Review-note fixes — owner-accepted (2026-10-07)
+
+- **`0c30aaf` is owner-accepted.** Claude's independent re-review found N3 and N2
+  **Fixed**, with verdict **ACCEPT**; the owner confirmed and authorized this
+  acceptance-record commit. The report and evidence are at
+  `~/Desktop/Vibe-to-Engineering/final-check-review-2026-10-07/re-review-0c30aaf/RE-REVIEW.md`.
+  Claude reproduced the fail-before/pass-after tests, refused all 17 additional
+  same-file routes, verified four distinct-output controls and caught eight hidden
+  write patterns in both strengthened tests. Its renderer/CLI run passed 24 tests
+  with no skips, and its 19 documentation tests passed. The full 360-test result is
+  inherited builder evidence verified against the committed runtime/test bytes.
+  This update changes only README, CHANGELOG and LASTUPDATE; no runtime or test
+  change and no full-suite rerun.
 
 - Claude independently reviewed `036ec7f` and recommended **ACCEPT** for that commit,
   closing F01–F04. The report is
@@ -29,9 +41,11 @@
   `~/Desktop/Vibe-to-Engineering/review-note-fixes-2026-10-07-zojf5kwv/`.
 - **N1 remains unverified on Python 3.10+:** this Mac's checked interpreter is
   CLT Python 3.9.6. No runtime installation or speculative parser change is included.
-- These follow-up repairs require their own independent review. The real fresh-user
-  exam still has zero scenarios run; account access and the procedure's location
-  must be supplied by the owner. Enrollment and release gates remain pending.
+- **Next: the real fresh-user exam**, which still has zero scenarios run. Account
+  access and the procedure's location must be supplied by the owner. N1, the
+  permission-only assertion limit and the concurrent-file-swap limit remain as
+  recorded in the re-review; none blocks acceptance of this repair commit.
+  Enrollment and final owner/release gates remain pending.
 
 ## Final check and targeted repairs (2026-10-07)
 

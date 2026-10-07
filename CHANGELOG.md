@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- **Review acceptance recorded (2026-10-07).** Claude independently re-reviewed
+  `0c30aaf`, found N2 and N3 fixed and recommended ACCEPT. The owner confirmed
+  acceptance and authorized this documentation commit. README and LASTUPDATE now
+  record that result and identify the fresh-user exam as the next gate. Runtime and
+  tests are unchanged; the full suite was not rerun. N1 remains unverified, and the
+  fresh-user exam and final owner/release gates remain pending.
+
 - **Review-note fixes (2026-10-07, owner-authorized).** Refuse a PDF
   output that identifies the HTML input, including normalized, symbolic-link and
   hard-link aliases, with exit 2 before any write or browser launch. Add three
@@ -11,8 +18,8 @@
   verification: **360 tests, OK, zero failures, errors or skips**, including ten CLI
   boundary, 14 PDF-renderer and four required reader-matrix tests. The F03 seal is
   intact; the static audit adds no hard error or new advisory finding. Claude
-  independently accepted the preceding `036ec7f` repairs; this follow-up awaits its
-  own review.
+  independently accepted the preceding `036ec7f` repairs and re-reviewed `0c30aaf`
+  with N2/N3 fixed and verdict ACCEPT; the owner accepted the latest repairs.
   No dependency, enrollment, state-format or release change.
 
 - **Final-check CLI fixes (2026-10-07, owner-authorized).** Checkpoint

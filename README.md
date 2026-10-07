@@ -34,15 +34,15 @@ with CLT Python 3.9.6. The current output and
 caller result contract is in [emission-boundary.md](skills/vibe-to-engineering/references/emission-boundary.md).
 This is not a released or generally approved skill. A1, A2, A3, A4, C, B and D are
 recorded as owner-accepted. The fresh-user exam, final owner gate and release remain pending.
-Claude's independent review recommended ACCEPT for the final-check CLI repairs in
-`036ec7f`. The follow-up PDF same-file refusal and test-strength repairs are awaiting
-their own independent review; verification and evidence are recorded in LASTUPDATE.md.
+Claude's independent reviews recommended ACCEPT for the CLI repairs in `036ec7f`
+and `0c30aaf`. The owner accepted the latest repairs on 2026-10-07; verification and
+review evidence are recorded in LASTUPDATE.md.
 Keep evaluation on disposable projects with synthetic secrets until the release gates are
 satisfied. See `skills/vibe-to-engineering/references/env-boundary.md`.
 
 **Latest update:** [LASTUPDATE.md](LASTUPDATE.md) records what is fixed, the review evidence,
-and the remaining work in order. **Next: review the follow-up fixes, then the fresh-user
-exam — account access must be arranged by the owner.** Historical delivery notes describe
+and the remaining work in order. **Next: the fresh-user exam — account access must
+be arranged by the owner.** Historical delivery notes describe
 their status at the time; use LASTUPDATE.md for current release status.
 
 ## Install
