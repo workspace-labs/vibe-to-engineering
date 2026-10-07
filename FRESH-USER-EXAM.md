@@ -1,6 +1,6 @@
 # Fresh-user exam for a friend's Mac
 
-Procedure version: 1 — written 2026-10-07. **No case has been run under this procedure yet.**
+Procedure version: 2 — updated 2026-10-07 with result-submission instructions. **No case has been run under this procedure yet.**
 
 Test the runtime from commit **`a1c9bd8af210d2d25ddd997f0b536346677bc8ae`** on branch `fix/f03-f06-f08-new1`. Its runtime fixes are in `0c30aaf`; `a1c9bd8` records their acceptance. The repository is public for testing; its default `main` branch contains an older version.
 
@@ -12,9 +12,9 @@ This is a newly written, reviewable procedure for the friend's test. The histori
 
 ## Message to give the testing agent
 
-> Run this exam on my Mac using the exact reviewed skill and disposable projects. Read LASTUPDATE.md first, then this exam and the skill protocol. Record what actually happens. Respect every human gate; I personally perform runner enrollment. Do not change the skill, create or modify accounts, install dependencies, rerun the unchanged automated suite, commit, push, publish, or claim a case passed without evidence. Ask me for the named approval when the protocol requires one. A reproducible defect needs its cause and smallest proposed correction before any existing skill file changes. End with a result report containing every case's actual status and evidence.
+> Run this exam on my Mac using the exact reviewed skill and disposable projects. Read LASTUPDATE.md first, then this exam and the skill protocol. Record what actually happens. Respect every human gate; I personally perform runner enrollment. Do not change the skill, create or modify accounts, install dependencies, rerun the unchanged automated suite, or claim a case passed without evidence. Do not commit, push or publish during the exam. Afterward, prepare a sanitized report for the report-only pull request described below; submitting it needs my separate explicit approval. Ask me for the named approval when the protocol requires one. A reproducible defect needs its cause and smallest proposed correction before any existing skill file changes. End with a result report containing every case's actual status and evidence.
 
-The friend is the human owner of the disposable test projects. Exam setup and diagnostic negative cases are authorized by the friend starting this exam. That does not approve a migration plan, enrollment, a phase, final review, correction, restore, retry, or plan revision.
+The friend is the human owner of the disposable test projects. Exam setup and diagnostic negative cases are authorized by the friend starting this exam. That does not approve a migration plan, enrollment, a phase, final review, correction, restore, retry, plan revision, or public result submission.
 
 ## Preparation — do this before the workflow sessions
 
@@ -127,7 +127,7 @@ Write `FRESH-USER-RESULT.md` outside the skill source. For every numbered case a
 
 ```text
 Tested skill commit: a1c9bd8af210d2d25ddd997f0b536346677bc8ae
-Exam procedure version: 1
+Exam procedure version: 2
 macOS / architecture / UID:
 Agent and tool versions / skill path:
 First-use registry/state evidence:
@@ -146,4 +146,17 @@ Evidence directory:
 
 **PASS** for the exam requires all F00–F11 cases, including every F09 outcome, to pass with actual evidence. A reproducible unexpected failure gives FAIL; otherwise any missing prerequisite, blocked or unrun required case gives INCOMPLETE. A deliberately injected fault that the skill handles correctly is a passing case, not a product defect. The owner reviews the report before any whole-skill readiness or release decision.
 
-Return the report and relevant masked logs/artifacts to the owner. Review attachments for private machine/account information before sharing. Do not publish transcripts, evidence, runner registries or scratch, delete retained files, or repair the skill as part of this exam.
+Keep the full report and raw evidence outside the skill source. Relevant masked artifacts may be shared privately with the owner after human review. The public repository receives only the sanitized report through the process below. Do not publish transcripts, raw evidence, runner registries, checkpoint stores, fixture data or retained scratch, or repair the skill as part of this exam. Leave every deletion to the human.
+
+## Submit the sanitized result through a pull request
+
+Submission happens after the exam, in a separate reporting checkout. The tested skill copy and disposable migration projects stay separate. This section authorizes no automatic publication and does not change the migration skill's Git rules.
+
+1. **Prepare the public copy.** Copy the final report to `reports/fresh-user/<UTC-date>-<run-id>/FRESH-USER-RESULT.md`, using a neutral run ID rather than a person's name. Preserve the tested runtime commit, exam version, tool/platform versions, every case's actual status, check counts/exits, findings, reproduction steps and known limits. Use evidence IDs and digests instead of private absolute paths. Keep all raw artifacts local.
+2. **Remove private content without hiding findings.** Redact secret/canary values, usernames, real home paths, hostnames, email addresses and other private machine/account details. Show placeholders in commands where necessary. Do not attach raw logs, transcripts, plans/PDFs, ledgers, runner registries, checkpoint stores, data files or scratch. Keep the original evidence privately so the owner can request it. A leaked value may be redacted in the public copy, but its finding, hit count and FAIL status must remain visible.
+3. **Get the friend's publication approval.** Show the complete sanitized file and intended fork, branch and pull-request target. The friend explicitly approves committing/pushing that report to their fork and opening the report-only pull request. Starting the exam or approving a migration phase is not this approval. Use an already available, human-authorized GitHub session; do not create accounts or ask for tokens/passwords. Without GitHub access or publication approval, return the sanitized file for the owner to submit. Record that submission is pending separately from the actual exam grade.
+4. **Create a report-only change.** Use a separate checkout based on `workspace-labs/vibe-to-engineering` branch `fix/f03-f06-f08-new1`, then create a new reporting branch in the friend's fork. Add only the sanitized report at the path above. Inspect the complete staged diff before committing: it must contain that one report file and no skill source, tests, migrated projects or raw artifacts. Commit/push only this approved report branch to the friend's fork. The runtime tested is still the pinned `a1c9bd8` commit, even when the reporting base has newer documentation.
+5. **Open the pull request.** Target **`workspace-labs/vibe-to-engineering` → `fix/f03-f06-f08-new1`**. Use the title `Fresh-user exam results: <UTC-date> <run-id>`. Its description states the tested commit, procedure version, actual exam outcome, case-status counts with the counted case IDs, findings and that private raw evidence is retained. Include the sanitized report path. Do not claim the skill is release-approved. Record and return the PR URL to the owner.
+6. **Wait for the repository owner.** The repository owner reviews the report and decides whether to merge it, accept the exam evidence or request follow-up. The testing agent must not merge, approve on the owner's behalf, push directly to the upstream repository, change its settings or release the skill. A submitted or merged report is a record of results, not an automatic whole-skill approval.
+
+This is the only commit/push/publication exception in this exam. It applies solely to the separately human-approved sanitized report submission, after the test run; it never authorizes publishing other files or changing the skill.
