@@ -21,8 +21,8 @@ sys.path.insert(0, str(SCRIPTS))
 import checkpoint
 
 
-# Only built-in sys is imported before the entry point can disable bytecode. On
-# Apple's CLT Python, importing runpy here can itself populate the isolated HOME.
+# Only built-in sys is imported before the entry point can disable bytecode.
+# Interpreter-owned startup effects are measured separately in the Mac test.
 MAC_UNSUPPORTED_BOOTSTRAP = (
     "import sys; sys.platform='linux'; sys.argv=sys.argv[1:]; "
     "exec(compile(open(sys.argv[0], 'rb').read(), sys.argv[0], 'exec'), "
@@ -157,17 +157,28 @@ class RecoveryReview(unittest.TestCase):
                                   for path in self.project.rglob("*") if path.is_file()})
         self.assertFalse((self.project / checkpoint.STATE_DIR).exists())
 
-    def test_plain_python_refusal_creates_no_bytecode_in_a_fresh_script_copy(self):
+    def test_plain_python_refusal_adds_no_files_beyond_interpreter_startup(self):
         scripts = self.root / "scripts"
         shutil.copytree(str(SCRIPTS), str(scripts), ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-        before = {str(path.relative_to(self.root)): path.read_bytes()
-                  for path in self.root.rglob("*") if path.is_file()}
         env = dict(self.env)
         env.pop("PYTHONDONTWRITEBYTECODE", None)
         env.pop("PYTHONPYCACHEPREFIX", None)
         command = [sys.executable]
         if sys.platform == "darwin":
+            # Apple's CLT interpreter can create HOME/Library/Caches before any
+            # script starts. Measure that startup alone before the Mac simulation;
+            # the candidate must add no files beyond this measured baseline.
+            initial = {str(path.relative_to(self.root))
+                       for path in self.root.rglob("*") if path.is_file()}
+            startup = subprocess.run([sys.executable, "-c", "pass"], env=env,
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.assertEqual(startup.returncode, 0, startup.stdout + startup.stderr)
+            started = {str(path.relative_to(self.root))
+                       for path in self.root.rglob("*") if path.is_file()}
+            print("macOS bare-interpreter startup additions (recovery): %r" % sorted(started - initial))
             command += ["-c", MAC_UNSUPPORTED_BOOTSTRAP]
+        before = {str(path.relative_to(self.root)): path.read_bytes()
+                  for path in self.root.rglob("*") if path.is_file()}
         command += [str(scripts / "checkpoint.py"), "--project", str(self.project), "create", "00-baseline"]
         done = subprocess.run(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.assertEqual(done.returncode, 1, done.stdout + done.stderr)

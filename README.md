@@ -102,8 +102,8 @@ separate development step that may fetch its pinned artifacts; tests never downl
 ## Platforms
 
 Execution is restricted to **macOS** in this development version. Unsupported platforms refuse at
-the command boundary before project access, writes or check execution. This restriction is not a
-release-readiness claim.
+the command boundary before project access, tool writes or check execution. Python's own startup
+precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|

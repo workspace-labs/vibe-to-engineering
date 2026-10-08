@@ -1,4 +1,11 @@
-"""A4 renderer boundary: unsupported hosts refuse before plan or browser operations."""
+"""A4 renderer boundary: unsupported hosts refuse before plan or browser operations.
+
+Windows/Linux invoke the copied script directly with an unprimed profile. macOS
+simulates an unsupported platform after separately measuring a bare interpreter
+startup: Apple's CLT Python may create user cache files before script code runs.
+That macOS case proves no additional script-side changes, not native unsupported
+platform behavior or absence of interpreter-startup writes.
+"""
 import contextlib
 import hashlib
 import io
@@ -45,7 +52,7 @@ class RendererPlatform(unittest.TestCase):
             self.assertIn("unfilled placeholders", error.getvalue())
             self.assertFalse(pdf.exists())
 
-    def test_plain_python_cli_refusal_leaves_no_bytecode_or_output(self):
+    def test_plain_python_refusal_adds_no_files_after_interpreter_startup(self):
         with tempfile.TemporaryDirectory(prefix="v2e-render-refusal-") as folder:
             base = Path(folder)
             scripts = base / "scripts"
@@ -62,13 +69,23 @@ class RendererPlatform(unittest.TestCase):
                         (None if p.is_dir() else hashlib.sha256(p.read_bytes()).hexdigest(), p.stat().st_mtime_ns)
                         for p in base.rglob("*")}
 
-            before = snapshot()
             # Do not inherit -B's environment equivalent or redirect caches outside
             # the copied script tree: plain invocation must protect itself.
             env = {name: value for name, value in os.environ.items()
                    if name not in ("PYTHONDONTWRITEBYTECODE", "PYTHONPYCACHEPREFIX", "PYTHONPATH")}
             env.update(V2E_BROWSER=str(base / "must-not-run"), HOME=str(base), USERPROFILE=str(base),
                        TMPDIR=str(base), TMP=str(base), TEMP=str(base))
+            if sys.platform == "darwin":
+                unprimed = snapshot()
+                startup = subprocess.run([sys.executable, "-c", "pass"], env=env,
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
+                self.assertEqual(startup.returncode, 0, startup.stderr.decode("utf-8", "replace"))
+                primed = snapshot()
+                self.assertEqual({name: primed.get(name) for name in unprimed}, unprimed,
+                                 "bare interpreter startup changed an existing fixture")
+                print("macOS bare interpreter startup created: " +
+                      repr(sorted(set(primed) - set(unprimed))))
+            before = snapshot()
             command = [sys.executable, str(scripts / "render_pdf.py"), str(html), str(pdf)]
             if sys.platform == "darwin":
                 # On macOS simulate an unsupported subprocess. Windows/Linux
@@ -84,7 +101,9 @@ class RendererPlatform(unittest.TestCase):
                                   stderr=subprocess.PIPE, timeout=15)
             self.assertEqual(done.returncode, 1, done.stderr.decode("utf-8", "replace"))
             self.assertIn(b"macOS", done.stderr)
-            self.assertEqual(snapshot(), before, "refusal created bytecode or changed files")
+            self.assertEqual(snapshot(), before, "refusal changed files after interpreter startup")
+            self.assertFalse(any(scripts.rglob("__pycache__")), "the skill created a bytecode cache")
+            self.assertFalse(any(scripts.rglob("*.pyc")), "the skill created bytecode")
 
 
 if __name__ == "__main__":

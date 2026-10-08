@@ -34,7 +34,11 @@ unsupported execution is now refused explicitly rather than represented as suppo
   foreign sentinels survive; paths and sensitivity are disclosed through governed output.
 - A4: evidence, checkpoint and renderer refuse unsupported platforms before project access,
   enrollment, scratch allocation or check launch. Plain-Python startup tests also guard
-  against writing import caches into the skill copy.
+  against writing import caches into the skill copy. On macOS the unsupported-platform
+  simulation measures a bare Apple-Python startup first: that interpreter may populate
+  its own user cache before any script starts. The candidate must add no files afterwards.
+  Windows/Linux use their native, unprimed CLI invocation. This does not claim control
+  over interpreter startup, operating-system bookkeeping or externally configured hooks.
 - Tests isolate Windows and POSIX home resolution before enrolling any runner.
 - Reader preparation requires native macOS arm64, Bash 3.2 and local Node v20.20.2.
   Artifact identity tests use synthetic offline fixtures separately from native reader proof.
