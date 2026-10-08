@@ -12,6 +12,13 @@ Windows fixture isolation, package corrections and reader prerequisite validatio
 Separate CI jobs distinguish portable checks from the full native macOS arm64 regression.
 See [TEST-EVIDENCE.md](TEST-EVIDENCE.md) for current test results and limitations.
 
+**Current validation:** code/test revision `01f25876205ab1cfaddf6d8a9ebc668cf7583fe6`
+passed 346 complete native macOS arm64 tests using CLT Python 3.9.6, mandatory Node and
+the pinned reader matrix, and Chromium headless shell. All four matrix tests ran.
+The 84-test portable scope passed on this Windows PC and GitHub Windows, Linux and
+macOS runners, including an additional CLT-Python preflight. Every run reported zero
+failures, errors and skips. [CI evidence](https://github.com/workspace-labs/vibe-to-engineering/actions/runs/37769123814).
+
 This candidate is not an owner-accepted release. Full workflow exams, the remaining
 documentation corrections, fresh-user validation and final release gates remain pending.
 The accepted A1/A2/confidentiality behavior is preserved; the September results below

@@ -7,7 +7,8 @@
   concurrent ignored-file changes during restore. Isolate Windows test profiles, verify
   reader-platform prerequisites, include the package license and add separate portable
   and native macOS CI scopes. Current evidence is in `TEST-EVIDENCE.md`; this remains
-  development work pending native validation, workflow exams and owner release gates.
+  development work pending workflow exams and owner release gates. The final candidate
+  passed 346 native macOS tests and 84 portable tests per OS, with no failures/errors/skips.
 
 - 2026-09-29 — Record the owner's acceptance of F3-R1 after Kimi's independent re-review:
   both original refusal leaks and independent variants are protected; all 307 tests passed in

@@ -32,8 +32,10 @@ Kimi reproduced all 307 tests passing, including the four required reader-matrix
 with CLT Python 3.9.6. The current output and
 caller result contract is in [emission-boundary.md](skills/vibe-to-engineering/references/emission-boundary.md).
 This is not a released or generally approved skill. The current development changes implement A3
-scratch retention and A4 macOS-only execution refusal; their native macOS regression, workflow and
-release verification remain pending. The historical 307-test result above predates these changes.
+scratch retention and A4 macOS-only execution refusal. The October 8 candidate passed **346 native
+macOS regression tests**, plus **84 portable checks on each of Windows, Linux and macOS**, with no
+failures, errors or skips. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md) for the tested revision and CI logs.
+Workflow and release verification remain pending. The historical 307-test result above predates these changes.
 Keep evaluation on disposable projects with synthetic secrets until the release gates are satisfied.
 See `skills/vibe-to-engineering/references/env-boundary.md`.
 
@@ -107,7 +109,7 @@ precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|
-| macOS | Development execution target. The accepted September 29 regression evidence covers the earlier macOS arm64 snapshot; the current changes still need native regression and workflow exams. |
+| macOS | Development execution target. The current candidate passed 346 native arm64 regression tests; workflow exams and release approval remain pending. |
 | Linux | Unsupported execution target. Portable package/unit and refusal checks do not establish Linux support. |
 | Windows | Unsupported execution target. Portable package/unit and refusal checks do not establish Windows support. |
 

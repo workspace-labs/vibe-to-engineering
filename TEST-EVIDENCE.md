@@ -5,7 +5,9 @@ Review branch: `fix/platform-boundary-review`.
 
 ## Scope and verdict
 
-The skill remains in development with macOS-only execution. Windows and Linux checks
+**PASS for the tested scopes:** 346 native macOS regression tests and 84 portable tests
+on each of Windows, Linux and macOS, with zero failures, errors or skips. The skill
+remains in development with macOS-only execution. Windows and Linux checks
 establish safe refusal and selected portable behavior; they do not establish support
 for running migrations on those systems. A complete agent workflow exam and owner
 release approval remain outstanding.
@@ -76,19 +78,47 @@ by CI. CI dependency preparation is separate from skill runtime behavior.
 
 ## Results and remaining gates
 
-Portable validation of commit `39d07f557d528c4e1bada5ab5951684b76c3a2cf`:
+Verified code/test revision: `01f25876205ab1cfaddf6d8a9ebc668cf7583fe6`.
+The subsequent evidence update changes only top-level reporting documents.
+
+Portable scope:
 
 | Host | Python | Tests | Failures / errors / skips | Result |
 |---|---|---:|---|---|
 | This PC: Windows 11, AMD64 | 3.12.10 | 84 | 0 / 0 / 0 | PASS |
 | GitHub Windows Server 2025, AMD64 | 3.12.10 | 84 | 0 / 0 / 0 | PASS |
-| GitHub Linux, x86_64 | 3.12.15 | 84 | 0 / 0 / 0 | PASS |
+| GitHub Linux, x86_64 | 3.12.14 | 84 | 0 / 0 / 0 | PASS |
 | GitHub macOS 26.6.2, arm64 | 3.12.10 | 84 | 0 / 0 / 0 | PASS |
+| GitHub macOS 26.6.2, arm64, Apple CLT preflight | 3.9.6 | 84 | 0 / 0 / 0 | PASS |
 
-[CI run and downloadable portable logs/summaries](https://github.com/workspace-labs/vibe-to-engineering/actions/runs/37767517413).
-The macOS native regression is still being verified separately. The first portable macOS
-run exposed a simulated-Windows import failure; the test now simulates Linux on macOS,
-while Windows/Linux hosts still exercise their actual platform. No test was skipped.
+Complete native macOS regression:
+
+| Host | Python | Tests | Failures / errors / skips | Result |
+|---|---|---:|---|---|
+| GitHub macOS 26.6.2, arm64 | Apple CLT 3.9.6 | 346 | 0 / 0 / 0 | PASS |
+
+The native run took 644.7 seconds. All four `test_literal_matrix.DifferentialMatrix`
+tests ran and passed; Node and matrix requirements were mandatory. Local Node was
+v20.20.2; the other readers came from the repository's pinned, hash-verified provenance.
+Real PDF tests ran with Playwright 1.64.0's Chromium headless shell, revision 1248.
+
+[Successful CI run, job logs and downloadable summaries](https://github.com/workspace-labs/vibe-to-engineering/actions/runs/37769123814).
+Artifacts are `portable-windows-latest`, `portable-ubuntu-latest`, `portable-macos-latest`
+and `macos-native-regression` (including the Apple-Python preflight). Each contains
+`tests.log` and `summary.json`; the native artifact groups them by validation scope.
+Local copies were also retained for this review.
+
+Earlier attempts are not counted as passes. They exposed a simulated-Windows import
+failure on macOS and Apple-Python startup-cache writes. The tests now use an explicit
+Linux simulation on macOS and the measured startup control described above. A superseded
+full-Chrome run stalled during real rendering and was cancelled; final CI uses the
+headless browser type used by the historical review. No test was skipped to obtain a pass.
+
+The literal parser (`envliteral.py`), masking/result module (`emission.py`), core Git
+guards (`gitrun.py`, `nested.py`) and existing nested-repository fixtures
+(`tests/test_nested.py`, `tests/support.py`) have no diff from the baseline. Focused
+independent agent reviews found no additional serious regression in the changed recovery,
+execution and rendering code. These reviews are not the separately required release review.
 
 The historical September 29 macOS result of 307 passing tests belongs to the baseline
 and is not reused as current evidence.
