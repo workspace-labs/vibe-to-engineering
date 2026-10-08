@@ -26,7 +26,7 @@ KEY_NAME = "fingerprint.key"  # in the state folder: the key that fingerprints f
 UNWATCHED_FOLDERS = frozenset([entry[:-1] for entry in DEFAULT_EXCLUDES if entry.endswith("/")]
                               + ["dist", "build", "target", "coverage", ".cache"])
 UNWATCHED_FILES = tuple(entry for entry in DEFAULT_EXCLUDES if not entry.endswith("/"))
-# Files that hold secrets are never read: their fingerprint is their modification time, not a hash of their bytes.
+# Secret-file bytes are fingerprinted with HMAC rather than an unkeyed hash; their contents are never printed.
 SECRET_FILES = (".env", ".env.*", "*.env", "*.pem", "*.key", "*.p12", "*.pfx", "*.keystore", "*.jks", "id_rsa*",
                 "id_ecdsa*", "id_ed25519*", "*credential*", "*secret*")
 

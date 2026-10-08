@@ -3,10 +3,16 @@ name: vibe-to-engineering
 description: "Decides from evidence whether an existing software project's structure shows vibe-coded or ad-hoc development and, only if restructuring is justified, converts it into a project-specific engineered architecture through a controlled migration the human approves step by step: read-only inspection and diagnosis, current and target trees, a phased plan with Engineering-Migration-Plan.pdf, a verified recovery baseline, one approved phase at a time with tests and a checkpoint after each, failure investigation against the last known-good checkpoint, and a final review that reports ALL GREEN only when every final check passes. Use when the user invokes vibe-to-engineering, asks whether a project is vibe-coded or structurally sound, or asks to restructure a whole existing project into a proper engineering architecture. Not for building features, fixing bugs or small local refactors."
 license: MIT
 metadata:
-  version: "0.1.0"
+  version: "0.1.0-dev"
 ---
 
 # vibe-to-engineering
+
+**Development status — not released or approved for real-project use.** Evaluate this build only on
+disposable projects with synthetic secrets. Execution is macOS-only; Linux, Windows and other platforms
+refuse before project, registry, scratch or probe operations. Native macOS regression and workflow exams,
+fresh-user verification, independent review and owner release approval remain required. Installing this
+folder does not establish readiness or close NEW-5.
 
 Turns a structurally weak, ad-hoc ("vibe-coded") software project into an appropriately engineered one — only when the evidence says it needs it — through a migration the human approves one step at a time.
 
@@ -24,7 +30,7 @@ Engineering here means the right structure for this project — never more folde
 2. **Resume if a migration exists.** If `<project>/.vibe-to-engineering/ledger.md` exists, read it. Its last entry says where the migration stands: tell the human in one line and continue from exactly there. Never redo a completed phase; never skip a gate. A phase recorded as started but not completed is handled as a break (section 8). If the last entry is a completion (ALL GREEN, or COMPLETE WITH APPROVED BASELINE FAILURES) or MIGRATION STOPPED, that migration is over: say so, and begin again at INSPECT only if the human asks. A new migration keeps the same ledger and store, and gives its checkpoints a run prefix (`r2-00-baseline`), because labels are never reused.
 3. Otherwise begin at INSPECT.
 
-**Conventions.** `<skill>` is this skill's folder and `<project>` the project's folder. `checkpoint.py …` is short for `python3 <skill>/scripts/checkpoint.py --project <project> …` — on Windows use `py -3` instead of `python3`.
+**Conventions.** `<skill>` is this skill's folder and `<project>` the project's folder. `checkpoint.py …` is short for `python3 <skill>/scripts/checkpoint.py --project <project> …` on macOS. Other platforms remain unsupported; help is available without execution.
 
 ## Human gates
 
@@ -294,6 +300,16 @@ Every check runs through `<skill>/scripts/evidence.py`, never on its own — lau
 ```
 
 The `-I` invocation is hardening only (defense in depth); the guarantee below never depends on it. The guarantee begins at the launched check's constructed environment, and covers only what happens under it: the check's environment is built, never inherited — `PATH` is the system folders plus each `--with-path` folder (validated absolute, existing, real directories; the evidence header records exactly the validated entries the child received), `HOME` and `TMPDIR` are one fresh private folder per run, the locale and timezone are fixed, and only names `--env` declares are added (`NAME=VALUE`, a shell's name, never a name the constructed environment or the prohibited configuration channels hold, never given twice; declared values are never written anywhere). Under that environment, recognized secret files are masked and the run refuses before execution whenever a recognized `.env` file falls outside the literal boundary (`references/env-boundary.md`) or another secret file cannot be read completely. Outside the guarantee: the wrapper's own startup before the check is launched, anything the check does after launch (no sandbox is claimed), loaders and readers the tool does not support, and files it does not recognize that a check or loader picks on its own.
+
+**Retained scratch (A3).** Each check and enrollment probe keeps its run-owned scratch root outside the
+project, created with mode 0700. Automatic deletion is disabled on success, refusal and failure. The
+allocation path and a sensitive-output notice appear in governed diagnostics and, when produced, check
+evidence. Record that reported path with the check in the ledger, preserving any masking; also record a
+refused attempt's allocated path when present. Scratch may contain unmasked files the check wrote or an
+enrolled runner copy. Listing is allowed; deletion remains the human's act. Final validation checks the
+root's identity and private mode without deleting data or changing a replacement object. A moved,
+replaced or non-private root after execution is an integrity failure (wrapper 3), with the child outcome
+preserved. A path in the record is the allocation location, not proof the check left the root there.
 
 It runs the command in the project folder — `--env` points it at throwaway data — then prints and saves its output with secret values masked. Its exit status is the wrapper's own, never the check's: **0** the check ran and its evidence was saved, **1** the wrapper itself failed (the validated launch would not start, or the evidence could not be written), **2** a pre-launch refusal — the check never ran and this attempt produced no evidence, **3** an integrity failure found after the run — the check DID run. The check's own result is recorded with the run as data — `the check exited N`, or `terminated by signal N (NAME)` — and **wrapper status 0 never means the check passed**: judge a required check by its recorded outcome and its numbers, never by the wrapper's 0. Capture the final stderr result line too: `emission.read_result` recovers the wrapper, launch, evidence-save and child facts even when a protected value masks an outcome word or digit. A missing/invalid record is unverified; a passing check needs a matching wrapper 0 and child exit 0. See `references/emission-boundary.md` for the representation and caller contract.
 

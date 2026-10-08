@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Render Engineering-Migration-Plan.html to a PDF with a Chrome-family browser.
 
-    python3 render_pdf.py <plan.html> <plan.pdf>        (Windows: py -3 render_pdf.py …)
+    python3 render_pdf.py <plan.html> <plan.pdf>        (macOS only)
 
 Standard library only. It uses a Chrome, Chromium, Edge or Brave browser that is
 already installed, or one downloaded by Playwright; set V2E_BROWSER to a browser's
-full path to choose one. Where browsers are looked for is the only
-platform-specific part, in browser_candidates(). It refuses a plan with unfilled
+full path to choose one. Execution refuses on unsupported platforms before
+reading the plan, locating a browser or writing files. It refuses a plan with unfilled
 placeholders, scripts, external resources, nested documents or local files — reading
 the markup decoded, as the browser does — and blocks every network lookup while
 printing. It prints a temporary copy that starts with a content security policy, so
@@ -17,15 +17,21 @@ anything running into it, nothing is printed.
 Exit codes: 0 written; 1 refused or failed; 2 usage; 3 no browser found.
 """
 
+import sys
+
+# Unsupported execution must not create caches before the platform gate runs.
+sys.dont_write_bytecode = True
+
 import glob
 import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from html.parser import HTMLParser
 from pathlib import Path
+
+from platformgate import PlatformRefusal, require_supported_platform
 
 PLACEHOLDER = re.compile(r"\{\{[^{}]*\}\}|\{\{")
 REMOTE = (  # anything the browser would fetch from the network; the plan must be self-contained
@@ -200,6 +206,11 @@ def page_count(pdf):
 
 
 def main(argv):
+    try:
+        require_supported_platform()
+    except PlatformRefusal as error:
+        print("render_pdf.py: error: %s" % error, file=sys.stderr)
+        return 1
     if len(argv) != 3:
         print("usage: render_pdf.py <plan.html> <plan.pdf>", file=sys.stderr)
         return 2

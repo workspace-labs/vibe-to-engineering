@@ -15,6 +15,11 @@ changed since enrollment is **refused before execution** (exit 2): it was never 
 constructed environment, and an unvalidated check is unsupported. A quarantined runner re-enters the
 supported set only by passing the same four-part revalidation again, with its evidence added here.
 
+The development release is **macOS-only**. Evidence execution and runner enrollment refuse Linux,
+Windows and other platforms before project/registry access, scratch creation or a probe. The presence
+of historical cross-platform helper code does not establish support; native implementations and release
+exams remain roadmap work. Help is read-only and remains available on every platform.
+
 ## Runner enrollment (A2)
 
 Enrollment is the only way a runner enters the registry, and it is a deliberate human act — there is no
@@ -23,7 +28,7 @@ automatic enrollment and no automatic re-enrollment:
 1. `python3 scripts/evidence.py --enroll-runner <runner> [--with-path /abs/dir]…` resolves the candidate the
    same way the gate does (an absolute path, or a name on the system folders plus the given `--with-path`
    folders, links resolved, kind judged by the resolved final name), and refuses anything that is not a real
-   executable **binary** of the platform (Mach-O on macOS, ELF on Linux — a script under a runner's name is
+   executable **binary** of the supported platform (Mach-O on macOS — a script under a runner's name is
    refused without ever being run, so a lookalike's payload cannot act even during vetting — final-review R1).
 2. The tool discloses the resolved path, size and SHA-256, the pin mode, and the one probe it will run.
 3. Only the typed approval word runs the disclosed probe — the profile answer each runner below, checked but
@@ -51,6 +56,12 @@ and `tests/test_a2_corrective.py`: an
 unenrolled candidate is never executed by routine validation, approval binds to the disclosed bytes, a
 successful check launches bytes whose hash equals the enrollment record, and replaced binaries, retargeted
 symlinks and swaps between validation and launch cannot substitute another program.
+
+Every check and enrollment probe retains its private scratch root outside the project, initially mode
+0700. Its allocation path is reported with a sensitive-output notice; check evidence includes the same
+governed path. No automatic deletion occurs, including on refusal or failure. Final validation checks
+the root's identity and private mode without changing it. Listing is allowed; only the human deletes
+retained data. Record the reported path with the check in the migration ledger, preserving any masking.
 
 The registry is UTF-8 JSON with integer `version: 1` (booleans and floating-point values are not schema
 versions) and a `runners` object. Bad encoding, JSON or required entry types refuse with exit 2, a manual

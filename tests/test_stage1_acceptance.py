@@ -38,6 +38,7 @@ class Acceptance(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def scratch_roots(self):
+        enrolled.enrolled_home()   # exclude retained enrollment probes from the check-attempt counts
         return {name for name in os.listdir(SCRATCH_BASE) if name.startswith(childenv.SCRATCH_PREFIX)}
 
     def run_tool(self, name, body, files=(), env=(), with_path=(), parent=None, out_inside=True, command=None):
@@ -182,7 +183,9 @@ class Acceptance(unittest.TestCase):
             self.assertFalse(ran)
             self.assertIsNone(saved)
             self.assertIn("supported set", report)
-        self.assertEqual(self.scratch_roots(), before)
+        # A3 retains the three secret-file refusals and unsupported-runner allocation; admission failures
+        # above still allocate nothing. Refusal continues to mean no launch and no new check evidence.
+        self.assertEqual(len(self.scratch_roots() - before), 4)
 
     # ------------------------------------------------------ real-reader exercises (version-bounded)
 

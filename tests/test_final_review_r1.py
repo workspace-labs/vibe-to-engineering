@@ -50,6 +50,7 @@ class FinalReviewR1(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def scratch_roots(self):
+        enrolled.enrolled_home()   # fixture probe roots are not this test's check allocations
         return {name for name in os.listdir(SCRATCH_BASE) if name.startswith(childenv.SCRATCH_PREFIX)}
 
     def run_tool(self, name, body, env=(), with_path=(), parent=None, files=None, command=None, cwd=None):
@@ -139,9 +140,10 @@ class FinalReviewR1(unittest.TestCase):
         childenv._ROOTS.pop(str(root), None)   # the test moved it: unregister rather than leave a stale entry
         shutil.rmtree(str(moved))
         shutil.rmtree(str(replacement))        # the test's own stand-in, removed by the test
-        root = childenv.scratch_root()         # the ordinary path still cleans up
+        root = childenv.scratch_root()         # A3: the ordinary path validates and retains its data
         childenv.cleanup(root)
-        self.assertFalse(root.exists())
+        self.assertTrue(root.exists())
+        shutil.rmtree(str(root))               # only this test fixture removes its own retained root
 
     # ------------------------------------------------------------------ F2: every admitted value stays secret
 
@@ -338,7 +340,8 @@ class FinalReviewR1(unittest.TestCase):
                 self.assertEqual(code, 2, report)
                 self.assertFalse(ran)
                 self.assertIsNone(saved)
-        self.assertEqual(self.scratch_roots(), before)
+        # A3 retains roots from the unreadable-file and unsupported-runner refusals after construction.
+        self.assertEqual(len(self.scratch_roots() - before), 2)
 
     # --------------- F7: shell readings over the known mapping — superseded by the A1 literal boundary (refusal)
 

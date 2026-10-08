@@ -1,0 +1,55 @@
+name: Skill validation
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  portable:
+    name: Portable checks (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -B tests/run_validation.py --scope portable --output validation-results
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: portable-${{ matrix.os }}
+          path: validation-results
+  macos-regression:
+    name: Native macOS arm64 regression
+    runs-on: macos-latest
+    timeout-minutes: 35
+    env:
+      V2E_BROWSER: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20.20.2'
+      - name: Prepare test prerequisites
+        run: |
+          echo "V2E_READER_MATRIX_DIR=$RUNNER_TEMP/v2e-reader-matrix" >> "$GITHUB_ENV"
+          test "$(uname -m)" = arm64
+          /Library/Developer/CommandLineTools/usr/bin/python3 --version
+          node --version
+          cc --version
+          test -x "$V2E_BROWSER"
+          command -v pdftotext || brew install poppler
+      - name: Prepare pinned and hash-verified readers
+        run: /Library/Developer/CommandLineTools/usr/bin/python3 -B tests/reader_matrix_prepare.py "$V2E_READER_MATRIX_DIR"
+      - name: Run complete regression with mandatory readers
+        run: /Library/Developer/CommandLineTools/usr/bin/python3 -B tests/run_validation.py --scope macos --output validation-results
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: macos-native-regression
+          path: validation-results

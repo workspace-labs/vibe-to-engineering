@@ -39,12 +39,13 @@ ADMITTED = (   # names that only resemble the prohibited or synthesized sets sta
 class Childenv(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="v2e-childenv-test-")).resolve()
-        self.roots = []   # scratch roots a test made, removed in tearDown through the module's own cleanup
+        self.roots = []   # test-owned roots; only the test fixture removes them after retention assertions
 
     def tearDown(self):
         for root in self.roots:
             if root.exists():
-                childenv.cleanup(root)
+                shutil.rmtree(root)
+            childenv._ROOTS.pop(str(root), None)
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def scratch(self):
@@ -99,12 +100,13 @@ class Childenv(unittest.TestCase):
 
     # ------------------------------------------------------------ the strictly scoped cleanup (D2)
 
-    def test_cleanup_removes_the_run_owned_scratch_root(self):
+    def test_cleanup_retains_the_run_owned_scratch_root(self):
         root = self.scratch()
         (root / "home" / "work.txt").write_text("run data\n")
         childenv.cleanup(root)
-        self.assertFalse(root.exists())
-        self.roots.remove(root)
+        # A3 supersedes automatic deletion; cleanup is now identity/privacy validation only.
+        self.assertTrue(root.exists())
+        self.assertEqual((root / "home" / "work.txt").read_text(), "run data\n")
 
     def test_cleanup_refuses_anything_but_a_run_owned_scratch_root(self):
         untouched = self.tmp / "keep"

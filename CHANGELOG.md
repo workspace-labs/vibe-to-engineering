@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- 2026-10-08 — Windows review candidate: implement A3 retained check scratch and A4
+  macOS-only execution refusal; reject edited recovery-store ignore rules and detect
+  concurrent ignored-file changes during restore. Isolate Windows test profiles, verify
+  reader-platform prerequisites, include the package license and add separate portable
+  and native macOS CI scopes. Current evidence is in `TEST-EVIDENCE.md`; this remains
+  development work pending native validation, workflow exams and owner release gates.
+
 - 2026-09-29 — Record the owner's acceptance of F3-R1 after Kimi's independent re-review:
   both original refusal leaks and independent variants are protected; all 307 tests passed in
   that review, including all four required reader-matrix tests, with no skips or errors.

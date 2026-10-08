@@ -2,6 +2,8 @@
 
 The backup and checkpoint system. Section 1 is the contract: what any implementation must guarantee, whatever the operating system or language. Section 2 is the store format, so different implementations can share one store. Section 3 is the bundled implementation, `scripts/checkpoint.py`. Section 4 covers the differences between platforms. Section 5 is how to investigate a break with it.
 
+This skill remains in development. The bundled command currently permits execution only on macOS; Linux and Windows refuse before accessing the project. Passing the recorded component reviews does not establish whole-skill release readiness. See the repository's `LASTUPDATE.md` for the remaining release gates.
+
 ## Contents
 
 1. The recovery contract
@@ -33,7 +35,7 @@ Every implementation of the checkpoint tool must guarantee all of these. The con
 Every implementation must read and write exactly this, so tools on different platforms can share one store.
 
 - **Location:** `<project>/.vibe-to-engineering/checkpoints.git` — a bare git repository, separate from the project's own.
-- **Self-exclusion:** `<project>/.vibe-to-engineering/.gitignore` holds the single line `*`.
+- **Self-exclusion:** `<project>/.vibe-to-engineering/.gitignore` holds the single line `*`, followed by a newline. An existing ignore file with different contents is refused before store writes; it is not silently overwritten.
 - **Store configuration:** `core.autocrlf=false`, `core.safecrlf=false`, `core.longpaths=true`, written with `git config --file <store>/config`. The store is created with `git init --bare --template=`, so no template hooks are copied in.
 - **Every git command** runs with `-c core.hooksPath=<the null device> -c core.fsmonitor=false`, which outrank every configuration file, and without the environment variables that set configuration for one command or redirect git's reads and writes (`GIT_CONFIG`, `GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT` and its keys and values, `GIT_TEMPLATE_DIR`, `GIT_TRACE*`). Commands on the store also run with `-c core.filemode=true -c core.symlinks=true`, except on Windows.
 - **`info/attributes`** holds `* -text -filter -ident -working-tree-encoding`. It outranks the project's own `.gitattributes`, so no line-ending conversion or filter ever changes a file's bytes on the way in or out.
@@ -48,10 +50,10 @@ Every implementation must read and write exactly this, so tools on different pla
 
 ## 3. The bundled tool: scripts/checkpoint.py
 
-Python 3.8 or newer, standard library only, plus git on the PATH. `checkpoint.py` is the command; the modules beside it each own one part of the job — `gitrun.py` (running git safely, the platform helpers), `nested.py` (nested repositories), `watched.py` (ignored files: watched, not saved), `treeview.py` (the tree view) — and `evidence.py` runs a check with its secrets masked, reading each secret file with `secretformats.py` (one reader per format) and `secretforms.py` (every form a value may be printed in). git is called with argument lists, never through a shell, so the same files run on every platform.
+Python 3.8 or newer, standard library only, plus git on the PATH. `checkpoint.py` is the command; the modules beside it each own one part of the job — `gitrun.py` (running git safely, the platform helpers), `nested.py` (nested repositories), `watched.py` (ignored files: watched, not saved), `treeview.py` (the tree view), and `platformgate.py` (the macOS-only execution boundary) — and `evidence.py` runs a check with its secrets masked, reading each secret file with `secretformats.py` (one reader per format) and `secretforms.py` (every form a value may be printed in). git is called with argument lists, never through a shell.
 
 ```
-python3 <skill>/scripts/checkpoint.py --project <project> <command> …      (Windows: py -3 …)
+python3 <skill>/scripts/checkpoint.py --project <project> <command> …
 ```
 
 | Command | Does | Writes |
@@ -68,6 +70,8 @@ Exit codes: `0` success; `1` error; `2` usage; `3` `diff` found differences.
 
 One case a restore cannot see in advance: it brings back older ignore rules under which a file that is ignored now would be in scope, and the checkpoint does not hold that file. The restore leaves the file untouched, its own check afterwards reports the difference as "did not complete", and the state from before is in the pre-restore checkpoint.
 
+Before changing project files, restore compares both the saved-file state and the watched ignored-file fingerprints with the state recorded when preparation began. An ignored database change during preparation therefore stops the restore. After writing, it checks the original watched names again and reports changed contents as an incomplete restore. These comparisons cover the defined saved files and watched ignored files; they do not prove absence of reads, remote writes, or temporary changes between observations. Ignored contents are never backed up by a checkpoint.
+
 Comparing with the current files stores their changed contents in the store as unreferenced objects. On a large or binary-heavy project, `git --git-dir=<project>/.vibe-to-engineering/checkpoints.git gc` reclaims that space; every checkpoint is kept, because each is named by a ref.
 
 Labels used by the protocol: `00-baseline`, `00-baseline-checked`, `01-phase-1`, `02-phase-2` …, `failed-02-phase-2`, `NN-final`, plus the tool's own `pre-restore-<time>`. A label can never be reused; add a suffix for a second attempt (`failed-02-phase-2-b`).
@@ -76,14 +80,14 @@ The tool refuses to treat a home folder or a file-system root as a project, and 
 
 ## 4. Platforms
 
-The contract and the store format are the same everywhere; only execution differs, and the tool keeps those differences in `gitrun.py`'s platform helpers.
+The contract and store format describe requirements for future implementations too. The current CLI checks its platform before project resolution, Git commands, or store writes. `--help` remains available everywhere.
 
-- **macOS — validated in 0.1.0** (Python 3.9, git 2.54). Its default file system ignores letter case and Unicode normalization; the tool matches every name git reports to the on-disk entry that is the same file, and a restore deletes before it writes, so a rename that only changes letter case — `Utils.js` → `utils.js`, `Ä.txt` → `ä.txt`, or a folder — is saved once, compared and restored correctly, and a name the disk keeps decomposed keeps its exact bytes (covered by conformance tests).
-- **Linux — expected to work unchanged** (it takes the same code paths as macOS); not yet validated.
-- **Windows — designed for, not yet validated.** Needs Python 3 (`py -3`) and Git for Windows. Known differences: read-only files must be made writable before they can be deleted (handled); a file another program holds open cannot be replaced — the restore stops and names it, the saved `pre-restore` checkpoint keeps everything, and the restore can be run again after that program is closed; symbolic links need Developer Mode, otherwise git keeps them as plain files — and `verify` then accepts a link that comes back as a plain file, which G1 does not allow: this has to be settled before Windows is validated; there is no executable bit; junctions and other reparse points count as links for G7; long paths rely on `core.longpaths`.
-- **Another implementation** (for example a PowerShell script for machines without Python) must follow sections 1 and 2 exactly and pass the same conformance tests.
+- **macOS — the only permitted execution platform; still in development.** Earlier component reviews ran on macOS arm64 with Python 3.9.6. The full workflow exam and other release gates remain pending. The recovery code handles case-insensitive and normalization-insensitive names by matching the on-disk file identity; conformance tests cover case-only renames and decomposed names.
+- **Linux — refused.** Native implementation work and a native release exam are required before enabling it.
+- **Windows — refused.** Existing platform helpers do not establish support. Outstanding questions include link fidelity, executable-bit semantics, reparse points, file replacement while open, and long paths. In particular, the legacy Windows verification branch can accept a saved link restored as a plain file; the execution gate keeps that unvalidated branch out of this release.
+- **Another implementation** must follow sections 1 and 2 exactly and pass both conformance tests and its native release exam before being enabled.
 
-To validate a platform, run `python3 -m unittest discover -s tests -v` from the skill's source repository on it.
+Run the full suite on macOS with the required reader-matrix dependencies. Targeted refusal tests may run elsewhere. Tests that bypass the platform gate on disposable fixtures exercise individual logic only and cannot certify another platform. Never run enrollment tests with the real user profile; isolate both `HOME` and `USERPROFILE` on Windows.
 
 ## 5. Investigating a break
 

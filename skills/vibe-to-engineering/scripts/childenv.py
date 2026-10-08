@@ -13,13 +13,12 @@ never taken from the parent, so the mapping stays the whole of what the check's 
 where environment names are case-insensitive, every name rule folds case — a case variant of a prohibited,
 synthesized or already-declared name is refused, never silently normalized into a collapse at spawn — and the
 profile gains a synthesized SystemRoot, valued by the OS itself, never inherited: the minimum a constructed
-Windows child needs. Windows support is not claimed — this is the recorded corrective, verified structurally
-only, never natively. There is nothing else. When the run ends, cleanup removes that scratch root and nothing else: a path that is not a run-owned scratch root (made by
-this process and registered, this tool's own prefix, directly inside the one scratch base) is refused, and so is the
-object standing at a registered path when it is not the very folder the run made — the check can move its root away
-or put another object in its place, so the object is matched by device and inode before anything is deleted: cleanup
-can never delete data the run did not make — the owner-approved exception to the no-deletion rules, limited to
-exactly that root.
+Windows child needs. These Windows rules remain structural groundwork, not execution support: A4 refuses
+every unsupported platform before construction. When a run ends, its scratch root and all contents are
+retained (A3). The legacy cleanup() API only checks that the registered directory still has its original
+device/inode and mode 0700. Missing, replaced or non-private roots report an integrity failure without
+deletion or permission repairs. Scratch may contain sensitive output; listing is allowed, deletion is
+the human's act. The launch path records the allocation location through its governed output.
 
 Some names are never admitted — construction already guarantees they are not inherited, and --env never adds
 them: the shells' startup and function channels (BASH_ENV, ENV, SHELLOPTS, BASHOPTS, BASH_FUNC_*), the
@@ -51,7 +50,6 @@ Standard library only. Every refusal is a gitrun.Fail, the refusal the launch pa
 
 import os
 import re
-import shutil
 import stat
 import sys
 import tempfile
@@ -60,13 +58,14 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the modules beside this file
 from gitrun import Fail  # noqa: E402
 import emission  # noqa: E402 — the governed emission path: redaction whose marker holds no value (R2-F2)
+from platformgate import require_supported_platform  # noqa: E402
 
 PATH_FOLDERS = "/usr/bin:/bin:/usr/sbin:/sbin"      # the whole PATH, before --with-path adds to it
 LOCALE, TIMEZONE = "en_US.UTF-8", "UTC"
 SCRATCH_BASE = "/tmp"                               # fixed, absolute — never the parent's TMPDIR
 SCRATCH_PREFIX = "v2e-run-"                         # a name only this tool's scratch roots carry
 _ROOTS = {}                                       # the scratch roots this process made: realpath -> (device,
-                                                  # inode) — cleanup's proof that the object standing at the path
+                                                  # inode) — final validation's proof that the object at the path
                                                   # is the one this run made, never one that took its place
 SYNTHESIZED = ("PATH", "HOME", "TMPDIR", "LC_ALL", "LANG", "TZ")
 # macOS: CoreFoundation, initializing inside any child that links it (CPython does), sets
@@ -191,34 +190,45 @@ def with_path(raw, secrets=()):
     return real
 
 
+class ScratchPreparationError(OSError):
+    """A scratch root was allocated, but its private child folders could not be prepared."""
+
+    def __init__(self, root):
+        super().__init__("cannot prepare the run's scratch folders")
+        self.root = root
+
+
 def scratch_root():
     """One run's fresh private scratch root: a new folder directly inside the fixed scratch base — the
     parent's TMPDIR is never consulted — mode 0700, holding home/ and tmp/, mode 0700. Two runs never share
-    a root. Every root made here is registered by identity (device and inode), so cleanup can tell the root
+    a root. Every root made here is registered by identity (device and inode), so validation can tell the root
     this run made from anything later standing at the same path."""
+    require_supported_platform()
     root = Path(os.path.realpath(tempfile.mkdtemp(prefix=SCRATCH_PREFIX, dir=SCRATCH_BASE)))  # already 0700
-    for name in ("home", "tmp"):
-        folder = root / name
-        folder.mkdir()
-        os.chmod(folder, stat.S_IRWXU)                                       # 0700 whatever the umask
-    made = os.stat(str(root))
-    _ROOTS[str(root)] = (made.st_dev, made.st_ino)
+    try:
+        made = os.stat(str(root))
+        _ROOTS[str(root)] = (made.st_dev, made.st_ino)
+        for name in ("home", "tmp"):
+            folder = root / name
+            folder.mkdir()
+            os.chmod(folder, stat.S_IRWXU)                                   # 0700 whatever the umask
+    except OSError:
+        raise ScratchPreparationError(root) from None
     return root
 
 
 def cleanup(root):
-    """Remove a run's scratch root — the only thing this tool may delete. Anything else is refused: a path
-    this process did not register as a scratch root (the path checks stand too: directly inside the scratch
-    base, run-prefixed), or — even at a registered path — an object that is not the very folder this run made.
-    A check runs with the root as its HOME and TMPDIR and can move it away or put another folder, a link or a
-    file in its place: the object at the path is matched by device and inode against the run's own root before
-    anything is deleted, so cleanup can never delete data the run did not make (final-review R1). A root that
-    is gone from its path, or an rmtree that fails, is reported, never retried against a stranger."""
+    """Legacy API name for non-destructive final validation; nothing is deleted (A3).
+
+    The registered root must still be the same directory with mode 0700. A missing, replaced or no-longer
+    private root is an integrity failure, never a reason to delete or chmod any object at its path.
+    Contents, including foreign files moved into the root, are retained for the human.
+    """
     real = Path(os.path.realpath(str(root)))
     base = Path(os.path.realpath(SCRATCH_BASE))
     owned = _ROOTS.get(str(real))
     if owned is None or real.parent != base or not real.name.startswith(SCRATCH_PREFIX):
-        raise Fail("cleanup is limited to a run's own scratch root (%s* directly inside %s) — refusing %s"
+        raise Fail("scratch validation is limited to a run's own root (%s* directly inside %s) — refusing %s"
                    % (SCRATCH_PREFIX, base, root))
     try:
         standing = os.lstat(str(root))
@@ -229,11 +239,10 @@ def cleanup(root):
     if not stat.S_ISDIR(standing.st_mode) or (standing.st_dev, standing.st_ino) != owned:
         raise Fail("the scratch root's path now holds something this run did not make — left alone, nothing "
                    "deleted")
+    if stat.S_IMODE(standing.st_mode) != 0o700:
+        raise Fail("the run's scratch root is no longer private (mode 0700 required) — left unchanged; "
+                   "it may contain sensitive output")
     del _ROOTS[str(real)]
-    try:
-        shutil.rmtree(str(real))
-    except OSError as error:
-        raise Fail("cannot remove the run's own scratch root (%s)" % (error.strerror or error))
 
 
 def profile(root, extra_paths=(), systemroot=None):
@@ -254,12 +263,13 @@ def profile(root, extra_paths=(), systemroot=None):
 
 def construct(extra_paths=(), settings=()):
     """The whole child environment for one run, built once — the mapping that governs both the preflight
-    analysis and the launch (the D4 invariant) — the run's scratch root, for cleanup when the run ends, and
+    analysis and the launch (the D4 invariant) — the run's scratch root, retained when the run ends, and
     the validated --with-path entries, retained: what the launch path records is exactly what the child
     received, never a mutable original argument resolved again after the run (R2-F4). The --env settings
     and --with-path folders are validated first — and on Windows the SystemRoot is resolved
     before the root exists — so a refusal leaves nothing behind. Refusal diagnostics are redacted against the
     settings admitted so far: a declared value embedded in a --with-path argument is never shown (D4 rule 4)."""
+    require_supported_platform()
     values = declared(settings)
     extras = [with_path(raw, values.values()) for raw in extra_paths]
     systemroot = system_root() if WINDOWS else None   # before the root exists: a failure leaves nothing

@@ -30,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "skills" / "vibe-to-engineering" / "scripts"))
 import envliteral  # noqa: E402
 from reader_artifacts import verified_entries
+from reader_platform import reader_prerequisites
 
 MATRIX_DIR = Path(os.environ.get("V2E_READER_MATRIX_DIR", "/tmp/v2e-reader-matrix"))
 PROVENANCE = json.loads((ROOT / "tests" / "reader_matrix_provenance.json").read_text())["artifacts"]
@@ -134,17 +135,7 @@ class DifferentialMatrix(unittest.TestCase):
     @classmethod
     def what_is_missing(cls):
         """Every prerequisite of a full pass, as a list of what is absent (empty when the matrix can run)."""
-        missing = []
-        if not os.path.exists("/bin/sh"):
-            missing.append("no /bin/sh (bash 3.2) on this machine")
-        local = shutil.which("node")
-        if not local:
-            missing.append("no local Node (the v20.20.2 claimed point)")
-        else:
-            version = subprocess.run([local, "--version"], stdout=subprocess.PIPE).stdout.decode().strip()
-            if version != "v20.20.2":
-                missing.append("the local Node is %s, not the claimed v20.20.2" % version)
-            cls.local_node = local
+        cls.local_node, missing = reader_prerequisites()
         manifest_path = MATRIX_DIR / "manifest.json"
         if not manifest_path.exists():
             return missing + ["no prepared reader directory at %s (run tests/reader_matrix_prepare.py)"

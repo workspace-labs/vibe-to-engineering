@@ -2,15 +2,15 @@
 """Run one check and keep its output as evidence, with every secret value masked.
 
     python3 evidence.py --project <project> --out <project>/.vibe-to-engineering/evidence/<step>/<name>.txt \\
-        [--with-path /abs/dir]… [--env NAME=VALUE]… -- <command> [<argument>…]          (Windows: py -3 evidence.py …)
+        [--with-path /abs/dir]… [--env NAME=VALUE]… -- <command> [<argument>…]          (macOS only)
     python3 evidence.py --enroll-runner <runner> [--with-path /abs/dir]…      enroll this user's runner (A2)
 
 Standard library only. The command runs in the project folder with a constructed environment — nothing is
 inherited: PATH is the system folders plus each --with-path folder (validated: absolute, existing, a real
 directory, its name never holding the PATH separator — one folder enters PATH as exactly one entry — the
 validated entries retained from construction, so the header records exactly what the child received, never a
-mutable original argument resolved again after the run), HOME and TMPDIR are one fresh private folder made for the run (removed when
-the run ends, and nothing else is — the object at its path is matched by identity before anything is deleted), the
+mutable original argument resolved again after the run), HOME and TMPDIR are one fresh private folder made for the run (retained when
+the run ends, outside the project, with mode 0700 and no automatic deletion; its identity and privacy are checked), the
 locale and timezone are fixed — plus each --env setting, how a check is
 pointed at throwaway data: NAME=VALUE, the name a shell's name, never one the constructed environment or the
 prohibited set holds (the shells', runtimes', linkers', dotenv, package-manager, git and proxy configuration
@@ -90,7 +90,7 @@ set, is not enrolled for this user, resolves to a different executable than enro
 enrolled bytes (references/supported-checks.md — an unvalidated check never runs), or secret files that could
 not be gathered or read completely — always before anything runs: exit 2 means the check never ran and this
 attempt produced no check evidence; 3 a post-launch integrity failure — the check DID run (its outcome is
-reported and stands), only the scratch root could not be confirmed and safely removed. A failure after the
+reported and stands), such as a scratch root whose identity or private mode could not be confirmed. A failure after the
 launch is never reported as a refusal. Every byte the wrapper emits — the evidence including its header, the
 stdout echo, the stderr summary, mask labels, diagnostics and parser errors — holds no declared --env value:
 the maskable values are collected from the raw arguments before any parsing or validation (two-phase
@@ -114,11 +114,13 @@ import tempfile
 import time
 from pathlib import Path
 
+sys.dont_write_bytecode = True   # unsupported startup must not write sibling-module caches before refusal
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the modules beside this file
 from checkpoint import STATE_DIR, resolve_project  # noqa: E402
 import childenv  # noqa: E402 — the constructed environment every check runs with (NEW-5 stage 1)
 import emission  # noqa: E402 — the governed emission path and the wrapper status namespace (R2 slice)
 from gitrun import Fail, configure_output, is_link, write_lf  # noqa: E402
+from platformgate import PlatformRefusal, require_supported_platform  # noqa: E402
 from secretformats import (Unreadable, commented, dotenv_values, ini_values, json_values, key_values,  # noqa: E402
                            properties_values, text_values, toml_values, values_in, yaml_values)
 from secretforms import BARE, LIST, SECRET_NAME, SETTING, parts, worth  # noqa: E402
@@ -477,7 +479,7 @@ SUPPORTED = (("python", re.compile(r"python3(?:\.\d+)?\Z")),
 # 3.3): a file's name proves nothing — any folder on the check's PATH can hold anything under a runner's name.
 # The one fixed, benign invocation runs ONLY at enrollment, disclosed to and approved by the human, under the
 # constructed environment from inside that enrollment's own scratch root, so a lookalike's side effects land
-# there and are removed with it; its answer is never shown (it could be anything) and must match the profile,
+# there and are retained for the human; its answer is never shown (it could be anything) and must match the profile,
 # version-bounded where the registry bounds it. A routine run never executes a candidate to validate it:
 # validation is the enrolled path plus the enrolled SHA-256 alone.
 NODE_MIN, NODE_MAX = (20, 7), (26, 10)   # the registry's version-bounded loader profiles (nodekeys.py)
@@ -488,10 +490,9 @@ PROBES = {"python": (("-I", "-c", "import sys; print(sys.version_info[0])"), re.
 # supported profiles were revalidated against binaries, and a text script under a runner's name is refused
 # without being executed at all: probing runs the suspect file, and even a benign fixed invocation would let a
 # lookalike script act with the user's privileges (final-review R1). Mach-O (64-bit, 32-bit, fat, fat-64) on
-# macOS, ELF on Linux; on any other platform this static check cannot be made, and the gate refuses rather than
-# enroll blind — support is not claimed there anyway.
-BINARY_MAGIC = {"darwin": (b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xca\xfe\xba\xbf"),
-                "linux": (b"\x7fELF")}.get(sys.platform)
+# macOS. A4 refuses all other platforms before any candidate access or enrollment.
+BINARY_MAGIC = (b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xca\xfe\xba\xbf") \
+    if sys.platform == "darwin" else None
 
 # Runner enrollment (A2): the per-user registry at ~/.vibe-to-engineering/runners.json is the only source of
 # launchable runner identities. A runner enters it solely through --enroll-runner — a deliberate human act that
@@ -642,6 +643,7 @@ def probe(resolved, kind, env, scratch):
     fixed invocation under the constructed environment, from inside the scratch root, its answer checked but
     never shown. A candidate that cannot be launched, does not answer in time, answers anything else, or fails
     (for node, a version outside the revalidated bounds) is not the runner the set revalidated."""
+    require_supported_platform()
     args, pattern = PROBES[kind]
     try:
         done = subprocess.run([resolved] + list(args), env=env, cwd=str(scratch / "tmp"),
@@ -673,6 +675,7 @@ def enrolled_identity(resolved, kind, scratch):
     this hash and the launch); for pin copy the launch is a private copy written from the same reading that was
     hashed, so a binary replaced or a link retargeted at any moment — before or after this validation — cannot
     put another program in the launch. A changed or moved identity refuses, naming manual re-enrollment."""
+    require_supported_platform()
     entry = registry_entry(load_registry(), kind)
     if entry["path"] != resolved:
         raise Fail("%s: the command resolves here, but the enrolled %s runner is %s — a moved or retargeted "
@@ -740,6 +743,12 @@ def resolve_candidate(program, path):
     return resolved, kind
 
 
+def scratch_notice(root):
+    """Allocation location, never a promise that a check left the root at that path."""
+    return ("scratch root allocated at %s; automatic deletion is disabled; it may contain sensitive "
+            "output. Listing is allowed; deletion remains the human's act.\n" % root)
+
+
 def enroll_runner(program, with_path=(), ask=None, out=None):
     """Enroll one runner into the per-user registry — the only way a runner enters it. The candidate's resolved
     path, size and SHA-256 are disclosed, and only the typed approval word (APPROVAL) allows the one disclosed
@@ -748,6 +757,7 @@ def enroll_runner(program, with_path=(), ask=None, out=None):
     location's: 'path' only with a proven root-owned path chain,
     else 'copy' once a private copy is shown to answer the profile (a candidate with neither is refused).
     Re-enrolling a kind replaces its entry — manually, with the same disclosure and approval."""
+    require_supported_platform()
     ask = ask or input
     out = out or sys.stdout
     extras = [childenv.with_path(raw) for raw in with_path]
@@ -785,7 +795,11 @@ def enroll_runner(program, with_path=(), ask=None, out=None):
     if again != digest or size2 != size:
         raise Fail("the candidate changed between disclosure and approval — an approval is never reused for "
                    "different bytes; enrollment is refused")
-    scratch = childenv.scratch_root()
+    try:
+        scratch = childenv.scratch_root()
+    except childenv.ScratchPreparationError as error:
+        out.write(emission.Context().scrub(scratch_notice(error.root)))
+        raise
     try:
         env = childenv.profile(scratch, extras)
         if pin is None:   # pin copy, if a private copy of the approved bytes answers the profile
@@ -802,7 +816,9 @@ def enroll_runner(program, with_path=(), ask=None, out=None):
         else:
             probe(resolved, kind, env, scratch)
     finally:
-        childenv.cleanup(scratch)
+        # Enrollment also retains its scratch. Its probe may have written sensitive files there.
+        out.write(emission.Context().scrub(scratch_notice(scratch)))
+        childenv.cleanup(scratch)   # non-destructive identity/privacy validation only (A3)
     record = {"path": resolved, "sha256": digest, "size": size, "pin": pin,
               "probe": "%s %s" % (resolved, " ".join(args)),
               "enrolled": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
@@ -880,6 +896,12 @@ def main(argv=None):
         sys.stderr.write(emission.report(messages, context, status, launched, saved, returncode))
         return status
 
+    try:
+        require_supported_platform()
+    except PlatformRefusal as error:
+        note(str(error))
+        return finish(emission.REFUSED)
+
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
     if args.enroll_runner:
         if command or args.out or args.env or args.project != ".":
@@ -908,14 +930,23 @@ def main(argv=None):
     try:
         project = resolve_project(args.project)
         out = evidence_path(project, args.out)
+        scratch_base = Path(os.path.realpath(childenv.SCRATCH_BASE))
+        if project == scratch_base or project in scratch_base.parents:
+            raise Fail("the project contains the fixed scratch base %s — a run's retained scratch must be "
+                       "outside the project" % scratch_base)
         env, scratch, paths = childenv.construct(args.with_path, args.env)   # retain F4's validated mapping
     except Fail as error:
         note(str(error))
         return finish(emission.REFUSED)
+    except childenv.ScratchPreparationError as error:
+        messages.append("evidence.py: " + scratch_notice(error.root))
+        note("cannot prepare the run's scratch folders")
+        return finish(emission.OPERATIONAL)
     except (OSError, ValueError, RuntimeError) as error:
         note("cannot prepare the run (%s)" % type(error).__name__)
         return finish(emission.OPERATIONAL)
     result, launched, saved, returncode = emission.REFUSED, False, False, None
+    exceptional_exit = False
     try:
         try:
             resolved, runner = supported_runner(command, env["PATH"], project)   # D6: an unvalidated check
@@ -941,11 +972,12 @@ def main(argv=None):
                 result = emission.OPERATIONAL   # the validated launch itself failed: a wrapper failure
             else:
                 outcome = emission.child_outcome(done.returncode)   # the child's own result, as data (5.3)
-                header = "$ %s\n%s%s  runner %s\n" % (   # declared --env names, never their values; each
+                header = "$ %s\n%s%s  runner %s\n  %s" % (   # declared --env names, never their values; each
                     " ".join(command), "".join("  with %s\n" % name for name in admitted),
                     "".join("  path %s\n" % folder for folder in paths),   # --with-path entry the child
                     "%s %s sha256:%s mode:%s — the enrolled identity launched"   # actually received,
-                    % (runner, enrolled["path"], enrolled["sha256"], enrolled["pin"]))   # retained (R2-F4)
+                    % (runner, enrolled["path"], enrolled["sha256"], enrolled["pin"]),
+                    scratch_notice(scratch))   # retained (R2-F4); scratch path is governed with the whole header
                 text, masked = mask(header + "\n" + done.stdout.decode("utf-8", "replace"), values,
                                     frozenset(secrets))   # a declared value is masked wherever it appears (R1)
                 text = context.scrub(text if text.endswith("\n") else text + "\n")   # newline included
@@ -968,13 +1000,21 @@ def main(argv=None):
         except (OSError, ValueError, RuntimeError) as error:
             note("wrapper operation failed (%s)" % type(error).__name__)
             result = emission.OPERATIONAL
+    except BaseException:
+        exceptional_exit = True
+        raise
     finally:
+        messages.append("evidence.py: " + scratch_notice(scratch))
         try:
-            childenv.cleanup(scratch)   # the run's own scratch root, and nothing else — matched by identity
+            childenv.cleanup(scratch)   # A3: validate identity/privacy, retain every file; never delete
         except Fail as error:
             messages.append("evidence.py: integrity failure after the run: %s\n" % error)
             if launched or saved:
                 result = emission.INTEGRITY
+        if exceptional_exit:
+            # An interruption can occur after spawn but before subprocess.run returns. Do not guess
+            # launch/outcome facts; disclose the retained allocation and leave the result unverified.
+            sys.stderr.write(context.scrub("".join(messages)))
     return finish(result, launched, saved, returncode)   # one stderr emission, through cleanup and result
 
 
