@@ -20,7 +20,7 @@ import unittest
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 PORTABLE = (
-    "test_reader_platform", "test_a1_matrix_regressions", "test_emission_result",
+    "test_package", "test_reader_platform", "test_a1_matrix_regressions", "test_emission_result",
     "test_protocol", "test_env_literal.Grammar", "test_r2_confidentiality.EmissionModule",
     "test_f3_ambiguous.AmbiguousCollection", "test_platform_evidence",
     "test_platform_render", "test_enrolled_isolation", "test_recovery_review",
@@ -58,12 +58,21 @@ def main():
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.worker:
+        if os.environ.get("V2E_VALIDATION_ROOT") != str(ROOT.parent):
+            parser.error("--worker is internal; use the normal isolated validation entry point")
         return worker(args.scope, args.output / "summary.json")
     if args.scope == "macos" and (sys.platform != "darwin" or platform.machine() != "arm64"):
         parser.error("the complete reviewed regression scope requires native macOS arm64")
     output = (args.output.resolve() if args.output else
               Path(tempfile.mkdtemp(prefix="v2e-validation-results-")))
     output.mkdir(parents=True, exist_ok=True)
+    # A failed preparation/import must never leave a prior run's success as evidence.
+    (output / "summary.json").write_text(json.dumps({
+        "scope": args.scope, "passed": False, "state": "incomplete",
+        "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "release_readiness": False,
+    }, indent=2) + "\n", encoding="utf-8")
+    (output / "tests.log").write_text("Preparing isolated validation.\n", encoding="utf-8")
     with tempfile.TemporaryDirectory(prefix="v2e-validation-") as directory:
         base = Path(directory).resolve()
         copy = base / "repo"
@@ -91,12 +100,13 @@ def main():
         # Only explicit external test prerequisites cross into the isolated process.
         for name in ("V2E_READER_MATRIX_DIR", "V2E_BROWSER"):
             if name in os.environ:
-                env[name] = os.environ[name]
+                env[name] = str(Path(os.environ[name]).expanduser().resolve())
         drive, tail = os.path.splitdrive(str(home))
         env.update(HOME=str(home), USERPROFILE=str(home), HOMEDRIVE=drive, HOMEPATH=tail,
                    APPDATA=str(home / "AppData" / "Roaming"), LOCALAPPDATA=str(home / "AppData" / "Local"),
                    TMP=str(temp), TEMP=str(temp), TMPDIR=str(temp), GIT_CONFIG_GLOBAL=str(config),
-                   GIT_CONFIG_NOSYSTEM="1", PYTHONUTF8="1", PYTHONDONTWRITEBYTECODE="1")
+                   GIT_CONFIG_NOSYSTEM="1", PYTHONUTF8="1", PYTHONDONTWRITEBYTECODE="1",
+                   V2E_VALIDATION_ROOT=str(base))
         if args.scope == "macos":
             env.update(V2E_REQUIRE_NODE="1", V2E_REQUIRE_MATRIX="1")
         command = [sys.executable, "-B", str(copy / "tests" / "run_validation.py"),

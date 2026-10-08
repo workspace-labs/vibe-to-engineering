@@ -74,7 +74,7 @@ class RendererPlatform(unittest.TestCase):
                 # On macOS simulate an unsupported subprocess. Windows/Linux
                 # exercise the native boundary without modifying sys.platform.
                 code = ("import runpy,sys; sys.path.insert(0,sys.argv[1]); "
-                        "script=sys.argv[2]; sys.argv=sys.argv[2:]; sys.platform='win32'; "
+                        "script=sys.argv[2]; sys.argv=sys.argv[2:]; sys.platform='linux'; "
                         "runpy.run_path(script,run_name='__main__')")
                 command = [sys.executable, "-c", code, str(scripts)] + command[1:]
             done = subprocess.run(command, env=env, stdout=subprocess.PIPE,
