@@ -168,14 +168,15 @@ class RecoveryReview(unittest.TestCase):
             # Apple's CLT interpreter can create HOME/Library/Caches before any
             # script starts. Measure that startup alone before the Mac simulation;
             # the candidate must add no files beyond this measured baseline.
-            initial = {str(path.relative_to(self.root))
+            initial = {str(path.relative_to(self.root)): path.read_bytes()
                        for path in self.root.rglob("*") if path.is_file()}
             startup = subprocess.run([sys.executable, "-c", "pass"], env=env,
                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             self.assertEqual(startup.returncode, 0, startup.stdout + startup.stderr)
-            started = {str(path.relative_to(self.root))
+            started = {str(path.relative_to(self.root)): path.read_bytes()
                        for path in self.root.rglob("*") if path.is_file()}
-            print("macOS bare-interpreter startup additions (recovery): %r" % sorted(started - initial))
+            self.assertEqual(initial, {name: started.get(name) for name in initial})
+            print("macOS bare-interpreter startup additions (recovery): %r" % sorted(set(started) - set(initial)))
             command += ["-c", MAC_UNSUPPORTED_BOOTSTRAP]
         before = {str(path.relative_to(self.root)): path.read_bytes()
                   for path in self.root.rglob("*") if path.is_file()}

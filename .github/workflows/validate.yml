@@ -3,6 +3,12 @@ on:
   push:
     branches: [main]
   pull_request:
+    paths-ignore:
+      - README.md
+      - CHANGELOG.md
+      - FIX-FIRST.md
+      - LASTUPDATE.md
+      - TEST-EVIDENCE.md
   workflow_dispatch:
 permissions:
   contents: read
