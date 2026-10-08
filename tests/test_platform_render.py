@@ -73,9 +73,12 @@ class RendererPlatform(unittest.TestCase):
             if sys.platform == "darwin":
                 # On macOS simulate an unsupported subprocess. Windows/Linux
                 # exercise the native boundary without modifying sys.platform.
-                code = ("import runpy,sys; sys.path.insert(0,sys.argv[1]); "
+                # Import only built-in sys before the script disables bytecode;
+                # importing runpy first can populate CLT Python's user cache.
+                code = ("import sys; sys.path.insert(0,sys.argv[1]); "
                         "script=sys.argv[2]; sys.argv=sys.argv[2:]; sys.platform='linux'; "
-                        "runpy.run_path(script,run_name='__main__')")
+                        "exec(compile(open(script, 'rb').read(), script, 'exec'), "
+                        "{'__name__': '__main__', '__file__': script})")
                 command = [sys.executable, "-c", code, str(scripts)] + command[1:]
             done = subprocess.run(command, env=env, stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE, timeout=15)

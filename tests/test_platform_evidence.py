@@ -131,7 +131,7 @@ class PlatformEvidence(unittest.TestCase):
 
     def test_plain_python_unsupported_startup_writes_no_sibling_bytecode(self):
         # No -B or PYTHONDONTWRITEBYTECODE: the installed entry point must establish this itself.
-        # macOS simulates Linux before run_path; unsupported hosts execute their native platform.
+        # macOS simulates Linux using builtins only before entry; unsupported hosts execute natively.
         with tempfile.TemporaryDirectory(prefix="v2e-startup-test-") as raw:
             root = Path(raw).resolve()
             scripts = root / "scripts"
@@ -142,8 +142,9 @@ class PlatformEvidence(unittest.TestCase):
             before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
             argv = ["--project", str(root / "absent"), "--out", str(root / "absent.txt"), "--", "python3"]
             if sys.platform == "darwin":
-                launcher = ["-c", "import sys, runpy; sys.platform='linux'; "
-                            "sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')",
+                launcher = ["-c", "import sys; sys.platform='linux'; sys.argv=sys.argv[1:]; "
+                            "exec(compile(open(sys.argv[0], 'rb').read(), sys.argv[0], 'exec'), "
+                            "{'__name__':'__main__', '__file__':sys.argv[0]})",
                             str(scripts / "evidence.py")]
             else:
                 launcher = [str(scripts / "evidence.py")]

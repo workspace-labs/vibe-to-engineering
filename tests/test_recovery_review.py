@@ -21,6 +21,15 @@ sys.path.insert(0, str(SCRIPTS))
 import checkpoint
 
 
+# Only built-in sys is imported before the entry point can disable bytecode. On
+# Apple's CLT Python, importing runpy here can itself populate the isolated HOME.
+MAC_UNSUPPORTED_BOOTSTRAP = (
+    "import sys; sys.platform='linux'; sys.argv=sys.argv[1:]; "
+    "exec(compile(open(sys.argv[0], 'rb').read(), sys.argv[0], 'exec'), "
+    "{'__name__':'__main__', '__file__':sys.argv[0]})"
+)
+
+
 class RecoveryReview(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="v2e-recovery-review-")
@@ -138,8 +147,7 @@ class RecoveryReview(unittest.TestCase):
         command = [sys.executable]
         if sys.platform == "darwin":
             # Keep this refusal regression active in the macOS release suite too.
-            command += ["-c", "import runpy,sys; sys.platform='linux'; sys.argv=sys.argv[1:]; "
-                                "runpy.run_path(sys.argv[0], run_name='__main__')"]
+            command += ["-c", MAC_UNSUPPORTED_BOOTSTRAP]
         command += [str(SCRIPTS / "checkpoint.py"), "--project", str(self.project), "create", "00-baseline"]
         done = subprocess.run(command, env=self.env, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE)
@@ -159,8 +167,7 @@ class RecoveryReview(unittest.TestCase):
         env.pop("PYTHONPYCACHEPREFIX", None)
         command = [sys.executable]
         if sys.platform == "darwin":
-            command += ["-c", "import runpy,sys; sys.platform='linux'; sys.argv=sys.argv[1:]; "
-                                "runpy.run_path(sys.argv[0], run_name='__main__')"]
+            command += ["-c", MAC_UNSUPPORTED_BOOTSTRAP]
         command += [str(scripts / "checkpoint.py"), "--project", str(self.project), "create", "00-baseline"]
         done = subprocess.run(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.assertEqual(done.returncode, 1, done.stdout + done.stderr)

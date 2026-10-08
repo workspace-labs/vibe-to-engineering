@@ -109,13 +109,19 @@ def main():
                    V2E_VALIDATION_ROOT=str(base))
         if args.scope == "macos":
             env.update(V2E_REQUIRE_NODE="1", V2E_REQUIRE_MATRIX="1")
-        command = [sys.executable, "-B", str(copy / "tests" / "run_validation.py"),
+        command = [sys.executable, "-B", "-u", str(copy / "tests" / "run_validation.py"),
                    "--scope", args.scope, "--worker", "--output", str(output)]
         with (output / "tests.log").open("wb") as log:
-            done = subprocess.run(command, cwd=str(copy), env=env, stdout=log, stderr=subprocess.STDOUT)
-        print((output / "tests.log").read_text(encoding="utf-8", errors="replace"))
+            with subprocess.Popen(command, cwd=str(copy), env=env, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT) as process:
+                for line in process.stdout:
+                    log.write(line)
+                    log.flush()
+                    sys.stdout.buffer.write(line)
+                    sys.stdout.buffer.flush()
+                code = process.wait()
         print("Validation evidence:", output)
-        return done.returncode
+        return code
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 # Skill validation evidence — 2026-10-08
 
 Repository: workspace-labs/vibe-to-engineering. Baseline: `014e97909f1976993217bb13877e38c9f678b433`.
-Review branch: `fix/platform-boundary-review`. This file will be updated with CI results.
+Review branch: `fix/platform-boundary-review`.
 
 ## Scope and verdict
 
@@ -28,7 +28,7 @@ unsupported execution is now refused explicitly rather than represented as suppo
 
 ## Corrections and focused proof
 
-- Recovery: three reproduced defects before fixes; restore-time ignored-file changes and
+- Recovery: two issues reproduced in three failing scenarios before fixes; ignored-file changes and
   edited store ignore rules now refuse/report correctly, with a successful-restore control.
 - A3: check scratch is retained outside the project; permission and identity checks remain;
   foreign sentinels survive; paths and sensitivity are disclosed through governed output.
@@ -41,7 +41,8 @@ unsupported execution is now refused explicitly rather than represented as suppo
 - Codex metadata, install guidance and the bundled MIT license were corrected.
 
 The standard skill-creator package validator reports `Skill is valid!` on this PC.
-Final aggregate counts and remote run links are pending below.
+Package tests separately check metadata limits, the exact bundled license and Python 3.8
+runtime syntax. Syntax validation is not a native Python 3.8 execution test.
 
 ## Reproducible validation
 
@@ -71,8 +72,22 @@ by CI. CI dependency preparation is separate from skill runtime behavior.
 
 ## Results and remaining gates
 
-Current candidate's cross-platform CI is pending. The historical September 29 macOS
-result of 307 passing tests belongs to the baseline and is not reused as current evidence.
+Portable validation of commit `39d07f557d528c4e1bada5ab5951684b76c3a2cf`:
+
+| Host | Python | Tests | Failures / errors / skips | Result |
+|---|---|---:|---|---|
+| This PC: Windows 11, AMD64 | 3.12.10 | 84 | 0 / 0 / 0 | PASS |
+| GitHub Windows Server 2025, AMD64 | 3.12.10 | 84 | 0 / 0 / 0 | PASS |
+| GitHub Linux, x86_64 | 3.12.15 | 84 | 0 / 0 / 0 | PASS |
+| GitHub macOS 26.6.2, arm64 | 3.12.10 | 84 | 0 / 0 / 0 | PASS |
+
+[CI run and downloadable portable logs/summaries](https://github.com/workspace-labs/vibe-to-engineering/actions/runs/37767517413).
+The macOS native regression is still being verified separately. The first portable macOS
+run exposed a simulated-Windows import failure; the test now simulates Linux on macOS,
+while Windows/Linux hosts still exercise their actual platform. No test was skipped.
+
+The historical September 29 macOS result of 307 passing tests belongs to the baseline
+and is not reused as current evidence.
 Workflow migrations, no-migration behavior, interruption/resume, approved restore/retry,
 baseline failures, data-safety checks, fresh-user validation and final release review
 remain required under the existing release checklist in `LASTUPDATE.md`.
