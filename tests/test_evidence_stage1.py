@@ -38,6 +38,7 @@ class Stage1(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def scratch_roots(self):
+        enrolled.enrolled_home()   # exclude the fixture's retained enrollment-probe roots from run counts
         return {name for name in os.listdir(SCRATCH_BASE) if name.startswith(childenv.SCRATCH_PREFIX)}
 
     def run_tool(self, name, body, env=(), with_path=(), parent=None, files=()):
@@ -121,7 +122,7 @@ class Stage1(unittest.TestCase):
         self.assertIn("  path %s\n" % tools, printed)        # D2: recorded in the evidence header
         self.assertEqual(saved, printed)
 
-    def test_the_scratch_root_is_removed_when_the_run_ends_however_it_ends(self):
+    def test_the_scratch_root_is_retained_when_the_run_ends_however_it_ends(self):
         before = self.scratch_roots()
         code, _, _, report, ran = self.run_tool("a successful run", "print('ok')")
         self.assertEqual(code, 0, report)
@@ -131,7 +132,8 @@ class Stage1(unittest.TestCase):
         self.assertEqual(code, 2, report)
         self.assertFalse(ran)
         self.assertIsNone(saved)
-        self.assertEqual(self.scratch_roots(), before)
+        # A3: both the completed check and refusal after construction retain their allocated roots.
+        self.assertEqual(len(self.scratch_roots() - before), 2)
 
     def test_the_analysis_runs_over_the_constructed_mapping(self):
         # a secret file that sets HOME collides with a name the constructed environment always holds — slice 3:

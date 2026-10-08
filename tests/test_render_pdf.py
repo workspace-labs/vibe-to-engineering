@@ -22,6 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "vibe-to-engineering"
 SCRIPT = Path(os.environ.get("V2E_RENDER_PDF", SKILL / "scripts" / "render_pdf.py"))  # seam: test another copy
+sys.path.insert(0, str(SCRIPT.parent))  # sibling modules for isolated renderer discovery
 TEMPLATE = SKILL / "assets" / "plan-template.html"
 SECTIONS = ("summary", "overview", "findings", "target", "phases", "verification", "unchanged", "risks", "approval")
 

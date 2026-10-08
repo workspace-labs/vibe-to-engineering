@@ -32,7 +32,10 @@ import sys
 import urllib.request
 import zipfile
 
+sys.dont_write_bytecode = True
+
 from reader_artifacts import verify_extraction, entry_path, extraction
+from reader_platform import reader_prerequisites
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROVENANCE = json.load(open(os.path.join(ROOT, "tests", "reader_matrix_provenance.json")))
@@ -72,6 +75,10 @@ def artifact(name, meta, target):
 
 
 def main():
+    _, problems = reader_prerequisites()
+    if problems:
+        raise SystemExit('NOT VERIFIED: ' + '; '.join(problems) +
+                         ' — no reader artifacts were written or downloaded')
     target = os.path.abspath(TARGET)
     entries, sources = {}, {}
     for name in sorted(PROVENANCE["artifacts"]):

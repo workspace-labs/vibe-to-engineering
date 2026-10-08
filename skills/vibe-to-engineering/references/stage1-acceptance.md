@@ -18,8 +18,10 @@ for independent review**; it is folded into this record below. That review verif
 remaining F2/F3/F6 defects. Their corrective regressions now cover complete-message boundaries,
 file-derived contexts, parser abbreviations, and recoverable child outcomes under redaction; see
 `references/emission-boundary.md` and `tests/test_*emission*.py`. The correction is delivered for
-independent re-review, not owner acceptance. R2's remaining findings (A3 scratch
-retention, A4 platform refusal) and the wider release checklist stay separate work.
+independent re-review in this historical record. The repository's LASTUPDATE records subsequent
+acceptance of that confidentiality/status work. A3 scratch retention and A4 platform refusal are now
+implemented as a development follow-up; native release verification and the wider release checklist
+remain pending. Earlier test counts below are historical evidence, not results for this follow-up.
 
 ## The launch path, structurally
 
@@ -49,7 +51,7 @@ retention, A4 platform refusal) and the wider release checklist stay separate wo
    and its bytes must hash to the enrolled SHA-256 — validation never executes the candidate. Enrollment is
    the only way a runner enters the registry: `--enroll-runner` discloses the resolved path, size and
    SHA-256, waits for the typed approval word, then runs the one profile probe — a real executable **binary**
-   of the platform only (Mach-O on macOS, ELF on Linux), so a script under a runner's name is never even
+   of the supported platform only (Mach-O on macOS), so a script under a runner's name is never even
    probed, and Node is held to the registry's version bounds (v20.7–v26.10). The launch uses the enrolled
    bytes: pin path only after proving the complete root-owned path chain (including ancestors and ACLs)
    again after approval and on every run, pin copy launched
@@ -86,12 +88,13 @@ retention, A4 platform refusal) and the wider release checklist stay separate wo
    evidence-save and child facts in a recoverable form when literal outcome words/digits need masking;
    its format and caller checks are specified in `references/emission-boundary.md`. A missing or invalid
    record is unverified, never a passed check.
-7. `childenv.cleanup(scratch)` runs in a `finally`, removing the run's own scratch root and nothing else:
-   the object at the path must be the very folder the run made, matched by device and inode — a check can
-   move its root away or put a foreign folder, link or file in its place, and cleanup will never delete it
-   (R1, F1). A cleanup that cannot confirm the root is an **integrity failure after the run: exit 3** (R1,
-   F6) — the check ran and its outcome stands; exit 2 is reserved for refusals where nothing ran and no
-   evidence exists.
+7. The legacy `childenv.cleanup(scratch)` name now performs **non-destructive validation** (A3). The
+   run-owned root and every file in it are retained. Validation confirms its device/inode and mode 0700;
+   a moved, replaced or non-private root is left untouched. A failure after execution is an **integrity
+   failure: exit 3** — the check ran and its outcome stands. Allocation paths and sensitive-output notices
+   pass through the governed header/diagnostics; ledger entries preserve the reported path and masking.
+   Listing is allowed and deletion remains the human's act. Refusal after allocation retains scratch but
+   still produces no new check evidence and never launches a check.
 
 The evidence header records the command line and the declared `--env` **names only** — never a declared
 value (D4 rule 4) — plus the `--with-path` folders, the validated entries the child actually received
@@ -142,16 +145,20 @@ finding, each failing against the reviewed candidate: 20 failures + 1 error ther
 
 ## Platform status
 
-- **macOS** — verified. The full suite (179 tests) runs green on the development Mac (system Python 3.9.6,
+**Current A4 execution boundary: macOS only.** Linux, Windows and other platforms refuse before project
+access, runner registry access, scratch creation, probing or check execution. The following measurements
+describe the earlier stage-1 baseline; they do not establish current release readiness on any platform.
+
+- **macOS** — historical verification. The stage-1 suite (179 tests) ran green on the development Mac (system Python 3.9.6,
   bash 3.2.57 as `/bin/sh`, Node v20.20.2). `__CF_USER_TEXT_ENCODING` is pinned in the constructed
   environment so the OS cannot inject it into the child after the analysis (owner decision at Gate 2).
-- **Linux** — no pin required. The stage-1 cross-platform investigation found no channel by which a Linux
+- **Linux** — execution refused; implementation and native release exam remain roadmap work. The stage-1 investigation found no channel by which a Linux
   child receives a variable absent from the constructed mapping. Structurally covered by the portable path;
   a native Linux suite run remains open as part of FIX-FIRST item 7. Note: the sh profile (checked at
   enrollment since A2) requires the runner to answer as bash 3.2 — the version the shell evidence is measured
   against — so a Linux box whose `/bin/sh` is dash refuses loudly rather than running under an unverified
   profile.
-- **Windows** — **not claimed supported**. The corrective (case-folded name rules, OS-derived `SystemRoot`)
+- **Windows** — **execution refused**. The corrective (case-folded name rules, OS-derived `SystemRoot`)
   is proven structurally only; `system_root()` has never executed on native Windows. The owner will run
   native verification separately, and any failure returns through a corrective gate. Recorded future
   requirements: case-insensitive collision/prohibition handling (done, structural), SystemRoot resolution

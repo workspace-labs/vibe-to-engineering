@@ -15,6 +15,7 @@ repository root:  python3 -m unittest discover -s tests -p test_r2_confidentiali
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -174,7 +175,9 @@ class EmissionModule(unittest.TestCase):
         self.assertEqual(emission.child_outcome(0), "exited 0")
         self.assertEqual(emission.child_outcome(2), "exited 2")
         self.assertEqual(emission.child_outcome(-15), "terminated by signal 15 (SIGTERM)")
-        self.assertEqual(emission.child_outcome(-9), "terminated by signal 9 (SIGKILL)")
+        # Windows has no SIGKILL name; the portable formatter retains its number.
+        expected = "terminated by signal 9 (SIGKILL)" if hasattr(signal, "SIGKILL") else "terminated by signal 9"
+        self.assertEqual(emission.child_outcome(-9), expected)
         self.assertIn("signal 45", emission.child_outcome(-45))   # an unusual signal still accurate
 
     def test_the_wrapper_status_namespace_is_the_approved_one(self):

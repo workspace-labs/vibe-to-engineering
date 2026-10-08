@@ -103,6 +103,7 @@ class ArtifactIdentity(unittest.TestCase):
         shutil.copyfile(matrix.ROOT / 'tests/reader_matrix_harness.js', self.root / 'harness.js')
         for patch in (mock.patch.object(matrix, 'MATRIX_DIR', self.root),
                       mock.patch.object(matrix, 'PROVENANCE', self.provenance),
+                      mock.patch.object(matrix, 'reader_prerequisites', return_value=('/trusted/node', [])),
                       mock.patch.object(matrix.shutil, 'which', return_value='/trusted/node'),
                       mock.patch.object(matrix.subprocess, 'run', return_value=
                                         subprocess.CompletedProcess([], 0, b'v20.20.2\n', b''))):
@@ -141,6 +142,7 @@ class ArtifactIdentity(unittest.TestCase):
     def test_prepare_does_not_reuse_tampered_extraction(self):
         self.entry.write_text('module.exports={};')
         with mock.patch.object(prepare, 'TARGET', str(self.root)), \
+             mock.patch.object(prepare, 'reader_prerequisites', return_value=('/trusted/node', [])), \
              mock.patch.object(prepare, 'PROVENANCE', {'artifacts': self.provenance}):
             with self.assertRaises((ValueError, SystemExit)):
                 prepare.main()

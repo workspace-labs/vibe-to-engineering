@@ -10,16 +10,20 @@ Python 3.8+, standard library only. This file is the command-line tool; the
 modules beside it each own one part of the job: gitrun.py runs git safely and
 holds the platform helpers, nested.py checks nested repositories, watched.py
 watches the ignored files a checkpoint does not save, treeview.py prints the
-tree. git is called with argument lists, never through a shell, so the tool
-runs on macOS, Linux and Windows.
+tree. git is called with argument lists, never through a shell. Execution is
+currently restricted to macOS; other platforms await native release checks.
 """
+
+import sys
+
+# Imports must not create sibling bytecode files before an unsupported-platform refusal.
+sys.dont_write_bytecode = True
 
 import argparse
 import json
 import os
 import re
 import stat
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -33,6 +37,7 @@ from nested import check_nested, repositories
 from watched import (CONTENTS_MARK, DEFAULT_EXCLUDES, KEY_NAME, changed_since, report_changed, watched_contents,
     watched_names)
 from treeview import print_tree
+from platformgate import PlatformRefusal, require_supported_platform
 
 STATE_DIR = ".vibe-to-engineering"
 STORE_NAME = "checkpoints.git"
@@ -109,6 +114,10 @@ def check_state_folder(project):
         if os.path.lexists(str(path)) and (is_link(str(path)) or not (path.is_dir() if folder else path.is_file())):
             raise Fail("%s is a link or not a plain %s — checkpoints are written only inside the project's own %s "
                        "folder. Nothing was changed" % (path, "folder" if folder else "file", STATE_DIR))
+    ignore = state / ".gitignore"
+    if ignore.exists() and ignore.read_bytes() != b"*\n":
+        raise Fail("the state ignore file %s must contain exactly '*' followed by a newline, so the checkpoint "
+                   "store and fingerprint key stay excluded from the project's git. Nothing was changed" % ignore)
     if not store.is_dir():
         return
     for redirect in ("commondir", os.path.join("objects", "info", "alternates")):
@@ -746,7 +755,8 @@ def cmd_restore(project, args):
         raise Fail("%s. Nothing in the project was changed; the current state is saved as checkpoint %s"
                    % (refused, saved))
     again_tree, again = snapshot(project, store, git_project, allow_empty=True)
-    if (again_tree, again.ignored, again.nested) != (now_tree, found.ignored, found.nested):
+    if ((again_tree, again.ignored, again.nested) != (now_tree, found.ignored, found.nested)
+            or watched_contents(project, again.ignored, key_path(project)) != contents):
         raise Fail("the project changed while the restore was being prepared. Nothing in the project was changed; "
                    "run the restore again")
     # 6. change the project: delete first — on a case-insensitive disk the old and new name are one file
@@ -764,17 +774,21 @@ def cmd_restore(project, args):
     except Fail as error:
         stuck.append(str(error))
     # 7. verify the result, and that everything the checkpoints do not hold is still there
-    different = []
+    different, changed_ignored = [], []
     try:
         after = tree_files(store, snapshot(project, store, git_project, allow_empty=True)[0])
         different = sorted(rel for rel in set(after) | set(wanted) if after.get(rel) != wanted.get(rel))
+        # Keep watching the original names even when restored ignore rules put one back in scope.
+        changed_ignored = changed_since(contents, watched_contents(project, found.ignored, key_path(project)))
     except Fail as error:
         stuck.append(str(error))
     disk = Disk(project)
     lost = [rel for rel in found.ignored + found.nested if disk.locate(rel.rstrip(b"/"))[1] is None]
-    if stuck or different or lost:
-        details = stuck + ["differs: " + show(rel) for rel in different[:20]] + ["lost: " + show(rel) for rel in lost[:20]]
-        raise Fail("the restore did not complete — %s. Everything from before the restore is saved as "
+    if stuck or different or lost or changed_ignored:
+        details = (stuck + ["differs: " + show(rel) for rel in different[:20]]
+                   + ["lost: " + show(rel) for rel in lost[:20]]
+                   + ["changed ignored file: " + name for name, _, _ in changed_ignored[:20]])
+        raise Fail("the restore did not complete — %s. The covered files from before the restore are saved as "
                    "checkpoint %s." % ("; ".join(details), saved))
     print("restored %s: the project matches it again (verified)" % args.label)
     return 0
@@ -826,9 +840,10 @@ def main(argv=None):
     configure_output()
     args = build_parser().parse_args(argv)
     try:
+        require_supported_platform()
         project = resolve_project(getattr(args, "project", "."))
         return COMMANDS[args.command](project, args)
-    except Fail as error:
+    except (Fail, PlatformRefusal) as error:
         print("checkpoint.py: error: %s" % error, file=sys.stderr)
     except OSError as error:
         print("checkpoint.py: error: %s" % error, file=sys.stderr)

@@ -1,13 +1,15 @@
 # Fix first
 
-## Current priority — 2026-09-29
+## Current priority — 2026-10-08
 
 Use [LASTUPDATE.md](LASTUPDATE.md) for the current status and remaining release checklist.
 A1 and A2 are accepted; independent review verified R2-F2/F4/F6, and the owner has now
-accepted the remaining F3-R1 fix following Kimi's independent re-review. Next is **A3:
-retain temporary check files, record their paths and sensitivity, and prove unrelated files
-remain untouched**. Then A4 platform refusal, the documentation sweep and the macOS workflow
-exam remain due. Whole-skill release and NEW-5 closure are still pending.
+accepted the remaining F3-R1 fix following Kimi's independent re-review. The October 8
+candidate implements A3 retention, A4 platform refusal and focused recovery fixes; see
+[TEST-EVIDENCE.md](TEST-EVIDENCE.md) for actual results and limits. The candidate passed
+346 native macOS tests and 84 portable tests per OS. The remaining documentation sweep,
+macOS workflow exam and final review must be completed before
+acceptance. Whole-skill release and NEW-5 closure are still pending.
 
 The entries below are historical findings and delivery records, including their then-current
 test counts and review statuses. They are preserved as history, not a new order to redo accepted work.

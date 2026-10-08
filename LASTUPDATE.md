@@ -1,6 +1,32 @@
-# Latest update — 2026-09-29
+# Latest update — 2026-10-08
 
-## Current status
+## October 8 review candidate
+
+The PC review reproduced failure of the original complete suite on Windows. The approved
+release scope remains macOS-only; Windows/Linux are tested for safe refusal and selected
+portable logic, not claimed as supported migration platforms.
+
+Branch `fix/platform-boundary-review` implements A3 scratch retention, A4 early platform
+refusal, recovery-store ignore-rule protection, restore-time ignored-file change detection,
+Windows fixture isolation, package corrections and reader prerequisite validation.
+Separate CI jobs distinguish portable checks from the full native macOS arm64 regression.
+See [TEST-EVIDENCE.md](TEST-EVIDENCE.md) for current test results and limitations.
+
+**Current validation:** code/test revision `01f25876205ab1cfaddf6d8a9ebc668cf7583fe6`
+passed 346 complete native macOS arm64 tests using CLT Python 3.9.6, mandatory Node and
+the pinned reader matrix, and Chromium headless shell. All four matrix tests ran.
+The 84-test portable scope passed on this Windows PC and GitHub Windows, Linux and
+macOS runners, including an additional CLT-Python preflight. Every run reported zero
+failures, errors and skips. [CI evidence](https://github.com/workspace-labs/vibe-to-engineering/actions/runs/37769123814).
+
+This candidate is not an owner-accepted release. Full workflow exams, the remaining
+documentation corrections, fresh-user validation and final release gates remain pending.
+The accepted A1/A2/confidentiality behavior is preserved; the September results below
+describe the earlier snapshot, not this changed candidate.
+
+## September 29 accepted snapshot (historical)
+
+### Status at that update
 
 The latest F3-R1 repair passed Kimi's independent re-review and was accepted by the owner
 on 2026-09-29. A1 and A2 were already accepted. The confidentiality/status work has no
@@ -83,7 +109,7 @@ reader-matrix tests passed. Local logs and the pre-update backup are retained in
 `~/Desktop/v2e-github-update-2026-09-29-qzr8_d34/`. This verifies the repository snapshot;
 the release workflow exam below is still pending.
 
-## What to fix and verify next
+## September 29 release queue (historical; October status above)
 
 1. **A3 — scratch retention (next implementation step).** Remove automatic deletion of
    the check's run-owned scratch root. Retain it outside the project with mode 0700, record

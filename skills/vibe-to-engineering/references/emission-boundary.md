@@ -25,7 +25,7 @@ values are known. Unreadable files still cause pre-launch refusal; this correcti
 
 Named and generic masking happens first. The complete evidence text, including its final newline, then
 passes `emission.Context.scrub` before the same bytes are saved and echoed. All terminal stderr messages
-are accumulated through cleanup and emitted together. Prefixes, labels, usage, help and message boundaries
+are accumulated through final scratch validation and emitted together. Prefixes, labels, usage, help and message boundaries
 are inside protection, so independently safe pieces cannot assemble a protected value afterward.
 
 The scrubber finds all overlapping matches in the original text and substitutes readable masks. It checks
@@ -43,7 +43,7 @@ then Unicode word characters; it is finite and never echoes inputs if no output 
 - **3:** integrity failure after the check ran. Evidence may or may not have been saved.
 
 The known child return code is retained immediately when `subprocess.run` completes, before masking,
-writing or cleanup. Human diagnostics include the outcome when it can be displayed without a protected
+writing or scratch validation. Human diagnostics include the outcome when it can be displayed without a protected
 value. A separate recoverable result always carries the available facts on contracted check terminal
 paths, including post-launch failure. A positive child code is an exit, a negative one is a signal;
 neither is substituted for the wrapper's process status.
@@ -57,7 +57,8 @@ The **last stderr line** is a versioned record with exactly these fields, normal
 `child` is `{"exit":N}`, `{"signal":N,"name":"SIGTERM"}` (name may be null for an unknown signal),
 or null when no outcome is available. `launched` and `saved` describe this attempt, not pre-existing
 evidence files. Child stdout/stderr are captured into evidence; neither can supply this wrapper-owned
-stderr record. The record is emitted after cleanup, so a cleanup failure cannot leave a success record.
+stderr record. The record is emitted after non-destructive scratch validation, so an integrity failure
+cannot leave a success record.
 
 If literal JSON or its boundary with the human messages would contain a protected value, only this
 fixed-schema record is encoded using two distinct printable word symbols absent from all protected
@@ -103,7 +104,16 @@ Existing R2/R1, A1/A2, child environment, protocol and reader-matrix checks rema
 `tests/test_f3_ambiguous.py` adds the F3-R1 ambiguous-attached refusal regressions, including malformed
 settings, spaces/equals signs, value collisions with diagnostics, later declarations and boundary controls.
 
+The A3/A4 follow-up retains scratch and refuses unsupported execution platforms. Allocated scratch paths
+and sensitive-output notices pass through the existing complete-message context, including on refusals
+after allocation and operational failures. A path that collides with a protected value stays masked;
+callers must preserve that masking when recording it in the ledger. Paths are never added to the lossless
+process-facts record. Enrollment has no admitted --env declarations and reports its retained scratch too.
+An interruption emits the governed retained-scratch notice before propagating; when the subprocess call
+did not return, the wrapper does not invent launch or child-outcome facts. No complete result record means
+the interrupted check remains unverified, even when its scratch files survive.
+
 This is output confidentiality under the existing literal policies, not a sandbox or protection from
-an account-controlling attacker. It does not change scratch-retention behavior (A3), platform scope (A4),
-the supported runners, the registry or the release decision. This corrective has no release version bump;
-it remains part of the current Unreleased work and needs independent review and owner acceptance.
+an account-controlling attacker. The supported macOS runner identities, registry, masking algorithm and
+result schema are unchanged. This work remains Unreleased, pending native macOS regression/workflow
+verification, independent review and owner acceptance; it does not establish whole-skill readiness.
