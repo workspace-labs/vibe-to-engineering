@@ -74,7 +74,7 @@ Before changing project files, restore compares both the saved-file state and th
 
 Comparing with the current files stores their changed contents in the store as unreferenced objects. On a large or binary-heavy project, `git --git-dir=<project>/.vibe-to-engineering/checkpoints.git gc` reclaims that space; every checkpoint is kept, because each is named by a ref.
 
-Labels used by the protocol: `00-baseline`, `00-baseline-checked`, `01-phase-1`, `02-phase-2` …, `failed-02-phase-2`, `NN-final`, plus the tool's own `pre-restore-<time>`. A label can never be reused; add a suffix for a second attempt (`failed-02-phase-2-b`).
+Labels used by the protocol: `00-baseline`, `00-baseline-checked`, `01-phase-1`, `02-phase-2` …, `NN-final`, plus the tool's own `pre-restore-<time>`. Failed-state labels carry the run, phase and attempt, for example `r2-failed-02-phase-2-attempt-1` then `r2-failed-02-phase-2-attempt-2`. A label can never be reused. Subsequent migrations also prefix their baseline, phase and final labels with the new run (for example `r2-00-baseline`).
 
 The tool refuses to treat a home folder or a file-system root as a project, and refuses to extract into the project itself. It also refuses a state folder or store it cannot show to be isolated (G7), a folder it cannot read (G1), a nested repository holding unsaved work (G1) and a repository git refuses to open (G1) — each with a message naming what to look at.
 
@@ -91,8 +91,8 @@ Run the full suite on macOS with the required reader-matrix dependencies. Target
 
 ## 5. Investigating a break
 
-1. `create failed-NN-phase-n` — keep the broken state before anything else.
-2. `diff <last-good> failed-NN-phase-n` — every change since the last known-good checkpoint. Add `--patch --path <file>` to see the lines of one file.
+1. Choose an unused label with the current run prefix, phase and attempt number, such as `r2-failed-02-phase-2-attempt-1`; increment the attempt after every new break, including a failed correction. Check `list`, then `create <failed-label>` — keep the broken state before anything else and record the actual label in the ledger.
+2. `diff <last-good> <failed-label>` — every change since the last known-good checkpoint, using that same actual label. Add `--patch --path <file>` to see the lines of one file.
 3. Re-run the failing check once: a failure that comes and goes is reported as such.
 4. Tie the failure to specific changes. To test an idea, `extract` the last good checkpoint (or the failed one) into an empty scratch folder outside the project and try it there. If the scratch copy needs installed dependencies, point it at the project's own dependency folder; installing anything needs the human's approval.
 5. Narrow it down: with many changes, apply half of them to a scratch copy of the last good checkpoint, check, and repeat on the half that fails.

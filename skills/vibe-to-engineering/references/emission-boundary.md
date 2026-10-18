@@ -5,6 +5,12 @@ runner enrollment/pinning (A2), retained `--with-path` entries (R2-F4) and wrapp
 unchanged. This document describes output from the check-running form of `scripts/evidence.py`.
 Enrollment and help are separate command forms; their successful status 0 does not describe a check.
 
+## Contents
+
+- [One context for complete emissions](#one-context-for-complete-emissions)
+- [Wrapper status and retained facts](#wrapper-status-and-retained-facts)
+- [Verification and scope](#verification-and-scope)
+
 ## One context for complete emissions
 
 Before argument parsing, `emission.Parser` collects maskable `--env` values using its actual option

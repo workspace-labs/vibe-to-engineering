@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- 2026-10-19 — Local installation repair: preserve existing files during PDF rendering,
+  reject unsafe destinations and failed browser results, enable browser CSP diagnostics,
+  and cover the failures with
+  regression tests. Align repeated-failure checkpoint labels, scope old-path checks to
+  unintended live references, remove secret-disclosing inspection advice, validate plan
+  destinations, qualify enrollment command paths and improve reference navigation.
+  Development/release status is unchanged.
+
 - 2026-10-08 — Windows review candidate: implement A3 retained check scratch and A4
   macOS-only execution refusal; reject edited recovery-store ignore rules and detect
   concurrent ignored-file changes during restore. Isolate Windows test profiles, verify

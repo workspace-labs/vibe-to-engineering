@@ -7,8 +7,10 @@ need one.
 Run from the repository root:  python3 -m unittest discover -s tests -v
 """
 
+import contextlib
 import http.server
 import importlib.util
+import io
 import os
 import re
 import shutil
@@ -18,6 +20,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "vibe-to-engineering"
@@ -252,6 +255,176 @@ class Renderer(unittest.TestCase):
             portrait, landscape = sizes[0], sizes[1]
             self.assertLess(float(portrait[1]), float(portrait[2]), "page 1 should be portrait")
             self.assertGreater(float(landscape[1]), float(landscape[2]), "page 2 should be landscape")
+
+
+class RendererOutputSafety(unittest.TestCase):
+    """Destination and failure handling, using only disposable files and a mocked browser."""
+
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory(prefix="v2e-render-safety-")
+        self.addCleanup(self.folder.cleanup)
+        self.tmp = Path(self.folder.name).resolve()
+        self.html = self.tmp / "plan.html"
+        self.html.write_text("<!DOCTYPE html><html><body><p>Fixture plan</p></body></html>", encoding="utf-8")
+        self.pdf = self.tmp / "plan.pdf"
+        self.previous = b"previous PDF must survive a failed render"
+        self.pdf.write_bytes(self.previous)
+        spec = importlib.util.spec_from_file_location("renderer_under_test", str(SCRIPT))
+        self.renderer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.renderer)
+
+    def invoke(self, browser_run, output=None):
+        out, error = io.StringIO(), io.StringIO()
+        with mock.patch.object(self.renderer, "require_supported_platform"), \
+                mock.patch.object(self.renderer, "find_browser", return_value="/fixture/browser"), \
+                mock.patch.object(self.renderer.subprocess, "run", side_effect=browser_run) as launch, \
+                mock.patch.object(self.renderer, "page_count", return_value=1), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(error):
+            code = self.renderer.main(["render_pdf.py", str(self.html), str(output or self.pdf)])
+        return code, out.getvalue() + error.getvalue(), launch
+
+    @staticmethod
+    def print_pdf(command, **kwargs):
+        target = Path(next(arg.split("=", 1)[1] for arg in command if arg.startswith("--print-to-pdf=")))
+        target.write_bytes(b"%PDF-1.4\nfixture replacement\n")
+        return subprocess.CompletedProcess(command, 0, b"", b"")
+
+    def test_refuses_input_as_output_without_touching_the_plan(self):
+        previous = self.html.read_bytes()
+        code, output, launch = self.invoke(self.print_pdf, self.html)
+        self.assertEqual(code, 1, output)
+        self.assertEqual(self.html.read_bytes(), previous)
+        launch.assert_not_called()
+
+    def test_refuses_symlink_destinations_and_symlinked_parent_directories(self):
+        link = self.tmp / "linked.pdf"
+        link.symlink_to(self.pdf)
+        outside = self.tmp / "outside"
+        outside.mkdir()
+        escaped_pdf = outside / "plan.pdf"
+        escaped_pdf.write_bytes(self.previous)
+        parent_link = self.tmp / "linked-parent"
+        parent_link.symlink_to(outside, target_is_directory=True)
+        for output in (link, parent_link / "plan.pdf"):
+            with self.subTest(output=output):
+                code, diagnostic, launch = self.invoke(self.print_pdf, output)
+                self.assertEqual(code, 1, diagnostic)
+                self.assertEqual(self.pdf.read_bytes(), self.previous)
+                self.assertEqual(escaped_pdf.read_bytes(), self.previous)
+                launch.assert_not_called()
+        self.assertTrue(link.is_symlink())
+        self.assertTrue(parent_link.is_symlink())
+
+    @unittest.skipUnless(sys.platform == "darwin", "native macOS /tmp alias")
+    def test_accepts_the_native_macos_tmp_alias(self):
+        with tempfile.TemporaryDirectory(prefix="v2e-render-alias-", dir="/tmp") as folder:
+            pdf = Path(folder) / "plan.pdf"  # deliberately preserve the system alias
+            code, output, _ = self.invoke(self.print_pdf, pdf)
+            self.assertEqual(code, 0, output)
+            self.assertEqual(pdf.read_bytes(), b"%PDF-1.4\nfixture replacement\n")
+            self.assertEqual(sorted(path.name for path in Path(folder).iterdir()), ["plan.pdf"])
+
+    @unittest.skipUnless(sys.platform == "darwin", "native macOS /var/folders alias")
+    def test_accepts_the_native_macos_var_folders_alias(self):
+        if not self.tmp.is_relative_to("/private/var/folders"):
+            self.skipTest("the native temporary fixture is not under /var/folders")
+        pdf = Path("/var") / self.tmp.relative_to("/private/var") / "aliased.pdf"
+        code, output, _ = self.invoke(self.print_pdf, pdf)
+        self.assertEqual(code, 0, output)
+        self.assertEqual(pdf.read_bytes(), b"%PDF-1.4\nfixture replacement\n")
+
+    def test_refuses_a_directory_destination_without_a_traceback(self):
+        directory = self.tmp / "directory.pdf"
+        directory.mkdir()
+        code, output, launch = self.invoke(self.print_pdf, directory)
+        self.assertEqual(code, 1, output)
+        self.assertNotIn("Traceback", output)
+        self.assertTrue(directory.is_dir())
+        launch.assert_not_called()
+
+    def test_nonzero_browser_exit_cannot_replace_an_existing_pdf(self):
+        def fail_after_print(command, **kwargs):
+            done = self.print_pdf(command, **kwargs)
+            done.returncode = 7
+            return done
+
+        code, output, _ = self.invoke(fail_after_print)
+        self.assertEqual(code, 1, output)
+        self.assertEqual(self.pdf.read_bytes(), self.previous)
+        self.assertEqual(sorted(path.name for path in self.tmp.iterdir()), ["plan.html", "plan.pdf"])
+
+    def test_browser_timeout_preserves_an_existing_pdf_and_removes_partial_output(self):
+        def timeout_after_print(command, **kwargs):
+            self.print_pdf(command, **kwargs)
+            raise subprocess.TimeoutExpired(command, 180)
+
+        code, output, _ = self.invoke(timeout_after_print)
+        self.assertEqual(code, 1, output)
+        self.assertEqual(self.pdf.read_bytes(), self.previous)
+        self.assertEqual(sorted(path.name for path in self.tmp.iterdir()), ["plan.html", "plan.pdf"])
+
+    def test_browser_launch_error_preserves_the_pdf_without_a_traceback(self):
+        code, output, _ = self.invoke(PermissionError("fixture browser cannot execute"))
+        self.assertEqual(code, 1, output)
+        self.assertNotIn("Traceback", output)
+        self.assertIn("cannot execute", output)
+        self.assertEqual(self.pdf.read_bytes(), self.previous)
+
+    def test_missing_or_invalid_new_pdf_preserves_an_existing_pdf(self):
+        def invalid_pdf(command, **kwargs):
+            done = self.print_pdf(command, **kwargs)
+            target = Path(next(arg.split("=", 1)[1] for arg in command if arg.startswith("--print-to-pdf=")))
+            target.write_bytes(b"not a PDF")
+            return done
+
+        for render in (invalid_pdf, lambda command, **kwargs: subprocess.CompletedProcess(command, 0, b"", b"")):
+            with self.subTest(render=render):
+                code, output, _ = self.invoke(render)
+                self.assertEqual(code, 1, output)
+                self.assertEqual(self.pdf.read_bytes(), self.previous)
+                self.assertEqual(sorted(path.name for path in self.tmp.iterdir()), ["plan.html", "plan.pdf"])
+
+    def test_replace_failure_preserves_an_existing_pdf_without_a_traceback(self):
+        with mock.patch.object(self.renderer.os, "replace", side_effect=PermissionError("fixture replace denied")):
+            code, output, _ = self.invoke(self.print_pdf)
+        self.assertEqual(code, 1, output)
+        self.assertIn("replace denied", output)
+        self.assertNotIn("Traceback", output)
+        self.assertEqual(self.pdf.read_bytes(), self.previous)
+        self.assertEqual(sorted(path.name for path in self.tmp.iterdir()), ["plan.html", "plan.pdf"])
+
+    def test_policy_refusal_preserves_an_existing_pdf(self):
+        def report_policy(command, **kwargs):
+            done = self.print_pdf(command, **kwargs)
+            done.stderr = b"Content Security Policy was ignored"
+            return done
+
+        code, output, _ = self.invoke(report_policy)
+        self.assertEqual(code, 1, output)
+        self.assertEqual(self.pdf.read_bytes(), self.previous)
+
+    def test_success_replaces_the_pdf_only_after_rendering_to_a_temporary_path(self):
+        def print_while_original_survives(command, **kwargs):
+            self.assertEqual(self.pdf.read_bytes(), self.previous)
+            target = Path(next(arg.split("=", 1)[1] for arg in command if arg.startswith("--print-to-pdf=")))
+            self.assertNotEqual(target, self.pdf)
+            self.assertTrue(target.is_relative_to(self.pdf.parent))
+            return self.print_pdf(command, **kwargs)
+
+        with mock.patch.object(self.renderer.os, "replace", wraps=os.replace) as replace:
+            code, output, _ = self.invoke(print_while_original_survives)
+        self.assertEqual(code, 0, output)
+        self.assertEqual(self.pdf.read_bytes(), b"%PDF-1.4\nfixture replacement\n")
+        replace.assert_called_once()
+        self.assertEqual(Path(replace.call_args.args[1]), self.pdf)
+        self.assertEqual(sorted(path.name for path in self.tmp.iterdir()), ["plan.html", "plan.pdf"])
+
+    def test_nonexecutable_browser_override_is_not_selected(self):
+        browser = self.tmp / "browser"
+        browser.write_text("fixture, not executable", encoding="utf-8")
+        browser.chmod(0o644)
+        with mock.patch.dict(os.environ, {"V2E_BROWSER": str(browser)}):
+            self.assertIsNone(self.renderer.find_browser())
 
 
 if __name__ == "__main__":

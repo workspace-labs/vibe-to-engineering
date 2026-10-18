@@ -20,12 +20,18 @@ Windows and other platforms before project/registry access, scratch creation or 
 of historical cross-platform helper code does not establish support; native implementations and release
 exams remain roadmap work. Help is read-only and remains available on every platform.
 
+## Contents
+
+- [Runner enrollment (A2)](#runner-enrollment-a2)
+- [Revalidation evidence](#revalidation-evidence-2026-09-27-under-the-constructed-environment-of-stage-1)
+- [Rules this registry lives by](#rules-this-registry-lives-by)
+
 ## Runner enrollment (A2)
 
 Enrollment is the only way a runner enters the registry, and it is a deliberate human act — there is no
 automatic enrollment and no automatic re-enrollment:
 
-1. `python3 scripts/evidence.py --enroll-runner <runner> [--with-path /abs/dir]…` resolves the candidate the
+1. `python3 <skill>/scripts/evidence.py --enroll-runner <runner> [--with-path /abs/dir]…` resolves the candidate the
    same way the gate does (an absolute path, or a name on the system folders plus the given `--with-path`
    folders, links resolved, kind judged by the resolved final name), and refuses anything that is not a real
    executable **binary** of the supported platform (Mach-O on macOS — a script under a runner's name is
@@ -84,7 +90,7 @@ The supported set (the gate's table, one kind per runner; the profile each must 
 
 Quarantine list: **empty** (no runner failed revalidation).
 
-A plan's check names its runner explicitly (`python3 -m pytest …`, `sh scripts/test.sh …`, `node …`), never a
+A plan's check names its runner explicitly (`python3 -m pytest …`, `sh <project>/scripts/test.sh …`, `node …`), never a
 bare project command (`npm test`, `./run.sh`, `make`): those resolve to runners outside the set and are
 refused. A project check that cannot run under a supported runner is not run until it passes revalidation —
 the human decides, per the plan rules.

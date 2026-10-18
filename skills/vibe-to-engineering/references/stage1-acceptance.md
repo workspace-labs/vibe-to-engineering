@@ -23,6 +23,14 @@ acceptance of that confidentiality/status work. A3 scratch retention and A4 plat
 implemented as a development follow-up; native release verification and the wider release checklist
 remain pending. Earlier test counts below are historical evidence, not results for this follow-up.
 
+## Contents
+
+- [The launch path, structurally](#the-launch-path-structurally)
+- [What the acceptance suite proves](#what-the-acceptance-suite-proves-teststest_stage1_acceptancepy)
+- [Platform status](#platform-status)
+- [Real-reader evidence for every supported profile](#real-reader-evidence-for-every-supported-profile-r1-f8--closed)
+- [Known limitations](#known-limitations)
+
 ## The launch path, structurally
 
 `scripts/evidence.py`'s main path is, in order:

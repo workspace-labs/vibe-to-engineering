@@ -187,7 +187,7 @@ def browser_candidates():
 def find_browser():
     chosen = os.environ.get("V2E_BROWSER")
     if chosen:
-        return chosen if Path(chosen).is_file() else None
+        return chosen if Path(chosen).is_file() and os.access(chosen, os.X_OK) else None
     for candidate in browser_candidates():
         if Path(candidate).is_file() and os.access(candidate, os.X_OK):
             return candidate
@@ -205,16 +205,34 @@ def page_count(pdf):
     return count or None
 
 
-def main(argv):
-    try:
-        require_supported_platform()
-    except PlatformRefusal as error:
-        print("render_pdf.py: error: %s" % error, file=sys.stderr)
-        return 1
+def output_path(requested, html):
+    """Keep the destination in a real directory and never replace the source plan."""
+    requested = requested.expanduser().absolute()
+    for path in (requested, *requested.parents):
+        if path.is_symlink():
+            # macOS exposes its native temporary roots through these exact aliases.
+            # A similarly named user link, or a different target, is still refused.
+            native_target = {"/tmp": "/private/tmp", "/var": "/private/var"}.get(str(path))
+            if path != requested and sys.platform == "darwin" and native_target \
+                    and path.resolve(strict=True) == Path(native_target):
+                continue
+            raise ValueError("output path must not use symlinks: %s" % path)
+    if requested.exists() and not requested.is_file():
+        raise ValueError("output must be a regular file: %s" % requested)
+    parent = requested.parent.resolve(strict=True)
+    if not parent.is_dir():
+        raise ValueError("output parent must be a directory: %s" % parent)
+    pdf = parent / requested.name
+    if pdf == html or (pdf.exists() and pdf.samefile(html)):
+        raise ValueError("input plan and output PDF must be different files")
+    return pdf
+
+
+def render_plan(argv):
     if len(argv) != 3:
         print("usage: render_pdf.py <plan.html> <plan.pdf>", file=sys.stderr)
         return 2
-    html, pdf = Path(argv[1]).expanduser().resolve(), Path(argv[2]).expanduser().resolve()
+    html = Path(argv[1]).expanduser().resolve()
     if not html.is_file():
         print("render_pdf.py: error: plan not found: %s" % html, file=sys.stderr)
         return 2
@@ -245,46 +263,65 @@ def main(argv):
               "file, while it prints: %s. A plan is static and self-contained — remove it; text that shows code is "
               "written with &lt; and &gt;." % ", ".join(problems[:10]), file=sys.stderr)
         return 1
+    requested_pdf = Path(argv[2])
+    pdf = output_path(requested_pdf, html)
     browser = find_browser()
     if browser is None:
-        where = "V2E_BROWSER=%s does not exist" % os.environ["V2E_BROWSER"] if os.environ.get("V2E_BROWSER") \
+        where = "V2E_BROWSER=%s does not exist or is not executable" % os.environ["V2E_BROWSER"] if os.environ.get("V2E_BROWSER") \
             else "no Chrome, Chromium, Edge or Brave browser was found"
         print("render_pdf.py: error: %s. The plan is still readable in any browser: %s. To make the PDF, install "
               "one of those browsers or set V2E_BROWSER to one's full path." % (where, html), file=sys.stderr)
         return 3
-    if pdf.exists():
-        pdf.unlink()  # never let an old PDF pass for the new one
-    work = Path(tempfile.mkdtemp(prefix="v2e-browser-"))
-    try:
+    # A fresh candidate prevents an old PDF passing as new, without removing the old
+    # file. Keeping it beside the destination makes the final replacement atomic.
+    with tempfile.TemporaryDirectory(prefix=".v2e-pdf-", dir=str(pdf.parent)) as output_work, \
+            tempfile.TemporaryDirectory(prefix="v2e-browser-") as browser_work:
+        work = Path(browser_work)
+        rendered = Path(output_work) / "plan.pdf"
         page = work / "plan.html"
         page.write_bytes(with_policy(text).encode("utf-8"))
         command = [browser, "--headless", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                   "--enable-logging=stderr",  # policy violations must reach the refusal check below
                    "--disable-extensions", "--user-data-dir=" + str(work / "profile"), "--no-pdf-header-footer",
                    "--print-to-pdf-no-header",
                    "--host-resolver-rules=MAP * ~NOTFOUND",  # no host name resolves: nothing is fetched
-                   "--print-to-pdf=" + str(pdf), page.as_uri()]
-        done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
-    except subprocess.TimeoutExpired:
-        print("render_pdf.py: error: %s did not finish within 3 minutes" % browser, file=sys.stderr)
-        return 1
-    finally:
-        shutil.rmtree(str(work), ignore_errors=True)
-    reports = [line for line in done.stderr.decode("utf-8", "replace").splitlines() if POLICY_REPORT.search(line)]
-    if reports:
-        if pdf.exists():
-            pdf.unlink()  # the browser's word outranks the text checks: what it printed is not the static plan
-        quoted = re.search(r'"(.*?)"(?:, source:|$)', reports[0])
-        print("render_pdf.py: error: the browser reported the plan against its content security policy, so the "
-              "plan is not static and self-contained — nothing was printed. The browser said: %s"
-              % (quoted.group(1) if quoted else reports[0])[:400], file=sys.stderr)
-        return 1
-    if not pdf.is_file() or not pdf.read_bytes().startswith(b"%PDF-"):
-        detail = done.stderr.decode("utf-8", "replace").strip().splitlines()[-3:]
-        print("render_pdf.py: error: %s did not produce a PDF. %s" % (browser, " ".join(detail)), file=sys.stderr)
-        return 1
-    pages = page_count(pdf)
-    print("wrote %s (%s pages, %d KB) with %s" % (pdf, pages if pages else "?", pdf.stat().st_size // 1024, browser))
+                   "--print-to-pdf=" + str(rendered), page.as_uri()]
+        try:
+            done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
+        except subprocess.TimeoutExpired:
+            print("render_pdf.py: error: %s did not finish within 3 minutes" % browser, file=sys.stderr)
+            return 1
+        reports = [line for line in done.stderr.decode("utf-8", "replace").splitlines() if POLICY_REPORT.search(line)]
+        if reports:
+            quoted = re.search(r'"(.*?)"(?:, source:|$)', reports[0])
+            print("render_pdf.py: error: the browser reported the plan against its content security policy, so the "
+                  "plan is not static and self-contained — nothing was printed. The browser said: %s"
+                  % (quoted.group(1) if quoted else reports[0])[:400], file=sys.stderr)
+            return 1
+        if done.returncode != 0 or not rendered.is_file() or not rendered.read_bytes().startswith(b"%PDF-"):
+            detail = done.stderr.decode("utf-8", "replace").strip().splitlines()[-3:]
+            print("render_pdf.py: error: %s did not produce a successful PDF (exit %s). %s"
+                  % (browser, done.returncode, " ".join(detail)), file=sys.stderr)
+            return 1
+        pages = page_count(rendered)
+        size = rendered.stat().st_size // 1024
+        output_path(requested_pdf, html)  # refuse a destination changed while the browser ran
+        os.replace(rendered, pdf)
+    print("wrote %s (%s pages, %d KB) with %s" % (pdf, pages if pages else "?", size, browser))
     return 0
+
+
+def main(argv):
+    try:
+        require_supported_platform()
+    except PlatformRefusal as error:
+        print("render_pdf.py: error: %s" % error, file=sys.stderr)
+        return 1
+    try:
+        return render_plan(argv)
+    except (OSError, UnicodeError, ValueError) as error:
+        print("render_pdf.py: error: %s" % error, file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

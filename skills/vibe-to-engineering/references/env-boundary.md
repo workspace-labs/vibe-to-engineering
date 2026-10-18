@@ -8,6 +8,16 @@ dotenv parsers, interpolation computed from the constructed environment) with a 
 are no longer wired into the reader. The grammar is implemented in `scripts/envliteral.py` and wired into
 `secretformats.dotenv_values`.
 
+## Contents
+
+- [The grammar](#the-grammar)
+- [The masked set](#the-masked-set)
+- [The claimed readers](#the-claimed-readers)
+- [The evidence](#the-evidence)
+- [Regression supersession mapping](#regression-supersession-mapping)
+- [What stays reachable, and what does not](#what-stays-reachable-and-what-does-not)
+- [A1 corrective round (2026-09-28)](#a1-corrective-round-2026-09-28)
+
 ## The grammar
 
 **File:** UTF-8, LF-only (a carriage return anywhere refuses), no byte order mark.
