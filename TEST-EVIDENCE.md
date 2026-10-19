@@ -1,9 +1,106 @@
-# Skill validation evidence — 2026-10-08
+# Skill validation evidence
+
+## Repair validation — 2026-10-19
+
+Tested repair revision: [`5dc2245182c6cd3a6e7ccbb227617a3bb362bb31`](https://github.com/workspace-labs/vibe-to-engineering/commit/5dc2245182c6cd3a6e7ccbb227617a3bb362bb31).
+Baseline: `7663622963991941a0ca336844e9dbeb6ff4bff3`. Dates in this repair record
+use Asia/Dubai; the CI run began on October 18 UTC. The reporting update adds no
+runtime or test changes to that repair revision.
+
+**PASS for the completed scopes below.** The current repair has local portable and
+renderer/platform evidence, plus completed portable CI on three operating systems.
+The complete native macOS CI regression is **PENDING**, observed at
+`2026-10-19 00:00 UTC`; no current-revision full-suite count is claimed yet.
+The October 8 result of 346 native tests is historical evidence below.
+
+### Local verification
+
+Host: macOS 27.0.1, arm64, Xcode Python 3.9.6. The installed browser's metadata was
+checked separately: Google Chrome 155.0.8059.80. Source/revision binding was checked
+by comparing the exact repair diff and all 25 package files with the validated
+installation before commit; the raw test logs themselves do not embed a commit ID.
+
+```text
+python3 -B tests/run_validation.py --scope portable --output <local-evidence-directory>
+84 tests; 0 failures; 0 errors; 0 skips; PASS; 4.751 seconds
+
+PYTHONPATH=tests python3 -B -m unittest test_render_pdf test_platform_render -v
+Ran 30 tests in 9.674s
+OK (0 failures, 0 errors, 0 skips)
+```
+
+The portable run used the existing disposable-copy harness and isolated user/Git
+configuration. The focused renderer tests used disposable plans and destinations;
+the real-browser cases required execution outside the macOS tool sandbox so Chrome
+and a localhost test server could start. No production project or real runner
+registry was used.
+
+The 30-test selection contains 14 renderer tests, 13 new output-safety regressions
+and three renderer platform-boundary tests. The same three platform tests also
+occur in the 84-test portable scope: these are **114 test executions covering 111
+distinct test methods**, not 114 unique tests. Three renderer methods exercise real
+Chrome: landscape rendering, network-fetch prevention, and malicious markup/local
+file/script protection. Output-safety cases use a mocked browser.
+
+The new regressions cover input/output collisions, unsafe destinations, native
+`/tmp` and `/var/folders` aliases, nonexecutable browser overrides, successful
+replacement, and preservation of existing PDFs after launch errors, timeout,
+nonzero browser exit, missing/invalid output, content-policy refusal and replacement
+failure. Rendering now promotes a temporary output only after successful validation.
+
+Before the Chrome logging correction, the original baseline also failed five
+content-policy cases across two existing test methods. Explicit stderr logging
+made browser policy reports visible to the existing refusal check; the same
+assertions then passed without weakening them. Earlier sandbox-blocked runs and
+that failing native run are not counted as passes.
+
+Additional checks passed: the skill-creator package validator, `git diff --check`,
+reference-anchor checks, exact installed-package comparison, and the installed
+skill's structure/trigger/Claude/Codex audit profiles. Seven static review warnings
+remain: five subprocess-execution indicators and two historical Desktop provenance
+paths. They were reviewed; zero structural errors or duplicate-name/trigger
+conflicts were found for this skill. A workflow dry run checked repeated-failure
+labels, historical/approved path references, secret-reporting rules and unsafe
+migration-state links. That dry run is not a complete migration workflow exam.
+
+Local raw artifacts are retained outside this repository as
+`validation-final/summary.json`, `validation-final/tests.log` and
+`renderer-final-tests.log`, alongside the installation proof and repair patch.
+
+### Repair CI
+
+[CI run 39178732501 for the repair revision](https://github.com/workspace-labs/vibe-to-engineering/actions/runs/39178732501)
+was inspected directly. Downloaded portable `summary.json` artifacts report:
+
+- Windows Server 2025, AMD64, Python 3.12.10: **84 passed**, zero failures/errors/skips.
+- Linux, x86_64, Python 3.12.15: **84 passed**, zero failures/errors/skips.
+- macOS 26.6.2, arm64, Python 3.12.10: **84 passed**, zero failures/errors/skips.
+
+The artifacts are `portable-windows-latest`, `portable-ubuntu-latest` and
+`portable-macos-latest`; each includes `tests.log` and `summary.json`.
+The native arm64 job had passed its Apple-Python portable preflight and reader/browser
+preparation, and was executing the complete regression with mandatory readers at
+the observation time. Its final result and downloadable native summary must be
+checked before replacing PENDING with a full-suite verdict.
+
+### Remaining release gates
+
+These checks do not approve a release or establish migration support on Windows or
+Linux. Execution remains macOS-only, and the skill remains `0.1.0-dev` for disposable
+projects with synthetic secrets. Complete current-revision native regression,
+agent workflow exams, fresh-user verification, final independent release review
+and owner release approval remain required under `LASTUPDATE.md`.
+
+## Historical platform validation — 2026-10-08
+
+The following evidence belongs to its explicitly named historical revisions and
+CI run. It is retained for provenance and is not a full-suite result for the
+October 19 repair.
 
 Repository: workspace-labs/vibe-to-engineering. Baseline: `014e97909f1976993217bb13877e38c9f678b433`.
 Review branch: `fix/platform-boundary-review`.
 
-## Scope and verdict
+### Scope and verdict
 
 **PASS for the tested scopes:** 346 native macOS regression tests and 84 portable tests
 on each of Windows, Linux and macOS, with zero failures, errors or skips. The skill
@@ -12,7 +109,7 @@ establish safe refusal and selected portable behavior; they do not establish sup
 for running migrations on those systems. A complete agent workflow exam and owner
 release approval remain outstanding.
 
-## Original Windows result
+### Original Windows result
 
 On Windows 11 (10.0.26100), AMD64, Python 3.12.10, the unmodified baseline was tested
 in a disposable checkout with isolated HOME, USERPROFILE, AppData, temporary directories
@@ -28,7 +125,7 @@ Failures/errors include subtest events, not that many distinct test methods. Thi
 not a Windows pass. The original suite assumes macOS execution and reader prerequisites;
 unsupported execution is now refused explicitly rather than represented as supported.
 
-## Corrections and focused proof
+### Corrections and focused proof
 
 - Recovery: two issues reproduced in three failing scenarios before fixes; ignored-file changes and
   edited store ignore rules now refuse/report correctly, with a successful-restore control.
@@ -50,7 +147,7 @@ The standard skill-creator package validator reports `Skill is valid!` on this P
 Package tests separately check metadata limits, the exact bundled license and Python 3.8
 runtime syntax. Syntax validation is not a native Python 3.8 execution test.
 
-## Reproducible validation
+### Reproducible validation
 
 ```text
 python -B tests/run_validation.py --scope portable --output validation-results
@@ -76,7 +173,7 @@ requires Node and the complete matrix; any failure, error or skip fails validati
 Logs and machine-readable counts are saved in `tests.log` and `summary.json` and uploaded
 by CI. CI dependency preparation is separate from skill runtime behavior.
 
-## Results and remaining gates
+### Results and remaining gates
 
 Verified code/test revision: `01f25876205ab1cfaddf6d8a9ebc668cf7583fe6`.
 The subsequent evidence update changes only top-level reporting documents.
