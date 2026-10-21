@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.1-dev] - 2026-10-21
+
+- Keep each automatically saved pre-restore checkpoint when several restores occur in
+  the same second; existing labels and recovery bytes remain immutable.
+- Mask the decoded boolean spellings from JSON, TOML and YAML secret fields, while
+  preserving ordinary settings and quoted strings. Add portable scalar regressions.
+- Replace unsafe inspection advice using `git status` and working-tree diffs with
+  the guarded inventory/history path; configured clean filters must not run during inspection.
+- Allow escaped code examples containing remote URLs and CSS imports in migration plans;
+  actual resource loads still pass through markup/CSS validation and browser policy enforcement.
+- Recheck the evidence destination after a child check runs so replaced folders cannot
+  redirect the wrapper's saved log. Keep the child's outcome when reporting an integrity failure.
+- This is a development repair candidate, not release approval or an installed update.
+  Verification and remaining release gates are recorded in `TEST-EVIDENCE.md`.
+
 ## [Unreleased]
 
 - 2026-10-19 — Local installation repair: preserve existing files during PDF rendering,

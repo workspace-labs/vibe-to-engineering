@@ -742,7 +742,11 @@ def cmd_restore(project, args):
         print("nothing was changed. Run again with --apply only after the human approves this restore.")
         return 0
     # 2. keep the current state, 3. prove it comes back, 4. prove the checkpoint to restore comes back
-    saved = "pre-restore-" + time.strftime("%Y%m%dt%H%M%Sz", time.gmtime())
+    saved_base = "pre-restore-" + time.strftime("%Y%m%dt%H%M%Sz", time.gmtime())
+    saved, suffix = saved_base, 1
+    while label_exists(store, saved):
+        suffix += 1
+        saved = "%s-%d" % (saved_base, suffix)
     save_checkpoint(store, now_tree, saved, found, contents)
     print("saved the current state as checkpoint %s" % saved)
     try:

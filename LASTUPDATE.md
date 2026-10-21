@@ -1,4 +1,15 @@
-# Latest update — 2026-10-08
+# Latest update — 2026-10-21
+
+## October 21 local repair candidate
+
+Version `0.1.1-dev` fixes same-second recovery labels, decoded boolean masking, unsafe
+Git inspection advice, harmless quoted plan content, and redirected evidence output.
+**378 complete native macOS tests passed**, including 19 new regression methods;
+**90 portable tests passed** separately. Both runs had zero failures, errors or skips.
+See [test-evedince.md](test-evedince.md) for all current tests and counts.
+
+The owner authorized committing and pushing this repair branch on 2026-10-21.
+The installed skill was not changed. Workflow/fresh-user/release approval gates remain.
 
 ## October 8 review candidate
 

@@ -129,6 +129,16 @@ class Renderer(unittest.TestCase):
         code, output = self.checked(quoted)
         self.assertEqual(code, 3, output)
 
+    def test_accepts_remote_resource_syntax_quoted_as_plan_evidence(self):
+        for quoted in (
+                '<code>&lt;img src="https://example.invalid/logo.png"&gt;</code>',
+                '<code>&lt;link href="https://example.invalid/theme.css"&gt;</code>',
+                '<code>@import "theme.css";</code>',
+                '<code>url(https://example.invalid/logo.png)</code>'):
+            with self.subTest(quoted=quoted):
+                code, output = self.checked(quoted)
+                self.assertEqual(code, 3, output)
+
     def test_refuses_a_plan_with_a_script_or_an_event_handler(self):
         for extra in ('<script>document.title = "x"</script>', '<img src="data:," onload="alert(1)">'):
             with self.subTest(extra=extra):

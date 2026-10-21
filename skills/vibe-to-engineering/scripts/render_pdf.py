@@ -34,12 +34,6 @@ from pathlib import Path
 from platformgate import PlatformRefusal, require_supported_platform
 
 PLACEHOLDER = re.compile(r"\{\{[^{}]*\}\}|\{\{")
-REMOTE = (  # anything the browser would fetch from the network; the plan must be self-contained
-    re.compile(r"""\bsrc\s*=\s*["']?\s*(?:https?:)?//""", re.I),
-    re.compile(r"""<link\b[^>]*\bhref\s*=\s*["']?\s*(?:https?:)?//""", re.I),
-    re.compile(r"""url\(\s*["']?\s*(?:https?:)?//""", re.I),
-    re.compile(r"""@import\b""", re.I),
-)
 # A plan is static. (Turning scripts off in the browser also stops it printing, so they are refused here.)
 SCRIPT = re.compile(r"""<script\b|<[^>]*\son[a-z]+\s*=""", re.I)
 
@@ -253,10 +247,8 @@ def render_plan(argv):
         print("render_pdf.py: error: the plan contains a script or an event handler; a plan is static — "
               "remove them.", file=sys.stderr)
         return 1
-    if any(rule.search(text) for rule in REMOTE):
-        print("render_pdf.py: error: the plan loads something from the network; keep it self-contained "
-              "(no external scripts, stylesheets, fonts or images).", file=sys.stderr)
-        return 1
+    # Resource syntax in quoted code is evidence, not a load. Inspect actual tags and CSS;
+    # static_problems also retains the raw malformed-markup checks, and POLICY guards printing.
     problems = static_problems(text)
     if problems:
         print("render_pdf.py: error: the plan holds something that could run code, or bring in another document or a "

@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "skills/vibe-to-eng
 import childenv
 import emission
 import evidence
+import gitrun
 
 
 class ScratchRetention(unittest.TestCase):
@@ -46,6 +47,9 @@ class ScratchRetention(unittest.TestCase):
             self.stack.enter_context(patch)
         self.native_lstat = os.lstat
         if os.name == "nt":
+            # This simulated runtime checks retention, not the macOS-only descriptor writer.
+            self.stack.enter_context(mock.patch.object(
+                evidence, "write_lf", side_effect=lambda destination, text: gitrun.write_lf(str(destination), text)))
             def private_lstat(path, *args, **kwargs):
                 info = self.native_lstat(path, *args, **kwargs)
                 if str(path) in childenv._ROOTS:

@@ -1,5 +1,13 @@
 # Skill validation evidence
 
+## Local repair validation — 2026-10-21
+
+The `0.1.1-dev` repair candidate passed **378 native macOS tests** and **90 portable
+checks**, with zero failures, errors or skips. The original snapshot passed 359
+native tests; 19 regression methods were added. See [test-evedince.md](test-evedince.md)
+for exact runs, counts, fixes, evidence paths and remaining release limits.
+The portable methods are included in the full suite and must not be double-counted.
+
 ## Repair validation — 2026-10-19
 
 Tested repair revision: [`5dc2245182c6cd3a6e7ccbb227617a3bb362bb31`](https://github.com/workspace-labs/vibe-to-engineering/commit/5dc2245182c6cd3a6e7ccbb227617a3bb362bb31).

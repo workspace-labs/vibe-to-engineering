@@ -31,11 +31,13 @@ ambiguous-attached-option correction, and the owner accepted F3-R1 on 2026-09-29
 Kimi reproduced all 307 tests passing, including the four required reader-matrix tests, on macOS arm64
 with CLT Python 3.9.6. The current output and
 caller result contract is in [emission-boundary.md](skills/vibe-to-engineering/references/emission-boundary.md).
-This is not a released or generally approved skill. The current development changes implement A3
-scratch retention and A4 macOS-only execution refusal. The October 8 candidate passed **346 native
-macOS regression tests**, plus **84 portable checks on each of Windows, Linux and macOS**, with no
-failures, errors or skips. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md) for the tested revision and CI logs.
-Workflow and release verification remain pending. The historical 307-test result above predates these changes.
+The current package is **0.1.1-dev**, a development repair candidate. It includes A3 scratch
+retention and A4 macOS-only execution refusal, plus repairs to restore labels, decoded boolean
+masking, inspection guidance, quoted plan evidence and evidence-output containment.
+See [test-evedince.md](test-evedince.md) for the current local tests and exact counts;
+[TEST-EVIDENCE.md](TEST-EVIDENCE.md) retains earlier revision-specific results and CI links.
+Workflow and release verification remain pending. The historical 307- and 346-test results
+belong to earlier snapshots; they are not counts for this candidate.
 Keep evaluation on disposable projects with synthetic secrets until the release gates are satisfied.
 See `skills/vibe-to-engineering/references/env-boundary.md`.
 
@@ -109,7 +111,7 @@ precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|
-| macOS | Development execution target. The current candidate passed 346 native arm64 regression tests; workflow exams and release approval remain pending. |
+| macOS | Development execution target. Current local test counts are in `test-evedince.md`; workflow exams and release approval remain pending. |
 | Linux | Unsupported execution target. Portable package/unit and refusal checks do not establish Linux support. |
 | Windows | Unsupported execution target. Portable package/unit and refusal checks do not establish Windows support. |
 

@@ -21,7 +21,7 @@ class Package(unittest.TestCase):
         self.assertIsNotNone(description)
         self.assertTrue(0 < len(description.group(1)) <= 1024)
         self.assertNotRegex(description.group(1), r"[<>]")
-        self.assertIn('version: "0.1.0-dev"', header)
+        self.assertIn('version: "0.1.1-dev"', header)
         config = (SKILL / "agents" / "openai.yaml").read_text(encoding="utf-8")
         summary = re.search(r'(?m)^\s+short_description: "(.*)"$', config)
         self.assertIsNotNone(summary)
