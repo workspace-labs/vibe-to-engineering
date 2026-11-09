@@ -3,7 +3,7 @@ name: vibe-to-engineering
 description: "Decides from evidence whether an existing software project's structure shows vibe-coded or ad-hoc development and, only if restructuring is justified, converts it into a project-specific engineered architecture through a controlled migration the human approves step by step: read-only inspection and diagnosis, current and target trees, a phased plan with Engineering-Migration-Plan.pdf, a verified recovery baseline, one approved phase at a time with tests and a checkpoint after each, failure investigation against the last known-good checkpoint, and a final review that reports ALL GREEN only when every final check passes. Use when the user invokes vibe-to-engineering, asks whether a project is vibe-coded or structurally sound, or asks to restructure a whole existing project into a proper engineering architecture. Not for building features, fixing bugs or small local refactors."
 license: MIT
 metadata:
-  version: "0.1.0-dev"
+  version: "0.2.0-dev"
 ---
 
 # vibe-to-engineering
@@ -23,6 +23,17 @@ INSPECT → DIAGNOSE → DESIGN TARGET ARCHITECTURE → CREATE MIGRATION PLAN �
 ```
 
 Engineering here means the right structure for this project — never more folders, layers or abstractions for their own sake. Many projects need no migration, and saying so is a correct result.
+
+**Read → plan → human approval → work.** Inspect the real project first. If migration is justified,
+show the human exactly what the agent will do, in which files and phases, with the target tree,
+checks and recovery limits. Present the plan and PDF, then stop. A request to inspect, plan or
+use this skill is not approval to execute a plan the human has not seen. No project code changes,
+baseline checks, checkpoint creation or runner enrollment happen at the planning gate.
+
+**Shared engineering standard.** Use [standard alignment](references/standard-alignment.md) in
+DIAGNOSE, DESIGN TARGET ARCHITECTURE and FINAL REVIEW. This package bundles engineering standard
+**1.4.0**, its layout map and all eleven project-type trees, pinned for offline use. The standard
+defines placement and boundaries; this skill governs migration scope, checks and approvals.
 
 ## Start here, every time
 
@@ -101,7 +112,13 @@ If part of the project cannot be inspected, say which part and why. Never judge 
 
 ## 2. DIAGNOSE (read-only)
 
-Load `references/engineering-standard.md` and judge the project against it. Record every finding with: an ID (F1, F2…), the criterion, the evidence (paths, line ranges or counts, import edges, duplicate locations — enough for someone else to re-check it), the practical impact, and the severity (Material or Minor).
+Load [standard alignment](references/standard-alignment.md) and `references/engineering-standard.md`.
+Use the bundled standard's applicable rules and project-type tree; C1–C16 are the evidence checklist
+for deciding whether structural migration is justified. Record the standard version, selected tree,
+and each finding with: an ID (F1, F2…), the criterion and applicable standard rule IDs, the evidence
+(paths, line ranges or counts, import edges, duplicate locations — enough for someone else to re-check
+it), the practical impact, and the severity (Material or Minor). Broader product, security or operations
+work is reported separately, never silently added to the migration.
 
 Never make a finding because the tree differs from a preferred layout. Framework conventions, documented decisions, generated or vendored code and a small project being simple are not findings.
 
@@ -112,9 +129,12 @@ Apply the verdict rule in the standard:
 
 ## 3. DESIGN TARGET ARCHITECTURE (read-only)
 
-Load `references/migration-plan.md`. Design the target for this project only:
+Load `references/migration-plan.md` and use the same standard version, layout map and selected
+project-type tree as DIAGNOSE. Design the target for this project only:
 
 - derive it from the responsibilities you found, the stack's conventions and the project's size;
+- explain each proposed home using the shared layout's due-at trigger, or the accepted project
+  rule that takes precedence; the example trees are guidance, never a scaffold to copy wholesale;
 - give every folder in the target tree a one-line responsibility — if you cannot write one, the folder should not exist;
 - trace every structural change to a finding ID;
 - keep every external contract working;
@@ -139,13 +159,20 @@ python3 <skill>/scripts/render_pdf.py <project>/.vibe-to-engineering/Engineering
 
 Look at the result — open it or render its pages as images — and make sure the CURRENT → MIGRATION → TARGET page is readable. If no browser is found, the tool says so: tell the human, give the HTML file's path (it opens in any browser) and still stop here.
 
-Fingerprint the plan with `git hash-object --no-filters <the .html file>` and start `.vibe-to-engineering/ledger.md` with the plan's version and fingerprint.
+Fingerprint the plan with `git hash-object --no-filters <the .html file>` and start `.vibe-to-engineering/ledger.md` with the plan's version and fingerprint. Record its engineering standard version,
+source commit, selected tree guides and project-specific overrides too. They are part of the approved
+plan; changing the standard or target later needs a plan revision, not an automatic upgrade.
 
 Report in plain language: where the project is now → what is wrong → the proposed architecture → how it gets there (one line per phase) → the PDF's path → what approval authorizes (creating the backup and Phase 1, nothing more). End with:
 
 ```
 AWAITING HUMAN APPROVAL
 ```
+
+Give the owner a concrete next reply, for example `approve plan v1`. Explicit approval of the
+currently presented version is enough; exact wording is not a password. A request for changes
+revises the plan and returns to this gate. Silence, an unanswered question or an earlier general
+"go" cannot approve a plan first presented afterwards.
 
 ## 6. CREATE + VERIFY BACKUP
 
@@ -160,9 +187,11 @@ Only after the human approves this plan version. Load `references/recovery.md`.
 
 ## 7. PHASE n — one per approval
 
-Before starting, confirm all three; if one fails, stop and report:
+Before starting, confirm all of these; if one fails, stop and report:
 
 - the plan's fingerprint equals the approved one (otherwise the plan changed and needs approval again);
+- the bundled standard version and source commit still match the plan (otherwise stop and propose
+  a revision; never silently substitute a newer installed standard);
 - the project equals the last checkpoint — `checkpoint.py diff <last>` reports no changes (otherwise someone changed it while you waited: show the changes and ask);
 - the human approved this phase (for Phase 1: the plan approval).
 
@@ -229,7 +258,11 @@ After the human approves it:
 1. **Re-inspect independently.** If your environment can start a fresh agent, give it only the approved plan and the project and have it make the comparison below; it reads and runs checks, and changes nothing. Otherwise redo INSPECT from scratch before you read your own phase notes.
 2. Compare the APPROVED TARGET TREE with the ACTUAL FINAL TREE (`checkpoint.py tree --current`), marked lines included — an ignored file or nested repository that moved or disappeared is a difference too. Every difference must be covered by an approved plan revision; anything else is a finding.
 3. Verify: responsibility boundaries and dependency direction as designed; no dependency added or removed unless planned (compare the manifests and lockfiles with `00-baseline`); the build; the tests (none fewer than at the baseline, no new failures); the smoke run behaves as at the baseline; every ignored file and nested repository of `00-baseline` still there and unchanged, apart from files the checks rewrite (`checkpoint.py diff 00-baseline` reports none `gone` or `changed`); no migration remnants (unintended live references to old paths, temporary shims not meant to stay, empty folders, backup or scratch files, migration notes left in code); documentation that describes the structure matches it — above all the record the documentation phase wrote: every folder and file it names exists and holds what it says, and a mismatch is a finding. If the human declined the record, say that the project holds none.
-4. Final architecture and code review: judge the final project with `references/engineering-standard.md`. A Material finding that the migration left or introduced blocks completion.
+4. Final architecture and code review: reload [standard alignment](references/standard-alignment.md)
+   and `references/engineering-standard.md`, using the approved plan's standard version, tree and
+   overrides. Check the same applicable placement and boundary rules used to design the target.
+   A Material structural finding that the migration left or introduced blocks completion. Report
+   unrelated unmet standard duties separately; do not expand the approved migration to implement them.
 5. Blocking findings: report them and propose a corrective phase as a plan revision — new version, new PDF, new fingerprint (`references/migration-plan.md`, section 6) — and end with `AWAITING HUMAN APPROVAL`.
 6. None: `checkpoint.py create NN-final` and `checkpoint.py verify NN-final`, then report exactly one outcome:
 
@@ -328,6 +361,7 @@ refuses with exit 2 before the check, without rewriting the registry.
 
 | File | Load when |
 |---|---|
+| [references/standard-alignment.md](references/standard-alignment.md) | DIAGNOSE, DESIGN TARGET ARCHITECTURE, FINAL REVIEW: pinned shared rules, layout map, project-tree selection and migration scope |
 | `references/engineering-standard.md` | DIAGNOSE, checking your own target design, FINAL REVIEW |
 | `references/migration-plan.md` | DESIGN TARGET ARCHITECTURE, CREATE MIGRATION PLAN, GENERATE PDF, plan revisions |
 | `references/recovery.md` | CREATE + VERIFY BACKUP, every phase, any break or restore |

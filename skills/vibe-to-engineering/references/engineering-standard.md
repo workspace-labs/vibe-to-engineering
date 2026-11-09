@@ -2,6 +2,13 @@
 
 How vibe-to-engineering judges an existing project's structure. Use it in DIAGNOSE, to check your own target design, and again in the FINAL REVIEW.
 
+Read [standard-alignment.md](standard-alignment.md) first. Engineering standard 1.4.0 supplies
+the shared placement, ownership and dependency rules, its layout map and project-type trees.
+The C1–C16 criteria below are migration evidence lenses, not a competing layout standard.
+Apply the same pinned source at diagnosis, target design and final review. A due-at trigger
+helps choose a home for an existing responsibility; it does not authorize adding a service,
+changing behavior, or migrating merely to resemble an example tree.
+
 ## Contents
 
 1. How to judge

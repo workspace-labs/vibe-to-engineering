@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.0-dev] - 2026-11-09
+
+- Align migration diagnosis, target architecture and final review with engineering standard
+  1.4.0 at commit a27317b9f7885b18dc6b5eedc24b5dd29d27fdb9. Bundle the unchanged upstream
+  guidance, layout map, eleven project-type trees and licence with a file-integrity manifest
+  so the skill works offline and does not choose a different installed standard mid-migration.
+- Make read-project → present-plan → human-approval → approved-phase execution explicit.
+  Record the standard version, source commit, project-tree selection and accepted overrides
+  in the plan and ledger. Preserve the existing phase, failure and recovery gates.
+- Keep broader engineering duties outside structural migration scope and preserve healthy
+  existing homes and framework conventions. Explain checkpoint coverage accurately in the
+  plan's approval and recovery sections.
+- Add portable snapshot/reference checks and independent agent exercises. This remains a
+  development candidate; whole-skill workflow exams and owner release approval are separate.
+
 ## [Unreleased]
 
 - 2026-10-19 — Local installation repair: preserve existing files during PDF rendering,

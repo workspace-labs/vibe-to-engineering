@@ -176,7 +176,7 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
 
   <div class="authorize">
     <p class="eyebrow">What your approval authorizes</p>
-    <p>Creating and verifying a recovery baseline — a saved copy of the whole project that it can be put back to — and then <b>Phase 1 only</b>. Every later phase waits for its own approval. The product's behavior stays the same, nothing is committed or published, and nothing is deleted without a saved copy.</p>
+    <p>No code changes or baseline checks start until you approve this plan version. Approval authorizes creating and verifying a recovery baseline for the files checkpoints cover, and then <b>Phase 1 only</b>. Ignored files and nested repositories are outside checkpoint recovery; checkpoints are not a comprehensive backup of secrets or user data. These protected files stay untouched. Every later phase waits for its own approval. The product's behavior stays the same, nothing is committed or published, and nothing is deleted without a saved copy.</p>
   </div>
 </section>
 
@@ -245,6 +245,11 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
   <div class="block" id="target">
     <h2><span class="n">2</span>Target architecture</h2>
     <p class="lead">{{TARGET_INTRO}}</p>
+    <h3>Engineering basis</h3>
+    <p>Engineering standard <b>{{STANDARD_VERSION}}</b> · source commit <span class="path">{{STANDARD_COMMIT}}</span></p>
+    <p>Project type: {{PROJECT_TYPE}} · selected tree guides: {{TREE_GUIDES}}</p>
+    <p>Why these homes are due: {{STANDARD_DECISIONS}}</p>
+    <p>Project and framework rules taking precedence: {{PROJECT_RULES}}</p>
     <table>
       <colgroup><col style="width:34%"><col style="width:66%"></colgroup>
       <thead><tr><th>Folder</th><th>Responsibility</th></tr></thead>
@@ -358,7 +363,7 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
     <div class="two">
       <div>
         <h3>Backup and checkpoints</h3>
-        <p>Before Phase 1, the whole project — including work that is not committed yet — is saved as a recovery baseline and proven restorable by restoring it into a temporary folder. After every successful phase a new checkpoint is saved the same way. Checkpoints live in <span class="path">.vibe-to-engineering/checkpoints.git</span>, separate from the project's own history, which is never changed.</p>
+        <p>Before Phase 1, covered project files — including uncommitted work in that set — are saved as a recovery baseline and proven restorable in a temporary folder. Ignored files and nested repositories are outside checkpoint recovery; checkpoints are not a comprehensive backup of secrets or user data. These protected files are never changed by migration. After every successful phase a new checkpoint is saved the same way. Checkpoints live in <span class="path">.vibe-to-engineering/checkpoints.git</span>, separate from the project's own history, which is never changed.</p>
       </div>
       <div>
         <h3>If something breaks</h3>

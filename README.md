@@ -8,6 +8,18 @@ INSPECT → DIAGNOSE → DESIGN TARGET ARCHITECTURE → CREATE MIGRATION PLAN �
 → HUMAN APPROVAL → NEXT PHASE → … → FINAL REVIEW → ALL GREEN
 ```
 
+**Read the project → present a plan → wait for human approval → execute the approved phase.**
+Invoking the skill starts inspection and planning, not permission to change code. When a migration
+is justified, the agent shows its exact proposed work and target tree in a PDF. Replying
+`approve plan v1` (or explicitly approving the presented version in your own words) authorizes
+the verified recovery baseline and Phase 1. Every later phase has its own approval.
+
+The 0.2.0-dev candidate aligns diagnosis, target design and final review with engineering standard
+**1.4.0**, including its layout map and eleven project-type trees. The versioned references are
+bundled for offline use; plans record the source commit and the selected project tree.
+See [standard alignment](skills/vibe-to-engineering/references/standard-alignment.md).
+This is an instruction/package update, not a release-readiness claim.
+
 ## What it does
 
 - **Reads before it judges.** Inspection and diagnosis are read-only: no builds, tests or scripts run, and nothing in the project is written.
@@ -109,7 +121,7 @@ precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|
-| macOS | Development execution target. The current candidate passed 346 native arm64 regression tests; workflow exams and release approval remain pending. |
+| macOS | Development execution target. The October 8 candidate passed 346 native arm64 regression tests. The 0.2.0-dev update has portable and renderer validation; its full native regression, remaining workflow exams and release approval are pending. |
 | Linux | Unsupported execution target. Portable package/unit and refusal checks do not establish Linux support. |
 | Windows | Unsupported execution target. Portable package/unit and refusal checks do not establish Windows support. |
 

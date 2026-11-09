@@ -20,7 +20,7 @@ import unittest
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 PORTABLE = (
-    "test_package", "test_reader_platform", "test_a1_matrix_regressions", "test_emission_result",
+    "test_package", "test_standard_alignment", "test_reader_platform", "test_a1_matrix_regressions", "test_emission_result",
     "test_protocol", "test_env_literal.Grammar", "test_r2_confidentiality.EmissionModule",
     "test_f3_ambiguous.AmbiguousCollection", "test_platform_evidence",
     "test_platform_render", "test_enrolled_isolation", "test_recovery_review",

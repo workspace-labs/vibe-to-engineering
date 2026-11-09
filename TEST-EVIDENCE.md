@@ -1,5 +1,76 @@
 # Skill validation evidence
 
+## Engineering-standard alignment candidate — 2026-11-09
+
+Candidate: **0.2.0-dev**, branch `update/engineering-standard-1.4`, based on Vibe
+`bd8133fa474a36694a11452138a1110c0c1ba860`. Shared standard: **1.4.0** from
+`a27317b9f7885b18dc6b5eedc24b5dd29d27fdb9`. This is a development source update,
+not an installed or released skill. Existing runtime scripts are unchanged.
+
+### Package and renderer checks actually run
+
+Host: macOS 27.2 arm64. Portable checks ran with Homebrew Python 3.15.2 and
+system/Xcode Python 3.9.6. The real-browser checks below used system Python 3.9.6.
+
+- Before-change portable baseline: **84 tests, 0 failures, 0 errors, 0 skips**.
+- New snapshot checks before implementation: **7 tests, 11 expected assertion failures,
+  0 errors** with the bundle/router/form fields absent. After implementation they pass.
+- Updated isolated portable scope: **91 tests, 0 failures, 0 errors, 0 skips** on each
+  interpreter. The seven new tests are included in the normal portable CI selection.
+- `/usr/bin/python3 -B -m unittest discover -s tests -p test_render_pdf.py -v`:
+  **27 tests, 0 failures, 0 errors, 0 skips**. The final run was after the template's
+  checkpoint-coverage correction. It required isolated headless Chrome and a temporary
+  localhost listener outside the tool sandbox. No real browser profile was used.
+- Skill Creator `quick_validate.py`: **Skill is valid**, using system Python with its
+  already installed YAML package; no dependencies were installed.
+- All **24 upstream files** match the pinned commit byte for byte. Tests check manifest
+  inventory and hashes, relative link existence and exact case, eleven project families,
+  standard/version consistency and absence of a discoverable second skill.
+- Read-only skill audit: **0 hard errors**. It reports 34 heuristic review notices:
+  seven existing execution/path notices and 27 nesting/navigation notices from preserving
+  the upstream snapshot and its relative links. These are not runtime-verification results.
+- A seven-page sample plan rendered successfully. Every page was inspected in a contact
+  sheet; the changed approval and engineering-basis sections are readable, with no clipped
+  content or overlapping tables. This is a layout fixture, not an approved project plan.
+- Independent source review: no confirmed defect; the reviewer separately ran the seven
+  new tests, checked the 24 upstream files and confirmed unchanged runtime scripts.
+  A follow-up review cleared the two corrected checkpoint-coverage paragraphs against G1/G10.
+
+The initial exploratory renderer run under sandboxed Python 3.15.2 failed: localhost binding
+was denied, Chrome exited before printing, and that Python parser rejected several legacy
+malicious-markup fixtures before they reached the expected browser-policy check. These are
+recorded failed attempts, not passes. The documented system-Python run above passed without
+changing the renderer or weakening assertions. Python 3.15 browser-suite compatibility is
+not established. The default Python also lacked YAML for the external validator; the existing
+system-Python installation supplied it.
+
+### Independent agent exercises
+
+The requests and observable conditions are in `tests/behavioral-cases.md`. Fresh agents were
+given the actual candidate skill and disposable projects, without the expected architecture.
+
+- Small greeting CLI: agent read the six-file project, verified the 24 manifest hashes,
+  selected the CLI guide, returned **NO MIGRATION REQUIRED**, ran no application checks,
+  and wrote nothing. Independent before/after inventory and SHA-256 comparison confirmed
+  all six files unchanged and no migration directory created.
+- Invoice CLI: agent read nine files, verified the same 24 manifest hashes, diagnosed
+  duplicated responsibility ownership, and produced a three-phase plan and 13-page PDF.
+  It preserved the differing report formula as existing behavior, planned characterization
+  before extraction, mapped every file/owner and pinned the standard and selected CLI guide.
+  It ended at **AWAITING HUMAN APPROVAL**. Independent source hashes confirmed all nine
+  original files unchanged; only plan, ledger, ignore file and an overview preview exist in
+  its migration folder. No baseline checks, checkpoint store, enrollment or registry reads
+  occurred. The recorded fingerprint matches the actual HTML. The first sandboxed render
+  failed before printing; isolated rendering outside the sandbox succeeded. The overview
+  page was visually inspected by the exercising agent.
+
+The full native runtime/reader-matrix suite, approved phase execution, interrupted migration,
+restore and fresh-user enrollment were not run for this instruction-only update. Earlier
+whole-workflow and owner release gates remain open; these results are not whole-skill approval.
+Raw local logs, backups and exercise artifacts are retained outside the candidate repository
+in the sibling `vibe-to-engineering-update-evidence/` directory. Installed skills and the older
+review checkout are unchanged.
+
 ## Repair validation — 2026-10-19
 
 Tested repair revision: [`5dc2245182c6cd3a6e7ccbb227617a3bb362bb31`](https://github.com/workspace-labs/vibe-to-engineering/commit/5dc2245182c6cd3a6e7ccbb227617a3bb362bb31).

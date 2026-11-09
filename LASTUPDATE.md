@@ -1,4 +1,16 @@
-# Latest update — 2026-10-08
+# Latest update — 2026-11-09
+
+## November 9 engineering-standard alignment candidate
+
+The 0.2.0-dev instruction update bundles engineering standard 1.4.0 from commit
+`a27317b9f7885b18dc6b5eedc24b5dd29d27fdb9`. Diagnosis, target design and final review now
+share its layout map and project-type trees, applied to structural migration scope.
+Plans record that fixed basis and explicitly wait for human approval before baseline checks,
+checkpoint creation or code changes. The existing phase, recovery and failure gates remain.
+
+Validation for this candidate is recorded in `TEST-EVIDENCE.md`. It does not close earlier
+whole-workflow or release gates. The older results below describe their tested revisions;
+the migration runtime, runner registry and platform support are unchanged by this update.
 
 ## October 8 review candidate
 

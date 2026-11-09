@@ -15,6 +15,11 @@ How to design the target architecture, cut the phases, prove behavior is preserv
 
 Start from what the project is, never from a template.
 
+Load [standard-alignment.md](standard-alignment.md). Keep the engineering standard version and
+source commit used in DIAGNOSE. Read its layout map, the tree chooser and only the family trees
+and conditional guides this project actually needs. The target is the shared standard applied
+to this project's existing responsibilities, within the findings and approved migration scope.
+
 - **Inventory first.** List the responsibilities you found — features, domain rules, integrations, persistence, UI, configuration, wiring — and where each one lives now.
 - **Choose the organizing principle from evidence.** Group by feature when changes mostly stay inside one feature (history shows a feature's files changing together); group by technical responsibility when the project is small or has a single feature. Use one principle consistently, mixing only where the stack dictates (for example a framework's routes folder).
 - **Shared code** is code that two or more features use today. Code one feature uses lives with that feature.
@@ -22,6 +27,10 @@ Start from what the project is, never from a template.
 - **Respect conventions and contracts.** Paths the framework or tools require stay where they must. External contracts keep their names and locations, or get a compatibility path that the plan names explicitly.
 - **Proportion.** Every folder in the target tree has a one-line responsibility and at least one file that belongs there today. No folders for future use, no layers that only pass calls through, no interfaces with a single implementation unless a boundary or testing need is named.
 - **Traceability.** Every structural change cites the finding it fixes. A change without a finding is not part of the plan.
+- **Shared placement.** For each changed responsibility, name its target home, the applicable
+  standard rule or due-at trigger, and any accepted project or framework rule taking precedence.
+  Preserve a healthy existing home. Do not add empty folders or missing product capabilities
+  merely because the shared map illustrates them.
 - **Minimal movement.** A file that is already in a sensible place stays there. Rename only when a name misleads (C8), never for taste.
 
 Before writing the plan, check the design against `engineering-standard.md`, above all C16 (overengineering).
@@ -78,6 +87,9 @@ The plan is written for the project's owner, who may not be a developer: plain l
 2. **CURRENT → MIGRATION → TARGET** — one landscape page: the current tree, the phases as numbered steps, the target tree.
 3. **Findings** — ID, severity, criterion, evidence, impact. Minor findings too, marked as not acted on.
 4. **Target architecture** — the target tree with a one-line responsibility for each folder, and every major decision with its reason and the simpler alternative rejected.
+   Include an **Engineering basis**: standard version, source commit, project type, selected
+   tree guides, due-at placement decisions and accepted project-specific overrides. This fixes
+   which rules the owner approves and the final reviewer checks.
 5. **Every file: before → after** — one row per file of the project, the ones the migration never touches included: its path; what happens to it (same · edited · moved → new path · split → parts · removed · new · ignored — never touched · nested repository — never touched); what it holds today and what it will hold afterwards, one line each. Rows are grouped by folder; a dependency or build-output folder is one row, and in a large project a folder whose files all stay the same may be one row (`src/ui/ — 42 files, unchanged`). The totals from the closing line of `checkpoint.py tree --current` stand above it, so the owner can see that no file was left out. Then **who owns each job**: every responsibility — database access, settings, routes, UI, domain rules, tests… — with the file or files that own it today and afterwards. Two owners before and one after is the point of a migration, in one glance.
 6. **Migration phases** — a summary table, then for each phase: objective, findings fixed, changes (old path → new path; what is split into what), files in scope, expected tree afterwards, verification, risks. Then the record the documentation phase leaves in the project: where it goes and its exact text.
 7. **Verification and recovery** — the checks and what a pass means; how the backup and checkpoints work; what happens on a failure; that a restore needs approval.
