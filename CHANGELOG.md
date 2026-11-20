@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0-dev] - 2026-11-20
+
+- Refresh the offline engineering standard from 1.9.0 to 1.11.0 at commit
+  `15d76887f5b06ac1e22a8b452fe17d425ec196b3`. The new guidance covers speed targets,
+  cost per paid action, release recovery, end-to-end coverage, internal trust,
+  failed sign-ins and identity-provider administration.
+- Add a planning exercise for preserving an agreed speed target and moving an
+  existing repeatable performance check to the home specified by the pinned layout map.
+
 ## [0.4.1-dev] - 2026-11-20
 
 - Remove machine-specific paths from public evidence references while keeping their names.

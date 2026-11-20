@@ -1,5 +1,54 @@
 # Skill validation evidence
 
+## Engineering standard 1.11.0 bundle — 2026-11-20
+
+Candidate **0.5.0-dev** on `update/engineering-standard-1.11.0`, based on `main` at
+`46f8b759483d34383d048af278156bf9390a4a0d`. The snapshot came from upstream
+`v1.11.0` at `15d76887f5b06ac1e22a8b452fe17d425ec196b3`.
+
+- Compared all 23 payloads with the tagged Git blobs. Twenty-two matched byte for byte.
+  Only `references/repository-and-delivery.md` differed, by the two exact link substitutions.
+  Its upstream and bundled SHA-256 values matched their recorded bytes. All 20 governed
+  passages retained their fingerprints.
+- `python3 -B tests/run_validation.py --scope portable`: **110 passed, 0 failures, 0 errors,
+  0 skips**. `--scope macos`: **409 passed, 0 failures, 0 errors, 0 skips**, including the
+  four required reader-matrix tests.
+- Both scopes used CLT Python 3.9.6 on macOS 27.2.1 arm64 with `node --version` reporting
+  `v20.20.2`. Native validation used Bash 3.2.57, the prepared reader matrix, pinned
+  Chrome Headless Shell 156.0.8078.4 (revision 1248) and Poppler 26.07.0.
+- Checked out the candidate in a disposable local clone with `core.autocrlf=true`.
+  All four snapshot checks passed. The control README used CRLF and all 24 bundle paths
+  including the manifest matched the candidate byte for byte.
+
+### Independent planning exercises
+
+Three fresh agents used an exact copy of the candidate skill with disposable synthetic
+projects. The first setup copies had indentation errors. Those attempts were set aside
+and rerun with fresh agents on syntax-checked copies. Source inventories, transcripts
+and planning artifacts were retained outside the repository.
+
+- **Greeting — observed.** The transcript identifies 1.11.0 and its full pin, and the agent
+  returned `NO MIGRATION REQUIRED`. All six original files and their inventory matched.
+  No migration directory was created and no project check ran.
+- **Invoice — observed.** Six commands repeat calculation and formatting, with the recorded
+  8% and 9.5% rates. The 12-page PDF, HTML and ledger carry the full pin. The plan preserves
+  the six command paths and both rates, and schedules characterization before moving code.
+  All nine original files matched. The agent ended at `AWAITING HUMAN APPROVAL` without
+  baseline checks, checkpoints or enrollment.
+- **Speed target — observed.** The agent cited §45 and applied the layout map's
+  `tests/performance/` rule to the check that ran at module import. The plan preserves
+  the 50,000-integer workload, five timed runs of the report function and the accepted
+  0.050-second maximum on the reference macOS arm64/Python 3.9 workstation. The 10-page PDF,
+  HTML and ledger carry the full pin. All four source files matched. The agent ended at
+  `AWAITING HUMAN APPROVAL` without baseline checks, checkpoints or enrollment.
+
+Both planning agents retained only the four documented planning files in their fixtures.
+The first renderer attempts hit sandbox browser exits. Isolated retries with the same
+pinned browser produced the recorded PDFs. Each ledger fingerprint matched its final HTML.
+
+Candidate Windows CI, approved migration execution and release readiness were outside
+these checks. The speed target was kept in the plan and was not measured during planning.
+
 ## f03 gap fixes — 2026-11-20
 
 Candidate **0.4.1-dev** on `fix/f03-gaps`, based on `main` at `460c3a2`.

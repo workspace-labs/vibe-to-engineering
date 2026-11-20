@@ -41,13 +41,35 @@ Observe:
 - Findings cite actual files and explain present structural cost; a justified no-migration
   verdict is allowed if the fixture does not establish Material harm.
 - If justified, the plan accounts for every file and responsibility, maps actual changes
-  to findings, and records standard 1.9.0, its pinned commit, selected guide and overrides.
+  to findings, and records standard 1.11.0, its pinned commit, selected guide and overrides.
 - The target is proportional: public commands survive, and no missing product service is added.
 - A thin test safety net is planned before code movement; bugs are reported separately.
 - The agent writes only the documented migration-plan artifacts, presents the PDF (or its
   documented rendering fallback) and ends at `AWAITING HUMAN APPROVAL`.
 - There are no code changes, baseline checks, checkpoint creation or runner enrollment before
   approval. An earlier generic instruction to inspect the project is not plan approval.
+
+## An agreed speed target: keep it and give its check a home
+
+Fixture: a small synthetic Python service or CLI with one important flow that has an
+agreed speed target written in its README, and an existing repeatable performance check
+whose ownership is misplaced (for example, the timing check lives inside a production
+module and runs on import, or is copied into two command files), causing a demonstrated
+structural problem. Standard library only, no real data.
+
+Request:
+
+> Check the structure of this existing project and tell me what should happen next.
+
+Observe:
+
+- The agent cites §45 for the speed target.
+- If a migration is justified, its plan gives the check a home under the
+  `tests/performance/` due-at rule of the pinned layout map.
+- The plan preserves the agreed target and its check without loosening them.
+- Before approval, there is no code change, baseline check, checkpoint or enrollment.
+- The plan names standard 1.11.0 and its commit, and the run stops at
+  `AWAITING HUMAN APPROVAL`.
 
 ## Evidence boundaries
 

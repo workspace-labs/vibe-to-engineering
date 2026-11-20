@@ -80,6 +80,14 @@ existing user directory. Ordinary sign-in alone requires neither Keycloak nor LD
   origins, and validate callbacks with the library's state/nonce protections. APIs verify
   access tokens against the expected issuer, audience, signature and validity window,
   then check permissions; decoding a JWT or accepting an ID token is not API authorization.
+- **Apply the §68 sign-in and administration rules.** Where Keycloak verifies the
+  credential, enable and configure its brute-force detection to meet the failed-sign-in
+  limit; where an upstream provider verifies it, establish the limit there. Prove the
+  configured limit and its recovery with synthetic users in the integration checks
+  below. Manage realms, clients, users and roles in the Keycloak admin console or
+  approved operator tooling, never from the product's screens; a product account
+  workflow uses a dedicated service account with only the realm-management roles it
+  needs.
 - **Decide directory ownership before syncing.** Record the stable user identifier,
   attribute/group-to-role mapping, account linking, import/cache/sync behaviour and who
   owns account changes. Do not auto-link accounts solely by a matching email. Prefer

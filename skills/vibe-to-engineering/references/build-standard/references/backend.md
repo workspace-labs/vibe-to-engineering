@@ -31,6 +31,8 @@ documentation and rate limits separately.
   test (§39).
 - **Rate limits are due at the first endpoint reachable by the public or by untrusted
   callers.** Enforce them on the server.
+  An internal endpoint counts when callers whose trust has not been established can
+  reach it; network location alone establishes none (§68).
 
 ## §67 Reliability and operations
 
@@ -90,10 +92,33 @@ controls become due when those capabilities exist.
   process is needed.
 - Check authorization on the server for every protected operation. Hiding a UI control
   does not protect its endpoint.
+- **Network location alone establishes no trust.** A caller on a LAN, office network or
+  VPN is not trusted because of where it connects from: an insider, an infected machine
+  on the same network, or a later change that opens the service further can all reach
+  it. Authenticate and authorize it like any other caller; network restrictions (§67)
+  reduce exposure but replace neither.
+- **Identity-provider administration stays out of the product, due when the product
+  integrates an identity provider.** Provider-wide administration (users, roles, realms
+  and clients) belongs in the provider's own console or approved operator tooling, not
+  in the application's screens. An approved product account workflow, such as inviting
+  a user to the product, runs as a narrow server operation that authorizes the caller,
+  the action, the target and the tenant where applicable, using a dedicated
+  least-privilege service identity whose credentials and privileged tokens stay on the
+  server at build time and at runtime (§69).
 - When cross-origin browser access is needed, CORS uses an explicit allow-list of origins;
   never allow `*` with credentials.
 - Cookie-based sessions need CSRF protection. When passwords are used, hash them with the
   platform's standard password-hashing function; never store or log plaintext passwords.
+- **Limit repeated failed sign-ins, due at the first sign-in that verifies a password
+  or one-time code**, a second-factor code included. The server or identity provider
+  that verifies the credential enforces a per-account limit on failed attempts, counted
+  across all sources, and the sign-in entry point throttles each source separately
+  (§66). Prefer a bounded delay or temporary lockout, and record the threshold or
+  delay, the reset window and the recovery path with the other §68 choices. The
+  rejection a client sees, a throttled one included, never reveals whether the account
+  exists or is locked: a source limit may answer with §106's generic 429, while an
+  account limit answers like any failed sign-in. Never enforce the limit only in the
+  browser.
 - **Security headers and a dependency vulnerability check are due at the first public
   deployment.**
 - Record these choices in `docs/security.md`, already **due at the first stored data,

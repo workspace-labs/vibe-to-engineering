@@ -138,6 +138,14 @@ Do not optimize blindly; first establish whether performance matters for the tas
 
 Do not sacrifice architecture or correctness for speculative optimization. Interaction-heavy systems may need real-device validation.
 
+**Speed target. Due at:** when wait time or throughput materially matters for an important flow.
+Use the project's accepted target, or propose one for the owner and record it as open until agreed.
+Name what counts as completion and measure under repeatable conditions on a representative device and workload.
+Compare the result with the accepted target and record a pass or fail. If existing CI can measure
+the agreed conditions reliably, make the check block a failing change (§75). Otherwise run it during
+release verification and record the device result.
+Meeting the target removes the performance reason for a rewrite. Correctness and maintainability can still justify one.
+
 ## §46 Concurrency and async boundaries
 
 When introducing asynchronous or concurrent behavior, reason explicitly about ordering, cancellation, stale results, retries, idempotence, race conditions, ownership and partial failure. Do not convert synchronous APIs to asynchronous ones across an entire codebase without understanding the propagation cost.

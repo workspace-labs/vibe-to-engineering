@@ -28,8 +28,8 @@ CONTRIBUTING, branch policy, ADR format and release process — take precedence 
 - Unit tests prove one rule or function in isolation. Integration tests prove two real
   parts together, such as code and a real database. Contract tests prove an interface both
   sides own (§39). End-to-end tests prove one flow a person completes.
-- Put most checks at the fastest level that proves the behavior; keep a few end-to-end
-  checks for the flows that matter most.
+- Put most checks at the fastest level that proves the behavior. Use end-to-end checks for
+  critical user journeys and consequential failure paths that need the whole system to prove.
 - A flaky test is a defect: find its cause or quarantine it with an owner and a note.
   Never hide it with automatic retries or silently delete it. Quarantine that weakens a
   gate needs the owner's recorded decision under §75.
@@ -43,6 +43,8 @@ CONTRIBUTING, branch policy, ADR format and release process — take precedence 
 - CI runs the same commands developers run locally, documented in README/AGENTS.md:
   format check, lint, type check where the language has one, tests and build, as applicable
   to the project. Add the secret scan (§69) and dependency audit (§68) when each is due.
+- Apply the [speed target check (§45)](data-state-and-runtime.md#45-performance-without-premature-optimization)
+  when due, using its conditions for a blocking CI check or release verification.
 - Main stays green: merge a change only when its gates pass. Never weaken a gate to get
   green by deleting tests, skipping checks, adding blanket suppressions or lowering a
   threshold without the owner's explicit decision, recorded in the change.
@@ -84,8 +86,17 @@ Apply the selected [distribution and assurance checks (§90)](coverage-and-evide
   An app may use the version scheme its platform or owner requires.
 - Every release bumps the version once, has a dated CHANGELOG entry (§19), a tag and
   release notes for users, and is built reproducibly (§26), ideally from CI.
-- A rollback plan exists **before release**: what to roll back to and how. Data migrations
-  state whether they can be reversed (§43, §44).
+- Before release, write down the signal that triggers recovery, who decides and how to recover.
+  Record whether rollback is safe, to which version and under what conditions. Record a time
+  window where it helps and any cutoff, such as an irreversible migration or writes the earlier
+  version cannot read (§43, §44). Record whether each data migration can be reversed.
+  A timer alone cannot decide whether rollback is safe. Check compatibility both inside and
+  after any time window.
+- Rehearse the recovery route for the release channel and its saved data. Use the channel's
+  supported route, such as stopping a staged rollout or shipping a recovery update if a
+  downgrade would put data at risk. Follow the [data recovery checks (§89)](coverage-and-evidence.md#89-recovery-and-compatible-data-changes)
+  and the distribution checks above (§90). Automated rollback needs a preapproved trigger
+  and a tested safe path.
 - Publishing is the owner's action unless the project grants that authority.
 
 ## §79 Environments and feature flags

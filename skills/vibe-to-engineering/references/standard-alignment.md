@@ -6,9 +6,9 @@ evidence, migration plan, human approvals, recovery checkpoints and behavior-pre
 
 ## Pinned source, available offline
 
-This package carries engineering standard **1.9.0**, from
+This package carries engineering standard **1.11.0**, from
 `workspace-labs/software-engineering-build-standard` commit
-`d671ceb987084da7bc0103666bc12fc3d29e6758`.
+`15d76887f5b06ac1e22a8b452fe17d425ec196b3`.
 
 - [Standard entrypoint](build-standard/standard.md) — the upstream instructions, preserved byte for byte
   under a different filename so this resource cannot be discovered as a second skill. One
@@ -50,7 +50,7 @@ Do not guess from memory or silently fall back to the old criteria alone.
    authorize new features, new services, changed dependencies, changed data, bug fixes or altered
    product behavior inside a structural migration. Keep structural corrections and the approved
    characterization safety net in the plan; let the owner decide other work separately.
-5. **Use the same basis throughout.** The plan and ledger name version 1.9.0, the source commit,
+5. **Use the same basis throughout.** The plan and ledger name version 1.11.0, the source commit,
    selected tree guides and project overrides. The final reviewer uses that approved basis,
    checks every changed responsibility against it and verifies the actual target tree.
 

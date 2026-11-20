@@ -241,7 +241,7 @@ cross apps, so no check has two homes.
 | `tests/architecture/` | the first boundary worth guarding automatically — the check that dependencies still point inward |
 | `tests/e2e/` | the first flow a person completes end to end |
 | `tests/regression/` | the first defect that came back |
-| `tests/performance/` | the first stated speed requirement (§45) |
+| `tests/performance/` | the first agreed speed target that needs a repeatable check (§45) |
 | `tests/security/` | the first sign-in, permission or secret (§27) |
 | `tests/fixtures/` | the first test needing data — never real user data |
 

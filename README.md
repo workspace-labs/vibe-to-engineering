@@ -14,8 +14,8 @@ is justified, the agent shows its exact proposed work and target tree in a PDF. 
 `approve plan v1` (or explicitly approving the presented version in your own words) authorizes
 the verified recovery baseline and Phase 1. Every later phase has its own approval.
 
-The 0.4.1-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
-**1.9.0**, including its layout map and ten project-type trees. File-size alarms live only in §7 of
+The 0.5.0-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
+**1.11.0**, including its layout map and ten project-type trees. File-size alarms live only in §7 of
 that standard; this skill keeps no number of its own. The versioned references are
 bundled for offline use; plans record the source commit and the selected project tree.
 See [standard alignment](skills/vibe-to-engineering/references/standard-alignment.md).
@@ -128,7 +128,7 @@ precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|
-| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.4.1-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
+| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.5.0-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
 | Linux | Unsupported execution target. Portable package/unit and refusal checks do not establish Linux support. |
 | Windows | Unsupported execution target. Portable package/unit and refusal checks do not establish Windows support. |
 

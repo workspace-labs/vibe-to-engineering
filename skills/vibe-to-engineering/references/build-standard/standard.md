@@ -5,7 +5,7 @@ description: "Use when writing or changing code in a software project: adding or
 
 # Software Engineering Build Standard
 
-Standard version: 1.9.0
+Standard version: 1.11.0
 
 Never build software first and organize it later. Architecture, repository structure, module ownership, dependency direction, testing, documentation, Git hygiene, maintainability and extensibility are part of implementation from the beginning. Working code with poor engineering structure is not complete.
 
@@ -161,6 +161,8 @@ Instead: present the current state → explain the problem → propose the targe
 For each change listed above, including new recurring spend, the owner's initial request starts the assessment. Even if that request says "do the work", get the owner's approval after they review the concrete decision. Present the current state, the problem, the proposed target, the trade-offs and any migration risk. Wait for the owner's answer before implementing the change, including creating a replacement, writing a migration or marking an ADR accepted. Introducing or materially changing a runtime, library or platform outside the accepted stack is its own decision and waits too. Reusing the accepted stack, including its standard library, within the approved design and spend needs no extra gate. An earlier approval of the same concrete design remains valid. Ask again only when a material decision changes or the project's workflow requires it.
 
 For new recurring spend, state the service, expected cost and usage assumptions (or what remains unknown), and who pays. Use a current price or an approved quote. Never state a price from memory. Wait for the owner's approval before implementing, provisioning or enabling the paid workload. Reuse approval only when it covers that workload and its spend.
+
+**Cost of one paid action. Due at:** before enabling the first workflow that can materially incur operating charges, and again when rates or usage change enough to matter. Estimate the cost to complete one action from start to finish. Include each paid step through delivery and state which failed attempts and retries you expect to be charged for. Show fixed or shared bills separately and agree any allocation with the owner. Use current rates or an approved quote and state your assumptions and known unknowns. A free tier with paid overages can qualify. Any fully local project with no paid operation skips this estimate.
 
 ## Stop conditions (§56)
 

@@ -1,5 +1,19 @@
 # Latest update — 2026-11-20
 
+## November 20 engineering standard 1.11.0 bundle
+
+Version **0.5.0-dev** on `update/engineering-standard-1.11.0` is based on `main` at
+`46f8b75`. The offline bundle now pins standard **1.11.0** at
+`15d76887f5b06ac1e22a8b452fe17d425ec196b3`. The tagged Git blobs matched 22 bundled
+files exactly. The remaining guide differed only by its two prescribed link substitutions,
+and both hashes matched.
+
+Portable validation passed 110 tests and native macOS validation passed 409, each with
+zero failures, errors or skips. The CRLF checkout passed four snapshot checks. The greeting
+exercise stopped without a plan. The invoice and speed-target exercises presented plans
+with the new pin and stopped for owner approval. See [validation evidence](TEST-EVIDENCE.md)
+for the commands, observations and limits.
+
 ## November 20 f03 gap fixes
 
 Version **0.4.1-dev** on `fix/f03-gaps` is based on `main` at `460c3a2`.

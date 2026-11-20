@@ -1,8 +1,8 @@
 {
   "schemaVersion": 2,
   "repository": "https://github.com/workspace-labs/software-engineering-build-standard",
-  "commit": "d671ceb987084da7bc0103666bc12fc3d29e6758",
-  "version": "1.9.0",
+  "commit": "15d76887f5b06ac1e22a8b452fe17d425ec196b3",
+  "version": "1.11.0",
   "link_rewrite": {
     "from": "](../SKILL.md",
     "to": "](../standard.md",
@@ -20,7 +20,7 @@
     },
     "references/backend.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/backend.md",
-      "sha256": "e1cc1a758fbed8868696d5f6c95c7bd94070d2f33bff6d42566b376215113f6e"
+      "sha256": "5676d753f4c3ed47b3e495cf3b905e4dffe3f33144393e5cfd775b401569bf68"
     },
     "references/coverage-and-evidence.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/coverage-and-evidence.md",
@@ -28,7 +28,7 @@
     },
     "references/data-state-and-runtime.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/data-state-and-runtime.md",
-      "sha256": "59b144c41b4e699cdba21c6343a8da83a7fbd04112174a73659fc16161b12792"
+      "sha256": "9e4a7ca96254c7e6596b9037ef1408ba9382e256a2c381b09bc4923f9f531019"
     },
     "references/frontend.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/frontend.md",
@@ -36,11 +36,11 @@
     },
     "references/layout-map.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/layout-map.md",
-      "sha256": "3a08d99d548fd61389711e2ac9909b8ede584e45a51f59af1517c0a490d54110"
+      "sha256": "539eb8ed2fbeee6ee84999b9389a62817a0cd8aea3d78ff75bc8b013346de247"
     },
     "references/platform-services.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/platform-services.md",
-      "sha256": "84f0614dbfe6fae6378a0e7ed393e55fd455022c57c3ff4a75eb25d662af95eb"
+      "sha256": "52cabdf5c8a96e7741a3c30d335fe1440799dafdb4db0c6fa47b98cbe5f66224"
     },
     "references/repository-and-delivery.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/repository-and-delivery.md",
@@ -53,7 +53,7 @@
     },
     "references/team-and-lifecycle.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/team-and-lifecycle.md",
-      "sha256": "42ebfcfe3b2fb14422973d9d050744295357ff15c5904f94705fd5531f1d334e"
+      "sha256": "e87528b61ab86735cbf41c3f9211a0548ec104bf9a1e644e69a6b7917e08e64f"
     },
     "references/trees/README.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/trees/README.md",
@@ -101,7 +101,7 @@
     },
     "standard.md": {
       "upstream_path": "skills/software-engineering-build-standard/SKILL.md",
-      "sha256": "110ac41705df8c5a9d5dc679f878132bf0fbff96550de2f697956baf630cd537"
+      "sha256": "3e5e9f391097af1e11a9578393c34c3a424fb2ef95ed1ee8106c16340ff21355"
     }
   }
 }
