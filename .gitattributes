@@ -1,0 +1,2 @@
+# The bundled standard is verified byte for byte against source.json: never convert its line endings.
+skills/vibe-to-engineering/references/build-standard/** -text
