@@ -15,6 +15,7 @@ are no longer wired into the reader. The grammar is implemented in `scripts/envl
 - [The claimed readers](#the-claimed-readers)
 - [The evidence](#the-evidence)
 - [Regression supersession mapping](#regression-supersession-mapping)
+- [A `.env` the boundary refuses](#a-env-the-boundary-refuses)
 - [What stays reachable, and what does not](#what-stays-reachable-and-what-does-not)
 - [A1 corrective round (2026-09-28)](#a1-corrective-round-2026-09-28)
 
@@ -89,7 +90,7 @@ masked wherever the check prints it, under its declared name.
 - **The reader-compatibility experiment (2026-09-27)** — 107 readers × 83 fixtures + 5 two-file cases = 8,891
   recorded observations under `env -i`: bash sourcing; six Node versions; all 99 stable dotenv releases
   0.1.1–18.0.4 driven per era; the python-dotenv wheel. Sources, versions, sha256 and publisher digests in
-  `~/Desktop/Vibe-to-Engineering/vibe-to-engineering-reader-compat-2026-09-27/` (`PROVENANCE.md`,
+  the owner's local evidence folder `vibe-to-engineering-reader-compat-2026-09-27/` (`PROVENANCE.md`,
   `results.jsonl`, `analysis.txt`).
 - **The in-suite differential matrix** (`tests/test_literal_matrix.py`) — the implemented grammar and masking
   logic against every claimed reader, live, over the admitted corpus, the combination cases with and without
@@ -197,6 +198,10 @@ recorded below. Deviations from the handoff's "retained unchanged" notes are mar
   the ordinary assignment NAME=`KEYA`, value `====`) keep running with corrected exact-output expectations,
   recorded in the tests' supersession comments. If such lines should refuse instead, that is a grammar
   question for a future owner decision, not a test matter.
+
+## A `.env` the boundary refuses
+
+A real `.env` that falls outside the literal grammar is never edited, rewritten or converted to get it admitted. Keep the file outside the project for the migration, and point the check at throwaway data with `--env`.
 
 ## What stays reachable, and what does not
 

@@ -121,6 +121,34 @@ class Protocol(unittest.TestCase):
         self.assertIn("uncommitted-change count: not safely established", baseline)
         self.assertNotIn("git --no-optional-locks", inspect + baseline)
 
+    def test_runner_enrollment_requires_human_typed_approval(self):
+        gates = self.text.split("## Human gates", 1)[1].split("\n## ", 1)[0]
+        checks = (SKILL_DIR / "references" / "supported-checks.md").read_text(encoding="utf-8")
+        self.assertIn("| Enrollment |", gates)
+        approval = "not typed, not piped, not through stdin by any means"
+        self.assertIn(approval, self.text)
+        self.assertIn(approval, checks)
+
+    def test_no_migration_verdict_keeps_the_human_option_open(self):
+        verdict = next((line for line in self.text.splitlines() if line.startswith("- **No migration justified:**")), "")
+        self.assertIn("every finding judged Minor with its one-line reason", verdict)
+        self.assertIn("may still ask for a migration", verdict)
+        standard = (SKILL_DIR / "references" / "engineering-standard.md").read_text(encoding="utf-8")
+        severity = standard.split("\n## 4. ", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("not acted on unless the human asks", severity)
+
+    def test_checkpoint_comparisons_report_their_limits(self):
+        limit = "does not prove the absence of reads, remote writes or temporary changes"
+        restored = self.text.split("```\nRESTORED <label>\n", 1)[1].split("\n```", 1)[0]
+        self.assertIn(f"Limit: the comparison covers local file states; it {limit}", restored.splitlines())
+        report = self.text.partition("\nFollow the outcome with")[2].split("\n\n", 1)[0]
+        self.assertIn(limit, report)
+
+    def test_refused_real_env_stays_outside_the_migration(self):
+        boundary = (SKILL_DIR / "references" / "env-boundary.md").read_text(encoding="utf-8")
+        self.assertIn("never edited, rewritten or converted to get it admitted", boundary)
+        self.assertIn("throwaway data with `--env`", boundary)
+
 
 if __name__ == "__main__":
     unittest.main()

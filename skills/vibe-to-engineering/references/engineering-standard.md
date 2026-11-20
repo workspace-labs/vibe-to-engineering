@@ -179,7 +179,7 @@ Each criterion gives what good looks like, the evidence of a problem, what is no
 **The verdict:**
 
 - **MIGRATION RECOMMENDED** only when all four hold: there is at least one Material finding; its fix is structural; the fix can preserve the product's behavior; and the benefit clearly outweighs the migration's risk (state both).
-- Otherwise **NO MIGRATION REQUIRED**. Minor findings are listed as optional notes and are not acted on.
+- Otherwise **NO MIGRATION REQUIRED**. Minor findings are listed as optional notes and are not acted on unless the human asks.
 - If a Material problem can only be fixed by changing behavior or by rewriting, say so: it is outside this skill. Plan only what restructuring can fix; if nothing remains, the verdict is NO MIGRATION REQUIRED, with that explanation.
 
 ## 5. Where vibe-coded structure usually shows

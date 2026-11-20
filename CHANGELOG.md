@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1-dev] - 2026-11-20
+
+- Remove machine-specific paths from public evidence references while keeping their names.
+- Reserve runner enrollment approval for the human and show enrollment as a human gate.
+- List all Minor findings with their reasons and explain that the human can still request a migration.
+- State the limits of checkpoint and fingerprint comparisons in restore and final reports.
+- Keep refused real `.env` files outside the project and direct checks to throwaway data.
+
 ## [0.4.0-dev] - 2026-11-20
 
 - Define when an abstraction earns its keep in C16. Require evidence of a present cost or

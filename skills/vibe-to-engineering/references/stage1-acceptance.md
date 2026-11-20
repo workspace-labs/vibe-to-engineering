@@ -3,7 +3,7 @@
 This record assembles the evidence the final independent review is asked to confirm. It says what stage 1
 built, what each acceptance test proves, how the launch path is shaped, and what is and is not verified on
 each platform. The governing documents are the stage-1 design contract and its seven owner decisions D1–D7
-(`~/Desktop/vibe-to-engineering-stage1-design-contract-2026-09-26.md`, decisions log in its §13) and the
+(the owner's local `vibe-to-engineering-stage1-design-contract-2026-09-26.md`, decisions log in its §13) and the
 supported-check registry (`references/supported-checks.md`). NEW-5 is **not closed**: closure requires this
 evidence to pass the independent review, per the closure standard (D7).
 

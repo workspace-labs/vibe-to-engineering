@@ -1,5 +1,20 @@
 # Skill validation evidence
 
+## f03 gap fixes — 2026-11-20
+
+Candidate **0.4.1-dev** on `fix/f03-gaps`, based on `main` at `460c3a2`.
+The run used macOS 27.2.1 arm64, CLT Python 3.9.6, Node v20.20.2, Bash 3.2.57
+at `/bin/sh`, pinned Chrome Headless Shell 156.0.8078.4 (revision 1248) and Poppler 26.07.0.
+All four reader-matrix tests ran and passed.
+
+- `/Library/Developer/CommandLineTools/usr/bin/python3 -B tests/run_validation.py --scope macos`
+  with the prepared reader matrix, pinned browser and Node v20.20.2 first on `PATH`.
+  **409 passed, 0 failures, 0 errors, 0 skips.** The runner reported `Ran 409 tests in 361.284s` and `OK`.
+- All five new regression tests failed as expected against `460c3a2` and passed with the
+  candidate wording. All 31 focused protocol, package and standard-alignment tests passed.
+- The first native run selected the wrong Node version. It reported 405 tests and one
+  reader-matrix setup error. The rerun selected Node v20.20.2 explicitly and passed.
+
 ## Abstraction rule — 2026-11-20
 
 Candidate **0.4.0-dev** on `feat/abstraction-rule`, based on `main` at `b9a1b1e`.

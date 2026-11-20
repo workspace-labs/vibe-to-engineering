@@ -1,5 +1,17 @@
 # Latest update — 2026-11-20
 
+## November 20 f03 gap fixes
+
+Version **0.4.1-dev** on `fix/f03-gaps` is based on `main` at `460c3a2`.
+The skill removes machine-specific paths from evidence references, reserves runner enrollment
+approval for the human, and explains the owner's migration option after a no-migration verdict.
+It states the limits of checkpoint comparisons in reports and directs checks to throwaway data
+when the boundary refuses a real `.env`.
+
+Native macOS validation passed all 409 tests with zero failures, errors or skips. Each of the
+five new regression tests failed on the baseline and passed on the candidate. See the
+[validation evidence](TEST-EVIDENCE.md).
+
 ## November 20 abstraction rule
 
 Version **0.4.0-dev** on `feat/abstraction-rule` is based on `main` at `b9a1b1e`.
@@ -149,7 +161,7 @@ Unknown/non-`--env` options and whitespace/equals-only values retain their docum
 diagnostic behavior; the reviewer recorded these as unchanged policy, not new defects.
 
 The complete review and raw logs are retained locally in
-`~/Desktop/vibe-to-engineering-F3-R1-rereview-2026-09-28/` (`REVIEW.md`, scripts, logs and
+the evidence folder `vibe-to-engineering-F3-R1-rereview-2026-09-28/` (`REVIEW.md`, scripts, logs and
 integrity records). They are not bundled into the installable skill. The source regression
 tests are included in this repository. Existing delivery-time references remain historical;
 this document records the current acceptance status.
@@ -164,7 +176,7 @@ Codex then reran the full suite on a disposable copy with an isolated HOME, the 
 CLT Python, Node and browser, and both `V2E_REQUIRE_NODE=1` and `V2E_REQUIRE_MATRIX=1`:
 **307 tests passed, zero failures, errors or skips**, in 327.107 seconds. All four required
 reader-matrix tests passed. Local logs and the pre-update backup are retained in
-`~/Desktop/v2e-github-update-2026-09-29-qzr8_d34/`. This verifies the repository snapshot;
+the evidence folder `v2e-github-update-2026-09-29-qzr8_d34/`. This verifies the repository snapshot;
 the release workflow exam below is still pending.
 
 ## September 29 release queue (historical; October status above)

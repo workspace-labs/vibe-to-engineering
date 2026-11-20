@@ -40,6 +40,8 @@ automatic enrollment and no automatic re-enrollment:
 3. Only the typed approval word runs the disclosed probe — the profile answer each runner below, checked but
    never shown, Node held to the version bounds — and records the identity. The bytes are hashed again after
    approval, and a probe copy's own reading must also match the approved size and hash before it can execute.
+   The agent never supplies the approval word itself — not typed, not piped, not through stdin by any means;
+   the human runs the command and types it.
 4. Each entry records a pin mode. **pin: path** requires the file and **every ancestor**, checked from `/`
    downward with no-follow opens, to be root-owned, without group/other write bits, without an extended ACL,
    and unwritable by the current user. The chain is checked again after approval and on every routine run;
