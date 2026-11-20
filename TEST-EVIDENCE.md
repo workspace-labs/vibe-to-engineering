@@ -1,5 +1,44 @@
 # Skill validation evidence
 
+## Unmerged safety repairs candidate — 2026-11-20
+
+Candidate **0.3.1-dev** on `fix/unmerged-safety-repairs`, based on `main` at `1f44989`.
+The local host ran macOS 27.2.1 arm64, CLT Python 3.9.6, Node v20.20.2, and Poppler 26.07.0.
+The workflow pins Chrome Headless Shell 156.0.8078.4 (revision 1248).
+
+- Portable baseline at `1f44989`, `python -B tests/run_validation.py --scope portable` with
+  CLT Python 3.9.6. **97 passed, 0 failures, 0 errors, 0 skips.**
+- Candidate portable workflow runner with CLT Python 3.9.6 and separately with Python 3.12.14.
+  **104 passed, 0 failures, 0 errors, 0 skips** on each interpreter.
+- The standard alignment and package tests passed. The bundled standard 1.9.0 and its manifest
+  match `1f44989` byte for byte, including after checkout with `core.autocrlf=true`.
+- The read-only audit of the source package reported 33 existing findings and the same
+  Workspace-specific classification before and after.
+
+The same 10 CLI tests ran on isolated copies of the baseline and candidate. Four methods failed
+on the baseline. The checkpoint symlink loop and both unknown-home commands printed tracebacks.
+The two trailing-LF label cases reached Git's ref write and left a checkpoint store. Six methods
+already passed, including the maximum-length label, invalid UTF-8, same-file paths, symlink aliases,
+hard-link aliases and a real browser launch failure. All ten passed on the candidate.
+
+The first native runs used the installed Google Chrome 157.0.8103.80. Chrome wrote the temporary
+PDF and then exited with code 2 and a teardown watchdog error in renderer cases. The direct
+suite ran **402 tests with 2 failures, 0 errors and 0 skips**. The native workflow runner ran
+**402 tests with 3 failures, 0 errors and 0 skips**.
+
+With the workflow's pinned Chrome Headless Shell, the focused `test_render_pdf.py` run passed
+**28 tests, 0 failures, 0 errors, 0 skips**.
+
+Both full native runs then used that same pinned browser, mandatory Node and all four tests
+in the pinned, hash-verified reader matrix. Both commands used CLT Python 3.9.6.
+
+- README direct suite, `python3 -B -m unittest discover -s tests -v`.
+  **402 passed, 0 failures, 0 errors, 0 skips** in 376.902 seconds.
+- Workflow runner, `python3 -B tests/run_validation.py --scope macos --output validation-results`.
+  **402 passed, 0 failures, 0 errors, 0 skips** in 376.819 seconds.
+
+This is builder verification on one host. The full agent workflow and release gates remain pending.
+
 ## File-size alarms and verification warning candidate — 2026-11-20
 
 Candidate: **0.3.0-dev**, branch `feat/file-size-alarms`, based on

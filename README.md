@@ -14,12 +14,15 @@ is justified, the agent shows its exact proposed work and target tree in a PDF. 
 `approve plan v1` (or explicitly approving the presented version in your own words) authorizes
 the verified recovery baseline and Phase 1. Every later phase has its own approval.
 
-The 0.3.0-dev candidate aligns diagnosis, target design and final review with engineering standard
+The 0.3.1-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
 **1.9.0**, including its layout map and ten project-type trees. File-size alarms live only in §7 of
 that standard; this skill keeps no number of its own. The versioned references are
 bundled for offline use; plans record the source commit and the selected project tree.
 See [standard alignment](skills/vibe-to-engineering/references/standard-alignment.md).
-This is an instruction/package update, not a release-readiness claim.
+The safety repair branch brings the October fixes forward from a base of `main` at `1f44989`.
+The fixes cover distinct pre-restore checkpoints, plain CLI errors, boolean secret masking, guarded
+Git inspection, escaped examples in plan PDFs and a post-run check of the evidence destination. See the
+[validation results](TEST-EVIDENCE.md). Use this candidate on disposable projects with synthetic secrets.
 
 ## What it does
 
@@ -124,7 +127,7 @@ precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|
-| macOS | Development execution target. The October 8 candidate passed 346 native arm64 regression tests. The 0.3.0-dev update has portable and renderer validation; its full native regression, remaining workflow exams and release approval are pending. |
+| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.3.1-dev candidate and earlier revisions, including the October 8 candidate's 346 native arm64 regression tests. Workflow exams and release approval remain pending. |
 | Linux | Unsupported execution target. Portable package/unit and refusal checks do not establish Linux support. |
 | Windows | Unsupported execution target. Portable package/unit and refusal checks do not establish Windows support. |
 
@@ -158,6 +161,11 @@ pin mode. The reviewed macOS host used `/Library/Developer/CommandLineTools/usr/
 its resolved path has a protected ancestor chain. Xcode's Python under admin-writable `/Applications` does
 not, and its framework executable cannot run as a relocated copy. That combination must refuse; do not
 loosen the runner gate to make a test interpreter enroll.
+
+The October repair regressions cover same-second restore checkpoints in `tests/test_restore_labels.py`,
+boolean masking in `tests/test_secret_scalars.py`, guarded inspection in `tests/test_inspection_git.py`,
+escaped plan examples in `tests/test_render_pdf.py`, destination integrity in
+`tests/test_evidence_destination.py` and command-line refusals in `tests/test_cli_boundary.py`.
 
 `tests/test_a2_corrective.py` guards A2's independently found approval/copy race, replacement through a
 higher ancestor or intermediate symlink, stale path-pin assumptions, and malformed registry encodings and

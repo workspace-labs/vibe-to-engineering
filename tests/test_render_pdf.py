@@ -105,6 +105,8 @@ class Renderer(unittest.TestCase):
             "a local image": '<img src="%s">' % local.as_uri(),
             "a local image candidate": '<img srcset="local-secret.txt 1x">',
             "an entity-encoded network address": '<img src="http&#58;//127.0.0.1:9/x.png">',
+            "a CSS import": '<style>@import "https://example.invalid/theme.css";</style>',
+            "a network image in CSS": '<div style="background: url(https://example.invalid/logo.png)"></div>',
             "an entity-encoded script address": '<img src="javascript&#58;alert(1)">',
             "a stylesheet file": '<link rel="stylesheet" href="plan.css">',
             "a local file in CSS": '<div style="background: url(local-secret.txt)"></div>',
@@ -128,6 +130,16 @@ class Renderer(unittest.TestCase):
                   '<code>javascript:void(0)</code>.</p>')
         code, output = self.checked(quoted)
         self.assertEqual(code, 3, output)
+
+    def test_accepts_remote_resource_syntax_quoted_as_plan_evidence(self):
+        for quoted in (
+                '<code>&lt;img src="https://example.invalid/logo.png"&gt;</code>',
+                '<code>&lt;link href="https://example.invalid/theme.css"&gt;</code>',
+                '<code>@import "theme.css";</code>',
+                '<code>url(https://example.invalid/logo.png)</code>'):
+            with self.subTest(quoted=quoted):
+                code, output = self.checked(quoted)
+                self.assertEqual(code, 3, output)
 
     def test_refuses_a_plan_with_a_script_or_an_event_handler(self):
         for extra in ('<script>document.title = "x"</script>', '<img src="data:," onload="alert(1)">'):

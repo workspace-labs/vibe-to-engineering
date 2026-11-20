@@ -91,6 +91,18 @@ class Protocol(unittest.TestCase):
                       "reports none `gone` or `changed`", "ignored files it reports `changed` included"):
             self.assertIn(words, self.text)
 
+    def test_inspection_and_baseline_use_guarded_git_reads(self):
+        inspect = self.text.split("## 1. INSPECT (read-only)")[1].split("\n## ")[0]
+        baseline = self.text.split("## 6. CREATE + VERIFY BACKUP")[1].split("\n## ")[0]
+        for words in ("checkpoint.py tree --current", "checkpoint.is_git_project(project)",
+                      "nested.refuse_partial_clone", "gitrun.git", "committed objects",
+                      "--no-ext-diff --no-textconv --no-show-signature",
+                      "Never run direct `git status` or a Git diff against the working tree"):
+            self.assertIn(words, inspect)
+        self.assertIn("guarded committed-object reads in INSPECT", baseline)
+        self.assertIn("uncommitted-change count: not safely established", baseline)
+        self.assertNotIn("git --no-optional-locks", inspect + baseline)
+
 
 if __name__ == "__main__":
     unittest.main()

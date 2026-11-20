@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.1-dev] - 2026-11-20
+
+- Integrate the safety repairs written on 2026-10-21 (`3125d38`) and 2026-10-07 (`036ec7f`)
+  into a development candidate based on current `main`.
+- Keep a distinct pre-restore checkpoint for each restore in the same second and reject malformed
+  checkpoint labels before creating project state. Report invalid checkpoint and renderer paths
+  as command errors without tracebacks.
+- Mask decoded boolean spellings from secret fields in JSON, TOML and YAML while preserving
+  ordinary settings and quoted-string handling.
+- Use guarded Git inventory and committed history during inspection and baseline recording.
+- Accept escaped source examples with external URLs and CSS imports in plan text. Keep resource
+  loads subject to HTML and CSS validation and the browser policy.
+- Revalidate the evidence destination after a check runs and preserve the child outcome in the
+  result if the evidence path fails its integrity check.
+
 ## [0.3.0-dev] - 2026-11-20
 
 - Update the bundled engineering standard from 1.4.0 to 1.9.0, at commit

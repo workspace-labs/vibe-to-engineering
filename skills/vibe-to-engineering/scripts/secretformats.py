@@ -311,7 +311,7 @@ def json_values(text, label):
         elif isinstance(value, list):
             pending += [(listed(name), member) for member in value]
         elif isinstance(value, bool):
-            found.append((name, json.dumps(value)))
+            found += [(name, form) for form in forms(json.dumps(value), str(value))]
         elif isinstance(value, str):
             found += [(name, form) for form in forms(value)]
             names.setdefault(value, []).append(name)
@@ -348,11 +348,9 @@ def yaml_quoted(raw, double):
     return "".join(out)
 
 
-def yaml_binary(prefix, handles):
-    """True when a tag among a node's anchors and tags (`prefix`) is one PyYAML turns into bytes or a Python object
-    rather than text — tag:yaml.org,2002:binary, or python/… under it — however it is written: !!binary, through a
-    handle a %TAG directive names (!e!binary, or !binary for the ! handle), verbatim (!<tag:yaml.org,2002:binary>), or
-    with %-escaped letters (!!bin%61ry). A handle the document does not name resolves to nothing: PyYAML stops there."""
+def yaml_tags(prefix, handles):
+    """A node's resolved tags, including verbatim, escaped and document-defined spellings."""
+    found = []
     for tag in TAG.findall(prefix):
         if tag.startswith("!<") and tag.endswith(">"):
             full = unquote(tag[2:-1])
@@ -360,9 +358,14 @@ def yaml_binary(prefix, handles):
             second = tag.find("!", 1)
             handle, suffix = (tag[:second + 1], tag[second + 1:]) if second > 0 else ("!", tag[1:])
             full = handles[handle] + unquote(suffix) if handle in handles else ""
-        if full == "tag:yaml.org,2002:binary" or full.startswith("tag:yaml.org,2002:python/"):
-            return True
-    return False
+        found.append(full)
+    return found
+
+
+def yaml_binary(prefix, handles):
+    """True for a tag PyYAML turns into bytes or an object, however its handle or suffix is written."""
+    return any(full == "tag:yaml.org,2002:binary" or full.startswith("tag:yaml.org,2002:python/")
+               for full in yaml_tags(prefix, handles))
 
 
 def yaml_values(text, label):
@@ -410,6 +413,21 @@ def yaml_document_values(text, label):
     anchors, pending = {}, []   # an anchor's forms; the anchors whose value is still to come: (anchor, mark, column)
     handles, declared = dict(TAG_HANDLES), {}   # this document's tag handles; those named for the next one
     starts = [line.start() for line in re.finditer(r"(?m)^", text)]
+
+    def scalar_forms(value, *written, prefix=None, plain=False):
+        """Keep a boolean's Python/JSON spellings only when this scalar has a boolean reading.
+
+        PyYAML's implicit resolver uses these three case variants; !!bool also decodes quoted values.
+        Quoting and other explicit tags keep ordinary words such as 'yes' as strings.
+        """
+        tag_text = prefix if isinstance(prefix, str) else prefix.group() if prefix else ""
+        tags = yaml_tags(tag_text, handles)
+        booleans = {"yes": True, "no": False, "true": True, "false": False, "on": True, "off": False}
+        implicit = (plain and not tags or tags == ["!"]) and value in {
+            spelling for word in booleans for spelling in (word, word.capitalize(), word.upper())}
+        decoded = (str(booleans[value.lower()]), json.dumps(booleans[value.lower()])) if (
+            (implicit or "tag:yaml.org,2002:bool" in tags) and value.lower() in booleans) else ()
+        return forms(value, *written, *decoded)
 
     def row_of(at):
         row = bisect.bisect_right(starts, at) - 1
@@ -486,7 +504,8 @@ def yaml_document_values(text, label):
             alias = re.compile(r"\*([^\s,\[\]{}]*)").match(text, at)
             return alias.end(), None, list(anchors.get(alias.group(1), ()))
         if char in ('"', "'"):
-            return quoted(at, None)
+            after, value, written = quoted(at, None)
+            return after, value, scalar_forms(value, *written, prefix=prefix)
         if not char or char in "#,[]{}|>%@`" or re.match(r"[-?:](?:[\s,\[\]{}]|$)", text[at:at + 2]):
             raise unreadable(text, at, "a value this reader does not read")
         parts = []
@@ -499,9 +518,10 @@ def yaml_document_values(text, label):
             parts.extend([""] * (gap.group().count("\n") - 1))
             at = gap.end()
         value = fold(parts)
-        return at, value, forms(value, "\n".join(part for part in parts if part), *parts)
+        return at, value, scalar_forms(value, "\n".join(part for part in parts if part), *parts,
+                                       prefix=prefix, plain=True)
 
-    def block(row, digit, name, parent):
+    def block(row, digit, name, parent, prefix):
         """A block value (| or >) on the lines after row; returns the next row to read."""
         size, body, row = max(parent, 0) + int(digit) if digit else None, [], row + 1
         while row < len(lines):
@@ -517,10 +537,11 @@ def yaml_document_values(text, label):
             body.pop()
         literal, stripped = "\n".join(body), [part.strip() for part in body]
         folded, joined = fold(stripped), " ".join(part for part in stripped if part)
-        found.extend((name, form) for form in forms(literal, literal + "\n", folded, folded + "\n", joined))
+        found.extend((name, form) for form in scalar_forms(literal, literal + "\n", folded, folded + "\n", joined,
+                                                          prefix=prefix))
         return row
 
-    def plain(row, piece, name, parent):
+    def plain(row, piece, name, parent, prefix):
         """A plain value and the more indented lines that go on with it; returns the next row to read."""
         parts = []
         while True:
@@ -537,15 +558,16 @@ def yaml_document_values(text, label):
             parts.extend([""] * (nxt - row - 1))
             row = nxt
         joined = fold(parts)
-        found.extend((name, form) for form in forms(joined, "\n".join(part for part in parts if part), *parts))
+        found.extend((name, form) for form in scalar_forms(joined, "\n".join(part for part in parts if part), *parts,
+                                                          prefix=prefix, plain=True))
         return row + 1
 
-    def node(at, name, parent):
+    def node(at, name, parent, inherited=None):
         """Reads the value at offset `at`: returns the next row to read, and True when the value is still to come,
         on the more indented lines that follow. An anchor on it keeps what it holds, for the aliases to it — for a
         value still to come, from the lines under it (closed in the loop below)."""
         prefix, mark = YAML_PREFIX.match(text, at, row_of(at)[1]), len(found)
-        row, waiting = read_node(at, name, parent, prefix)
+        row, waiting = read_node(at, name, parent, prefix, inherited)
         for anchor in ANCHOR.findall(prefix.group()) if prefix else ():
             if waiting:
                 pending.append((anchor, mark, parent))
@@ -553,12 +575,24 @@ def yaml_document_values(text, label):
                 anchors[anchor] = [form for _, form in found[mark:]]
         return row, waiting
 
-    def read_node(at, name, parent, prefix):
+    def read_node(at, name, parent, prefix, inherited=None):
         row, end = row_of(at)
         tagged(prefix, at)
         at = prefix.end() if prefix else at
+        tag_prefix = " ".join((inherited or "", prefix.group() if prefix else ""))
         rest = text[at:end]
         if not rest or rest.startswith("#"):
+            # A tag can stand on the line before its scalar. Keep it attached to that node so quoted
+            # !!bool values decode, and !!str values do not acquire an implicit boolean reading.
+            if TAG.search(tag_prefix):
+                nxt = next((i for i in range(row + 1, len(lines))
+                            if lines[i].strip() and not lines[i].lstrip().startswith("#")), len(lines))
+                if nxt < len(lines):
+                    column = len(lines[nxt]) - len(lines[nxt].lstrip(" "))
+                    start = starts[nxt] + column
+                    if column > parent and not key_at(start, row_of(start)[1]) and not re.match(
+                            r"-(?:[ \t]|$)", lines[nxt][column:]):
+                        return node(start, name, parent, inherited=tag_prefix)
             return row + 1, True
         if rest[0] == "*":   # an alias: the values of the node its anchor is on, under this name
             alias = re.fullmatch(r"\*([^\s,\[\]{}]+)(?:[ \t]+#.*)?[ \t]*", rest)
@@ -567,7 +601,9 @@ def yaml_document_values(text, label):
             found.extend((name, form) for form in anchors.get(alias.group(1), ()))
             return row + 1, False
         if rest[0] in "[{\"'":
-            after, _, member = quoted(at, None) if rest[0] in "\"'" else (flow(at, name), None, [])
+            after, value, member = quoted(at, None) if rest[0] in "\"'" else (flow(at, name), None, [])
+            if value is not None:
+                member = scalar_forms(value, *member, prefix=tag_prefix)
             found.extend((name, form) for form in member)
             row, end = row_of(after)
             if not AFTER_VALUE.fullmatch(text, after, end):
@@ -577,10 +613,10 @@ def yaml_document_values(text, label):
             header = YAML_HEADER.match(rest)
             if not header:
                 raise unreadable(text, at, "a block value header this reader does not read")
-            return block(row, header.group(1) or header.group(2), name, parent), False
+            return block(row, header.group(1) or header.group(2), name, parent, tag_prefix), False
         if rest[0] in "%@`,]}" or re.match(r"[-?](?:[ \t]|$)", rest):
             raise unreadable(text, at, "a value this reader does not read")
-        return plain(row, rest, name, parent), False
+        return plain(row, rest, name, parent, tag_prefix), False
 
     def key_at(at, end):
         """(the key, the offset of its value) when the line at `at` is a mapping's key: value, else None."""
@@ -765,7 +801,9 @@ def toml_value(text, at, name, found):
     match = TOML_SCALAR.match(text, at)
     if not match:
         raise unreadable(text, at, "a value this reader does not read")
-    found += [(name, form) for form in forms(match.group())]
+    literal = match.group()
+    decoded = (str(literal == "true"),) if literal in ("true", "false") else ()
+    found += [(name, form) for form in forms(literal, *decoded)]
     return match.end()
 
 

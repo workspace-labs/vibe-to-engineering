@@ -119,7 +119,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the modules be
 from checkpoint import STATE_DIR, resolve_project  # noqa: E402
 import childenv  # noqa: E402 — the constructed environment every check runs with (NEW-5 stage 1)
 import emission  # noqa: E402 — the governed emission path and the wrapper status namespace (R2 slice)
-from gitrun import Fail, configure_output, is_link, write_lf  # noqa: E402
+from gitrun import Fail, configure_output, is_link  # noqa: E402
+from evidencefile import Destination, write_lf  # noqa: E402
 from platformgate import PlatformRefusal, require_supported_platform  # noqa: E402
 from secretformats import (Unreadable, commented, dotenv_values, ini_values, json_values, key_values,  # noqa: E402
                            properties_values, text_values, toml_values, values_in, yaml_values)
@@ -456,8 +457,7 @@ def mask(text, values, everywhere=frozenset()):
 
 
 def evidence_path(project, raw):
-    """The evidence file, refused unless — every link and '..' resolved — it lies inside
-    <project>/.vibe-to-engineering/evidence/, so the output can only land there."""
+    """Admit an output inside the evidence folder; Destination rechecks its parents after the check."""
     if not (project / STATE_DIR).is_dir():
         raise Fail("%s is not there yet: evidence is kept only after the plan exists" % (project / STATE_DIR))
     folder = project / STATE_DIR / "evidence"
@@ -929,7 +929,7 @@ def main(argv=None):
     context = emission.Context(secrets)
     try:
         project = resolve_project(args.project)
-        out = evidence_path(project, args.out)
+        out = Destination(project, evidence_path(project, args.out))
         scratch_base = Path(os.path.realpath(childenv.SCRATCH_BASE))
         if project == scratch_base or project in scratch_base.parents:
             raise Fail("the project contains the fixed scratch base %s — a run's retained scratch must be "

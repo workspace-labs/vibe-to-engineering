@@ -24,7 +24,7 @@ PORTABLE = (
     "test_protocol", "test_env_literal.Grammar", "test_r2_confidentiality.EmissionModule",
     "test_f3_ambiguous.AmbiguousCollection", "test_platform_evidence",
     "test_platform_render", "test_enrolled_isolation", "test_recovery_review",
-    "test_scratch_retention",
+    "test_scratch_retention", "test_secret_scalars",
 )
 
 

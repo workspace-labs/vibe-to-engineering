@@ -1,5 +1,14 @@
 # Latest update — 2026-11-20
 
+## November 20 safety repair candidate
+
+Version **0.3.1-dev** on `fix/unmerged-safety-repairs` brings the October 21 and October 7
+repairs together on top of `main` at `1f44989`. The changes cover restore checkpoints, CLI
+errors, boolean secret masking, guarded Git inspection, escaped plan examples and evidence
+destination checks. The candidate also includes the standard 1.9.0 alignment and the Windows
+line-ending fix. See [current validation evidence](TEST-EVIDENCE.md) for the local results.
+Independent review, owner acceptance and the release workflow remain pending.
+
 ## November 20 file-size alarms and verification warning candidate
 
 The 0.3.0-dev instruction update bundles engineering standard 1.9.0 from commit
@@ -13,9 +22,9 @@ as `COMPLETE WITH ACCEPTED VERIFICATION GAPS`, never as ALL GREEN. An open warni
 before the final checkpoint is created. A covering check that fails at the baseline has a
 defined, visible path when the owner approves continuing. (Review rounds 2 to 4.)
 
-This work is on branch `feat/file-size-alarms`. An independent review approved it after five
-rounds and the owner accepted it on 2026-11-20. It is not merged into `main`. Validation
-is recorded in `TEST-EVIDENCE.md`. No agent exercise was run for the new wording, and the
+This work was reviewed on branch `feat/file-size-alarms`. An independent review approved it
+after five rounds and the owner accepted it on 2026-11-20. It is on `main` in `2462218`.
+Validation is recorded in `TEST-EVIDENCE.md`. No agent exercise was run for the new wording, and the
 earlier whole-workflow and release gates stay open.
 
 ## November 9 engineering-standard alignment candidate

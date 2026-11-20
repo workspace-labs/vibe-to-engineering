@@ -419,7 +419,7 @@ def verify_commit(project, store, commit, label):
 # ---------------------------------------------------------------- checkpoints
 
 def check_label(label):
-    if not LABEL_RE.match(label) or ".." in label or label.endswith((".", ".lock")):
+    if not LABEL_RE.fullmatch(label) or ".." in label or label.endswith((".", ".lock")):
         raise Fail("invalid label %r: use lowercase letters, digits, '.', '_' and '-' (at most 64 characters)" % label)
 
 
@@ -742,7 +742,11 @@ def cmd_restore(project, args):
         print("nothing was changed. Run again with --apply only after the human approves this restore.")
         return 0
     # 2. keep the current state, 3. prove it comes back, 4. prove the checkpoint to restore comes back
-    saved = "pre-restore-" + time.strftime("%Y%m%dt%H%M%Sz", time.gmtime())
+    saved_base = "pre-restore-" + time.strftime("%Y%m%dt%H%M%Sz", time.gmtime())
+    saved, suffix = saved_base, 1
+    while label_exists(store, saved):
+        suffix += 1
+        saved = "%s-%d" % (saved_base, suffix)
     save_checkpoint(store, now_tree, saved, found, contents)
     print("saved the current state as checkpoint %s" % saved)
     try:
@@ -845,7 +849,7 @@ def main(argv=None):
         return COMMANDS[args.command](project, args)
     except (Fail, PlatformRefusal) as error:
         print("checkpoint.py: error: %s" % error, file=sys.stderr)
-    except OSError as error:
+    except (OSError, RuntimeError) as error:
         print("checkpoint.py: error: %s" % error, file=sys.stderr)
     return 1
 
