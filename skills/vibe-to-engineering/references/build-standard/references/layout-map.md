@@ -24,7 +24,7 @@ chooser table: staged snapshots of the *due at* rule in action, never templates 
 Nothing here is decided before the project is understood (§2, §3, §33–§35):
 
 1. **What is it?** New or already existing. What kind — a website, a server, a desktop or mobile
-   application, a command-line tool, a library, a game. Who uses it, and how large it has to be.
+   application, a command-line tool, a library. Who uses it, and how large it has to be.
    For an existing project, read the real repository and never assume its architecture.
 2. **What must it do, and what must it not do?** The scope, written down.
 3. **Which pieces does that earn today?** Only those are created.
@@ -152,7 +152,7 @@ each, named in that same file (§5, §6, §11).
 | `security/authentication/` | the first sign-in |
 | `security/authorization/`, `permissions/` | the first thing one caller may do and another may not |
 | `validation/` | the first check that lives outside a schema |
-| `config/` with `.env.example` at the app root | the first setting the server has — `.env.example` names every setting with no real values; configuration is read in one place (§49, §69) |
+| configuration boundary such as `config/` | the first server setting — read configuration in one place, with `.env.example` at the app root when settings use environment variables (§49, §69) |
 | `logging/` | the first error worth keeping — never a secret, never personal data (§27) |
 | `Dockerfile` at the app's build-context root | the first time the server must run somewhere other than the developer's machine, or needs a local service (database, cache, queue) to run at all (§70) |
 | `.dockerignore` beside the Dockerfile | the first Dockerfile (§70) |
@@ -251,7 +251,7 @@ A flat `tests/` is correct while it holds a handful of files.
 
 | Folder | Due at |
 |---|---|
-| `config/` with an example settings file | the first setting |
+| `config/` | the first setting. Keep applicable examples in the project's format (§85). Use `.env.example` for environment variables |
 | `config/<environment>/` | the second environment — only the ones that exist |
 | `scripts/build/`, `test/`, `migration/`, `release/`, `maintenance/` | each: the first command a person runs for that job |
 | `tooling/lint/`, `tooling/formatting/` | existing lint or format tooling needs maintained configuration beyond the runtime's normal config file |

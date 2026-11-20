@@ -1,4 +1,22 @@
-# Latest update — 2026-11-09
+# Latest update — 2026-11-20
+
+## November 20 file-size alarms and verification warning candidate
+
+The 0.3.0-dev instruction update bundles engineering standard 1.9.0 from commit
+`d671ceb987084da7bc0103666bc12fc3d29e6758`, a local commit of the standard that is not yet
+merged or published. If that commit changes before merge, the bundle must be pinned again.
+File-size alarms are read from §7 of the bundled standard; the before → after table marks
+proposed files over the review alarm as review candidates, and a `VERIFICATION WARNING`
+names check results that are old or do not reach what the plan changes. A warning stays in
+every phase report until a fresh run of its check closes it; a gap the owner accepts finishes
+as `COMPLETE WITH ACCEPTED VERIFICATION GAPS`, never as ALL GREEN. An open warning is answered
+before the final checkpoint is created. A covering check that fails at the baseline has a
+defined, visible path when the owner approves continuing. (Review rounds 2 to 4.)
+
+This work is on branch `feat/file-size-alarms`. An independent review approved it after five
+rounds and the owner accepted it on 2026-11-20. It is not merged into `main`. Validation
+is recorded in `TEST-EVIDENCE.md`. No agent exercise was run for the new wording, and the
+earlier whole-workflow and release gates stay open.
 
 ## November 9 engineering-standard alignment candidate
 

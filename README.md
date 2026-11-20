@@ -14,8 +14,9 @@ is justified, the agent shows its exact proposed work and target tree in a PDF. 
 `approve plan v1` (or explicitly approving the presented version in your own words) authorizes
 the verified recovery baseline and Phase 1. Every later phase has its own approval.
 
-The 0.2.0-dev candidate aligns diagnosis, target design and final review with engineering standard
-**1.4.0**, including its layout map and eleven project-type trees. The versioned references are
+The 0.3.0-dev candidate aligns diagnosis, target design and final review with engineering standard
+**1.9.0**, including its layout map and ten project-type trees. File-size alarms live only in §7 of
+that standard; this skill keeps no number of its own. The versioned references are
 bundled for offline use; plans record the source commit and the selected project tree.
 See [standard alignment](skills/vibe-to-engineering/references/standard-alignment.md).
 This is an instruction/package update, not a release-readiness claim.
@@ -25,6 +26,8 @@ This is an instruction/package update, not a release-readiness claim.
 - **Reads before it judges.** Inspection and diagnosis are read-only: no builds, tests or scripts run, and nothing in the project is written.
 - **Can say no.** Every finding cites evidence someone else can re-check. A project whose structure already fits gets `NO MIGRATION REQUIRED`, and nothing is written. It never imposes one folder tree on every project, and it treats more folders or more abstraction as a cost, not as engineering.
 - **Plans before it touches anything.** A justified migration gets a current tree, a target tree designed for that project, every file of the project listed before → after (the ones it never touches included), phased steps and an `Engineering-Migration-Plan.pdf` that shows CURRENT → MIGRATION → TARGET on one page. Then it stops at `AWAITING HUMAN APPROVAL`.
+- **Flags long files without judging them.** In the before → after table, every proposed file estimated at over 400 lines is marked a review candidate with its jobs listed. The number is the standard's review alarm. File size alone is not a finding, and a file with one job stays whole.
+- **Warns when the proof is thin.** A check result that is old, or that never exercises what the plan changes the way it is really used (storage checked with a page reload but never with a full restart), gets a `VERIFICATION WARNING`. It is never reported as a pass, and the human decides whether to add the check or accept the gap. An accepted gap stays in every report and the migration ends as `COMPLETE WITH ACCEPTED VERIFICATION GAPS`, never as ALL GREEN.
 - **Backs up by itself.** After approval, and before Phase 1, it saves the recovery contract's covered files, including uncommitted work in that set, and proves those files restore byte for byte. Ignored files and nested repositories are outside that saved set; checkpoints do not comprehensively back up local data or secrets. It refuses when it cannot account for the covered files or a nested repository has uncommitted work.
 - **One phase per approval.** After each phase: checks compared with the baseline, the change compared with the plan, a new verified checkpoint, a report, and a stop.
 - **Investigates failures instead of guessing.** A break stops the work, saves the broken state, compares it with the last known-good checkpoint and reports the root cause and the options. Stopping never rolls anything back; a restore needs the human's own approval and refuses, changing nothing, when it cannot be done safely.
@@ -121,7 +124,7 @@ precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|
-| macOS | Development execution target. The October 8 candidate passed 346 native arm64 regression tests. The 0.2.0-dev update has portable and renderer validation; its full native regression, remaining workflow exams and release approval are pending. |
+| macOS | Development execution target. The October 8 candidate passed 346 native arm64 regression tests. The 0.3.0-dev update has portable and renderer validation; its full native regression, remaining workflow exams and release approval are pending. |
 | Linux | Unsupported execution target. Portable package/unit and refusal checks do not establish Linux support. |
 | Windows | Unsupported execution target. Portable package/unit and refusal checks do not establish Windows support. |
 

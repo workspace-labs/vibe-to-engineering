@@ -2,7 +2,7 @@
 
 How vibe-to-engineering judges an existing project's structure. Use it in DIAGNOSE, to check your own target design, and again in the FINAL REVIEW.
 
-Read [standard-alignment.md](standard-alignment.md) first. Engineering standard 1.4.0 supplies
+Read [standard-alignment.md](standard-alignment.md) first. Engineering standard 1.9.0 supplies
 the shared placement, ownership and dependency rules, its layout map and project-type trees.
 The C1–C16 criteria below are migration evidence lenses, not a competing layout standard.
 Apply the same pinned source at diagnosis, target design and final review. A due-at trigger
@@ -132,6 +132,7 @@ Each criterion gives what good looks like, the evidence of a problem, what is no
 - **Good:** no "god" file that everything depends on and every change touches.
 - **Problem evidence:** a file that is large for this project AND holds several unrelated responsibilities, usually with many importers or frequent changes — give its line count, its responsibilities with line ranges, how many files import it and, with history, how many commits touched it.
 - **Not a problem:** a long but cohesive file (a data table, generated code, one complex algorithm). Size alone is never a finding.
+- **Size alarms:** this skill keeps no file-size number of its own. The file-size alarms in §7 of the [bundled standard](build-standard/references/architecture-and-boundaries.md) choose which files to review; crossing one starts the review and is never the finding.
 - **Check:** list the largest files; for each, count its responsibilities and its importers.
 
 ### C13 Structural consistency

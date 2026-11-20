@@ -166,15 +166,17 @@ without seeming to know the risk; or the owner or project asks for explanations.
 - Day one: explain what the project is and how to run it in numbered steps.
 - Past the kit: add a **Project map**, one line each for where the frontend, backend,
   database/migrations, tests and docs live; include only parts that exist.
-- The first setting: add a **Settings** section pointing to `.env.example`. For each setting,
-  say what it is for and where to get the value, never the value itself (§69).
+- The first setting earns a **Settings** section. List each setting's name, purpose and
+  where its value comes from. Point to the configuration sources the code actually uses.
 - The first deployment: explain how to build and deploy, and where the project runs.
 - The first stored data: explain where the data and its backups live (§43).
 - Point to `CHANGELOG.md` for what changed and `docs/adr/` for why important decisions were
   made (§19, §36), once decision records are earned; do not create an empty ADR folder.
-- `.env.example` lists every setting the code reads, without real values. A change that
-  makes the code read a new setting adds its name to `.env.example` and the README Settings
-  section in the same change; describe its purpose and where to obtain the value, never the value.
+- Keep the settings list and any required examples current in the same change. Use
+  `.env.example` for environment variables, with names and safe placeholders. For file-based
+  settings, give a usable example in the project's format, such as `settings.example.toml`
+  for a TOML reader, and explain how to use it. Document flags and managed settings where
+  the operator supplies them. Keep real secrets and private values out of all examples (§69).
 - Before calling substantial work done, apply the ten-year test: could a stranger holding
   only the repository, with no chat or original builder, find the frontend and backend that
   exist, run it, know every setting it needs and see why big decisions were made? If not,
@@ -188,10 +190,11 @@ without seeming to know the risk; or the owner or project asks for explanations.
   README **Project map** and numbered how-to-run steps, and `docs/architecture/overview.md`
   when the [layout map](layout-map.md#root-files-and-documentation) makes it due.
   Never describe what you have not read.
-- If `.env` is missing, search the code for every setting it reads. Recreate `.env.example`
-  with each name and what it is for, marking every value unknown. Never invent or guess a
-  secret value, or copy one from logs, history or other machines into a file; ask the owner
-  for the real values.
+- If settings are undocumented, search the code for what it reads and apply §85 to those
+  sources. Mark unknown values. Never invent or guess a secret value or copy one from
+  logs, history or other machines into a file. Ask the owner to supply the real values
+  through the project's secure configuration mechanism. Keep secrets out of handoff notes,
+  example files and logs. Follow §19 before adding new documentation to a shared repository.
 - If history is missing, start `CHANGELOG.md` from today and put what is unknown or broken
   in `docs/risks-and-debt.md` (§57). Never invent the past.
 - A wrong project tree is a finding (§28, §29), not a reason to rebuild. Report it, then

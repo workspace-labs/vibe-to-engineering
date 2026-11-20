@@ -30,8 +30,8 @@ myservice/
     logging/              earned by: the first error worth keeping — never a secret,
                           never personal data (§27)
   docs/architecture/boundaries.md   earned by: past the kit
-  .env.example            earned by: the first setting the server has — every setting name,
-                          no real values (§69)
+  .env.example            earned by: the first setting read from the environment — names
+                          and safe placeholders (§69)
   the runtime version file   earned by: the first build or dependency
   the appropriate lockfile(s)   earned by: managed dependencies for this runtime
 ```

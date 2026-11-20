@@ -17,6 +17,7 @@ Structure is derived from the product, never from a template. The shapes below a
 - §49 Configuration ownership
 - §50 Naming
 - §51 Comments and code clarity
+- §105 Business rules and edge cases
 
 ## §5 The repository communicates the architecture
 
@@ -58,6 +59,23 @@ Central files such as App, main, index, server, controller or manager must not b
 When these appear, establish a real boundary before adding more responsibility. Asked to add another major feature to such a file, first inspect its responsibilities and coupling; when a boundary is clearly needed, put the new behavior behind it instead of growing the file, and take any restructuring beyond that feature through the Human Gate.
 
 Do not split a cohesive file merely to satisfy an arbitrary line-count target.
+
+### File-size alarms
+
+The rule above decides. These numbers only start a review of responsibilities; no number decides anything alone.
+
+| Size | What it means | What to do |
+|---|---|---|
+| About 300 lines | Soft target | Nothing. |
+| 400 to 500 lines | Review | List the file's responsibilities with line ranges, then check the warning signs above. The review starts here; a longer file that has not had it (first met at 650 lines, say) gets the same review. |
+| Over 1,000 lines | Written reason | After the same review, the file stays whole only with a written reason: generated code, a pure data table, or proven cohesion. Otherwise split it by responsibility. |
+
+- **Functions and hooks:** review any that pass about 40 to 50 lines.
+- **No minimum file size.** A small file is fine if it has one job.
+- A review that finds one responsibility ends there: the file stays whole. Over 1,000 lines, write that finding down; it is the written reason.
+- "Over" means more than: a file of exactly 1,000 lines needs no written reason, one of 1,001 does.
+
+The numbers come from widely used defaults: ESLint `max-lines` 300; SwiftLint 400 warning and 1,000 error; Sonar and Pylint 1,000; the Google TypeScript guide, about 40 lines per function.
 
 ## §8 Domain logic must have a home
 
@@ -135,3 +153,33 @@ Names communicate responsibility: prefer names based on what a module owns or do
 ## §51 Comments and code clarity
 
 Prefer code whose structure explains itself. Comments explain why, invariants, non-obvious constraints, compatibility requirements and safety decisions. Avoid comments that merely restate the next line of code, and do not keep comments that a behavior change made obsolete.
+
+## §105 Business rules and edge cases
+
+**Due at:** the first feature whose result depends on a rule about the product: who may do
+what, what something costs, what is allowed and when. A static page or a plain display of
+stored data earns none of this (§22).
+
+A request describes the ordinary day. "Make a booking site" does not mention two people
+taking the same slot, a refund after a cancellation or an empty basket. Those cases are
+part of the feature, and the person asking may not know to raise them.
+
+- Before building, write each rule as one plain sentence where the project keeps its
+  product decisions: the scope document or the approved requirements. A rule that exists
+  only in code or in a conversation is lost (§59).
+- Walk each rule through the cases nobody mentions, and keep only those this product can
+  actually reach:
+  - **nothing:** empty, zero, missing, not yet set;
+  - **the limit:** the last one, the maximum, the exact boundary amount, date or time (§41);
+  - **twice:** the same action repeated, or two people acting at the same moment (§46);
+  - **out of order:** cancel after paying, edit after deleting, an old link opened late;
+  - **the wrong person:** someone allowed to see it but not to change it (§68);
+  - **halfway:** the step fails after the previous one succeeded (§42, §67).
+- A case whose answer changes money, access, what data is kept or what a customer was
+  promised is the owner's decision. Ask in plain words with a recommended answer (§84);
+  never invent a business rule silently. For the remaining cases choose the safest
+  ordinary behaviour and write it beside the rule.
+- Each rule and each kept case has a test at the domain boundary, named in the rule's own
+  words, runnable without the screen or the network where practical (§8, §15, §74).
+- A rule lives in one place (§8). The screen, the API and the job call it; none repeats it.
+- When a rule changes, its sentence, its code and its test change in the same change (§19).

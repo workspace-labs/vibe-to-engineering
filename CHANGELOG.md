@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.3.0-dev] - 2026-11-20
+
+- Update the bundled engineering standard from 1.4.0 to 1.9.0, at commit
+  d671ceb987084da7bc0103666bc12fc3d29e6758 of `workspace-labs/software-engineering-build-standard`
+  (the repository's new name). The upstream game tree was removed in 1.5.0, so the bundle now
+  holds ten project-type trees; a project with no example tree, such as a game, uses the layout
+  map and its engine's conventions. Bundled links to `../SKILL.md` are rewritten to
+  `../standard.md` so they resolve offline; the manifest (schema 2) records the rewrite and
+  both hashes of the one file it touches.
+- File size has one home: the file-size alarms in §7 of the bundled standard. This skill keeps
+  no file-size number of its own; C12 and the alignment reference point to §7.
+- In the before → after table, mark every proposed file estimated at over 400 lines (the §7
+  review alarm) as a review candidate and list its jobs. File size alone is still not a finding.
+- Add `VERIFICATION WARNING` for a check result that is old or does not exercise what the plan
+  changes the way it is really used, for example storage checked with a page reload but never
+  with a full restart. A warning is never a pass; the human decides how to close it.
+- The review-candidate mark covers every file the plan creates, moves, renames, edits, merges
+  or splits, a file moved intact included. Over 400 means 401 or more; over 1,000 means 1,001.
+- A warning is open, closed or accepted. An open one blocks the phase that changes the behavior
+  it names and blocks a final outcome. Every phase report lists open and accepted warnings. An
+  accepted gap ends as `COMPLETE WITH ACCEPTED VERIFICATION GAPS`, never as ALL GREEN.
+- An open warning is answered before the one final checkpoint is created; a later session
+  recognizes the accepted-gap outcome as finished. Adding a covering check and accepting the
+  gap are separate answers at the plan and baseline gates. A failed phase report lists the
+  warnings too, and a mixed outcome reports baseline failures and accepted gaps together.
+- A covering check that fails at the baseline leaves its warning open. If the owner approves
+  continuing under "no new failures" and speaks to the warning too, it becomes accepted and
+  the affected phase may start; until then reports show the warning as open, and the failure
+  stays visible in every report and in the outcome.
+  A `RESTORED` report lists surviving warnings and grants no retry. A final checkpoint that
+  already exists after an interruption is verified, never created again.
+- The bundle refresh instructions carry the recorded link rewrite forward.
+- Add six portable checks for the size rule, the review-candidate mark, the warning, its
+  report stages, the route for a project without an example tree, and fingerprints of the
+  passages that carry these rules.
+  This remains a development candidate; workflow exams and release approval are separate.
+
 ## [0.2.0-dev] - 2026-11-09
 
 - Align migration diagnosis, target architecture and final review with engineering standard

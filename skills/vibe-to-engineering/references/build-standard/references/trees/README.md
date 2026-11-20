@@ -19,7 +19,6 @@ source in `src/`; use `apps/<name>/src/` when the current scope requires multipl
 | a server other programs call — no UI of its own | [api-backend.md](api-backend.md) |
 | a program for the desktop, shell-wrapped or native | [desktop-app.md](desktop-app.md) |
 | a phone or tablet app | [mobile-app.md](mobile-app.md) |
-| a game, with or without a dedicated engine | [game.md](game.md) |
 | a command a person runs in a terminal | [cli-tool.md](cli-tool.md) |
 | code other projects import as a dependency | [library.md](library.md) |
 | a product whose core features call a model | [ai-service.md](ai-service.md) |

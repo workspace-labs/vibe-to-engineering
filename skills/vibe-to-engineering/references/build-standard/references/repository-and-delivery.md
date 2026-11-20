@@ -42,6 +42,9 @@ Evidence may be stored separately and indexed by repository documentation. Small
 
 Version control represents the real product source, and Git state is intentional.
 
+Before verifying behavior, apply the [command safety check (§18)](../standard.md#before-the-first-edit-18)
+to unfamiliar scripts, wrappers and hooks.
+
 Before risky restructuring:
 
 - establish a trustworthy baseline;
@@ -62,6 +65,8 @@ A mature repository explains enough of itself that another engineer does not nee
 - ADRs hold important architectural decisions.
 
 Do not create large documentation sets for projects too small to need them.
+
+In a shared workplace or team repository, documentation follows the repository's existing habits: ask the owner before adding a document file the repository does not already have, and name every added document in the handoff.
 
 ## §25 Dead code and dependency hygiene
 
@@ -117,6 +122,9 @@ Before adding a dependency, ask:
 - Is it maintained?
 - What architectural coupling does it introduce?
 - What is its bundle or runtime cost?
+- Does it start a recurring bill (a paid service, a hosted database, a model charged by use)?
+  Apply the [spending approval in §30](../standard.md#human-gate-30-44). This also covers new
+  recurring spend that uses an existing dependency or provider.
 - Does it affect security or licensing?
 - How difficult is removal later?
 

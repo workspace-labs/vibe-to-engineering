@@ -78,7 +78,7 @@ Working code alone is not done. For substantial work, done means the relevant co
 - accidental duplication was not introduced;
 - the repository remains understandable;
 - documentation is updated where necessary;
-- settings added or changed in code have their names, purposes and value sources in `.env.example` and README Settings, following [§85](team-and-lifecycle.md#85-the-ten-year-handover);
+- settings added or changed in code have names, purposes and value sources in README Settings and applicable examples in their actual configuration format, following [§85](team-and-lifecycle.md#85-the-ten-year-handover);
 - Git state is intentional;
 - the build and release path remains valid;
 - review is complete;

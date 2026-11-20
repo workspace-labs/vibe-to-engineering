@@ -3,7 +3,7 @@ name: vibe-to-engineering
 description: "Decides from evidence whether an existing software project's structure shows vibe-coded or ad-hoc development and, only if restructuring is justified, converts it into a project-specific engineered architecture through a controlled migration the human approves step by step: read-only inspection and diagnosis, current and target trees, a phased plan with Engineering-Migration-Plan.pdf, a verified recovery baseline, one approved phase at a time with tests and a checkpoint after each, failure investigation against the last known-good checkpoint, and a final review that reports ALL GREEN only when every final check passes. Use when the user invokes vibe-to-engineering, asks whether a project is vibe-coded or structurally sound, or asks to restructure a whole existing project into a proper engineering architecture. Not for building features, fixing bugs or small local refactors."
 license: MIT
 metadata:
-  version: "0.2.0-dev"
+  version: "0.3.0-dev"
 ---
 
 # vibe-to-engineering
@@ -32,13 +32,13 @@ baseline checks, checkpoint creation or runner enrollment happen at the planning
 
 **Shared engineering standard.** Use [standard alignment](references/standard-alignment.md) in
 DIAGNOSE, DESIGN TARGET ARCHITECTURE and FINAL REVIEW. This package bundles engineering standard
-**1.4.0**, its layout map and all eleven project-type trees, pinned for offline use. The standard
+**1.9.0**, its layout map and all ten project-type trees, pinned for offline use. The standard
 defines placement and boundaries; this skill governs migration scope, checks and approvals.
 
 ## Start here, every time
 
 1. **Find the project.** It is the folder the human names. If none is named, it is the root of the current git repository, or else the current folder. If that is not clearly one software project (a home folder, a folder holding several projects, an empty folder), ask which one. Never guess, and name the project in your first line. The project folder itself is never moved or renamed.
-2. **Resume if a migration exists.** If `<project>/.vibe-to-engineering/ledger.md` exists, read it. Its last entry says where the migration stands: tell the human in one line and continue from exactly there. Never redo a completed phase; never skip a gate. A phase recorded as started but not completed is handled as a break (section 8). If the last entry is a completion (ALL GREEN, or COMPLETE WITH APPROVED BASELINE FAILURES) or MIGRATION STOPPED, that migration is over: say so, and begin again at INSPECT only if the human asks. A new migration keeps the same ledger and store, and gives its checkpoints a run prefix (`r2-00-baseline`), because labels are never reused.
+2. **Resume if a migration exists.** If `<project>/.vibe-to-engineering/ledger.md` exists, read it. Its last entry says where the migration stands: tell the human in one line and continue from exactly there. Never redo a completed phase; never skip a gate. A phase recorded as started but not completed is handled as a break (section 8). If the last entry is a completion (ALL GREEN, COMPLETE WITH APPROVED BASELINE FAILURES, or COMPLETE WITH ACCEPTED VERIFICATION GAPS) or MIGRATION STOPPED, that migration is over: say so, and begin again at INSPECT only if the human asks. A new migration keeps the same ledger and store, and gives its checkpoints a run prefix (`r2-00-baseline`), because labels are never reused.
 3. Otherwise begin at INSPECT.
 
 **Conventions.** `<skill>` is this skill's folder and `<project>` the project's folder. `checkpoint.py …` is short for `python3 <skill>/scripts/checkpoint.py --project <project> …` on macOS. Other platforms remain unsupported; help is available without execution.
@@ -86,6 +86,8 @@ Print these exactly, each on its own line:
 - `PHASE n COMPLETE` and `PHASE n FAILED` (the blocks in sections 7 and 8)
 - `RESTORED <label>` and `MIGRATION STOPPED` (the blocks in section 8 and under Human gates)
 - `VIBE-TO-ENGINEERING — ALL GREEN`, or `VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED BASELINE FAILURES` (section 9)
+- `VIBE-TO-ENGINEERING — COMPLETE WITH ACCEPTED VERIFICATION GAPS` (section 9)
+- `Verification Warning: OPEN — …` and `Verification Warning: ACCEPTED BY OWNER — …` (inside the blocks of sections 7 and 8, the RESTORED block included)
 
 Never write PASS for a check that did not run: write `N/A — <reason>` or `FAIL`. Never write PASS for a check that fails, even when its failure was approved at the baseline.
 
@@ -141,13 +143,13 @@ project-type tree as DIAGNOSE. Design the target for this project only:
 - add no layer, abstraction, framework, dependency or empty folder that the findings do not require;
 - prefer moving and splitting existing code over rewriting it.
 
-Produce the CURRENT TREE, the TARGET TREE and the reason for each major decision, including the simpler alternative you rejected. Then account for every file: one before → after row per file of the project — what happens to it, what it holds today and afterwards — including every file the migration never touches, and who owns each job (database access, settings, routes, UI, tests…) before and after. Together the rows must cover every file `checkpoint.py tree --current` counts (a folder row counts its files).
+Produce the CURRENT TREE, the TARGET TREE and the reason for each major decision, including the simpler alternative you rejected. Then account for every file: one before → after row per file of the project — what happens to it, what it holds today and afterwards — including every file the migration never touches, and who owns each job (database access, settings, routes, UI, tests…) before and after. Together the rows must cover every file `checkpoint.py tree --current` counts (a folder row counts its files). Mark every proposed file estimated at over 400 lines as a review candidate and list its jobs (`references/migration-plan.md`, section 4); the number is the review alarm in §7 of the bundled standard, and file size alone is not a finding.
 
 ## 4. CREATE MIGRATION PLAN
 
 Cut the migration into phases with the rules in `references/migration-plan.md`: one objective per phase, the application works at the end of every phase, moves are kept apart from logic edits, remnants are removed last, and the documentation phase ends every plan — it leaves a short record of the new structure and the reasons for it inside the project, in the form the project already uses, and the plan shows its exact text. Leave it out only when the human declines it ("no docs"). Each phase states its objective, finding IDs, exact changes (old path → new path; what is split into what), files in scope, expected tree afterwards, verification and risks.
 
-Define the checks that prove the application still works — build, type check, tests and a smoke run of the real entry point — and what counts as a pass. If the project lacks the checks to prove its behavior is preserved, the first phase adds a safety net of characterization checks; that phase is part of the plan the human approves.
+Define the checks that prove the application still works — build, type check, tests and a smoke run of the real entry point — and what counts as a pass. If the project lacks the checks to prove its behavior is preserved, the first phase adds a safety net of characterization checks; that phase is part of the plan the human approves. When a result you rely on is old, or no check exercises what the plan changes the way it is really used, write a `VERIFICATION WARNING` (`references/migration-plan.md`, section 3) instead of calling it verified. Approving the plan does not accept an open warning unless the human's approval says so — ask. The human answers each open warning in one of two ways, and they are different: **add the check** — a plan revision that puts the covering check into the plan (new version, new fingerprint, approved again), after which the warning stays open until that check runs and passes; or **accept the gap** — recorded in the ledger in their words, and the behavior stays unverified.
 
 Before writing, verify that `<project>/.vibe-to-engineering/` resolves inside the project, that it is a real directory if it exists, and that it and every destination below it have no symlink components. Refuse a linked, escaped or nonregular destination without changing it. Create `<project>/.vibe-to-engineering/` with a `.gitignore` file holding the single line `*`, so the folder never enters the project's git. Write `Engineering-Migration-Plan.html` there from `<skill>/assets/plan-template.html`. This folder is the only thing written before approval.
 
@@ -178,11 +180,14 @@ revises the plan and returns to this gate. Silence, an unanswered question or an
 
 Only after the human approves this plan version. Load `references/recovery.md`.
 
+Before step 1, the ledger holds an answer for every verification warning the plan presented: the covering check is in the approved plan version, or the owner accepted the gap. If one has no answer, create nothing: ask, and end with `AWAITING HUMAN APPROVAL`. A covering check that runs in step 3 and passes closes its warning; record that. One that fails is a failed check (step 5) and leaves its warning open.
+
 1. `checkpoint.py create 00-baseline`, then `checkpoint.py verify 00-baseline`. If either fails, stop: no migration without a verified recovery point. `create` refuses, for example, while a folder cannot be read or a nested repository holds uncommitted work; report what it names — resolving it is the human's decision.
 2. Record the starting point in the ledger: the time, the checkpoint name and — if the project uses git — its branch, commit and number of uncommitted changes (`git --no-optional-locks status`).
 3. Run the plan's checks once, each through `evidence.py` (section "The checkpoint tool"), which saves its output in `.vibe-to-engineering/evidence/00-baseline/` with secret values masked; record the results with numbers (tests found, passed, failed, skipped).
 4. If running the checks changed project files (`checkpoint.py diff 00-baseline`, ignored files it reports `changed` included), record which files and create `00-baseline-checked`. Files the checks rewrite by themselves are not unplanned changes in later phases.
 5. Stop if any check failed. Also stop if the checks cannot prove the application works, unless the plan begins with a safety-net phase that adds exactly that proof. When you stop, report the baseline, ask whether to continue with "no new failures" as the bar or to fix it separately first, and end with `AWAITING HUMAN APPROVAL`. If the human approves continuing, record in the ledger every check that fails at the baseline, with its numbers: these are the approved baseline failures, and they stay visible to the end (sections 7 and 9).
+   When a failing check is the covering check of a verification warning, the stop report names that warning beside it and says that continuing leaves the behavior both unverified and failing today. Continuing then needs the human's words on the warning as well. With them, the check is an approved baseline failure and its warning is accepted, recorded as `ACCEPTED BY OWNER — covering check fails at the baseline`: the phase that changes that behavior may start. Without them the warning stays open and blocks that phase — ask. Report what the owner actually decided. While the warning is open, every report shows the check's real `FAIL` with its numbers and `Verification Warning: OPEN`. Only after the owner's explicit acceptance do reports show `Verification Warning: ACCEPTED BY OWNER`, and only then does the final outcome carry a `Not verified` line for it, beside the check's `Still failing` line. Write `FAIL — no new failures` only for a later run that matches the approved baseline failure; the baseline run itself is `FAIL`. Only a later fresh pass of that check closes the warning.
 6. If everything passed, start Phase 1 — the plan approval covers it.
 
 ## 7. PHASE n — one per approval
@@ -193,6 +198,7 @@ Before starting, confirm all of these; if one fails, stop and report:
 - the bundled standard version and source commit still match the plan (otherwise stop and propose
   a revision; never silently substitute a newer installed standard);
 - the project equals the last checkpoint — `checkpoint.py diff <last>` reports no changes (otherwise someone changed it while you waited: show the changes and ask);
+- no open `VERIFICATION WARNING` names behavior this phase changes (otherwise ask: close it with the check, or accept the gap — `references/migration-plan.md`, section 3);
 - the human approved this phase (for Phase 1: the plan approval).
 
 Add `PHASE n STARTED` to the ledger, then:
@@ -214,6 +220,8 @@ Recovery Checkpoint: CREATED (02-phase-2)
 NEXT: Phase n+1 — <title>
 AWAITING HUMAN APPROVAL
 ```
+
+While any verification warning is open or accepted, add one line for each, above `Recovery Checkpoint`: `Verification Warning: OPEN — <what is not covered>` or `Verification Warning: ACCEPTED BY OWNER — <what is not covered>`. Passing checks never remove such a line; only a fresh run of the check that covers the behavior does. A warning first seen in this phase is OPEN.
 
 After the last phase, write `NEXT: Final review`. Follow the block with a few plain-language lines: what changed and what stayed the same.
 
@@ -239,6 +247,8 @@ Proposed action: CORRECT — <correction> (recommended) · or RESTORE <label> ·
 AWAITING HUMAN APPROVAL
 ```
 
+   Open and accepted verification warnings appear in this block too, one `Verification Warning:` line each, above `Proposed action`. A failure neither closes nor accepts a warning.
+
 6. Do exactly the transition the human chose (Human gates → Stop, restore, correct, retry) and record it in the ledger. After a CORRECT, the architecture check counts the approved correction as planned. A RESTORE never completes the phase, and nothing moves on after it without a RETRY MIGRATION approval.
 
 **Restoring is never automatic.** `checkpoint.py restore <label>` only shows what it would change. Run it with `--apply` only after the human approves that restore. Before it changes anything, it saves the current state as a new checkpoint and proves that this checkpoint and `<label>` both come back byte for byte; it refuses, changing nothing, when either does not, or when the restore would overwrite or remove something no checkpoint holds (files git ignores, nested repositories, a folder holding them). Report a refusal as it is and stop. After a restore it checks its own result; verify it with `checkpoint.py diff <label>` (no changes) and the plan's checks, then report and stop:
@@ -250,6 +260,8 @@ Checks: <results, compared with those recorded for <label>>
 Phase n: NOT COMPLETE — its changes were undone
 AWAITING HUMAN APPROVAL
 ```
+
+Verification warnings that are still open or accepted appear in this block too, one `Verification Warning:` line each, above `Phase n: NOT COMPLETE`. A restore neither closes nor accepts a warning, and listing one is not an approval to retry.
 
 ## 9. FINAL REVIEW
 
@@ -264,7 +276,8 @@ After the human approves it:
    A Material structural finding that the migration left or introduced blocks completion. Report
    unrelated unmet standard duties separately; do not expand the approved migration to implement them.
 5. Blocking findings: report them and propose a corrective phase as a plan revision — new version, new PDF, new fingerprint (`references/migration-plan.md`, section 6) — and end with `AWAITING HUMAN APPROVAL`.
-6. None: `checkpoint.py create NN-final` and `checkpoint.py verify NN-final`, then report exactly one outcome:
+6. Verification warnings come before the final checkpoint. If one is open, create no checkpoint: report it, ask the human to authorize its covering check or to accept the gap, and end with `AWAITING HUMAN APPROVAL`. On resume, continue at this step: run an authorized check that already exists through `evidence.py` — a pass closes the warning, a failure is a blocking finding (step 5) — or record the acceptance in the ledger. A check that must first be written is a corrective phase (step 5). That approval authorizes this one answer, nothing else.
+7. No blocking finding and no open warning: `checkpoint.py create NN-final` and `checkpoint.py verify NN-final` — once, after every warning is closed or accepted. If a session was interrupted after the checkpoint and before the outcome was recorded, `checkpoint.py list` shows `NN-final`: never create it again; verify it, confirm `checkpoint.py diff NN-final` reports no changes, and go on. Then report exactly one outcome and record it in the ledger:
 
 ```
 VIBE-TO-ENGINEERING — ALL GREEN
@@ -279,6 +292,23 @@ Still failing (approved at the baseline): <check> — <numbers now> (baseline: <
 
 with one `Still failing` line per such check. Never shorten it to ALL GREEN, and never present those checks as passing.
 
+ALL GREEN also needs every verification warning closed by a fresh run of its check. An open warning gets no outcome and no final checkpoint (step 6). When the human accepted a gap and every required check passed, the outcome is:
+
+```
+VIBE-TO-ENGINEERING — COMPLETE WITH ACCEPTED VERIFICATION GAPS
+Not verified (accepted by the owner): <behavior> — <the check that would close it>
+```
+
+with one `Not verified` line per accepted warning. When approved baseline failures remain as well, both exceptions are reported, under the baseline-failures heading:
+
+```
+VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED BASELINE FAILURES
+Still failing (approved at the baseline): <check> — <numbers now> (baseline: <numbers>)
+Not verified (accepted by the owner): <behavior> — <the check that would close it>
+```
+
+Never leave out either kind of line. An accepted gap is never ALL GREEN, however many checks pass.
+
 Follow the outcome with the before and after trees (every file, as `tree` prints them), the plan's two tables — every file before → after, and who owns each job — as they actually came out, so the human can compare them with the approved plan line by line, the checks compared with the baseline, and the checkpoint list. Tell the human where the project's own record of its structure is (or that they declined one), that `.vibe-to-engineering/` holds the plan, ledger, evidence and checkpoints, and that keeping or deleting it is their decision — the record in the project stays either way. No commits were made unless they asked for them.
 
 ## Always
@@ -291,7 +321,7 @@ Follow the outcome with the before and after trees (every file, as `tree` prints
 - **Git:** never push. Never commit, branch, reset, clean, stash or rewrite history in the project's repository unless the human asks; if they ask for commits, commit one completed phase at a time.
 - **Tests:** never edit expected values or snapshots, skip, delete or silence tests, or loosen type, lint or build settings to reach green.
 - **Deletions:** only files the plan names, and only when a checkpoint holds them.
-- **Evidence:** every PASS rests on a command and its numbers; every claim can be checked in the ledger or in `evidence/`.
+- **Evidence:** every PASS rests on a command and its numbers, run on the project as it is now; a result that is old or does not reach what changed is a `VERIFICATION WARNING`, never a PASS; every claim can be checked in the ledger or in `evidence/`.
 - **Secrets:** no secret value goes into the plan, the PDF, the ledger, `evidence/` or your own messages. Every check runs through `evidence.py`, which prints and saves its output with secret values masked; secret files are read for their key names only.
 - **Plan changes:** when reality contradicts the plan — a framework constraint, a hidden dependency, a contract the plan missed — stop and propose a revised plan (new version, new PDF, new fingerprint). Never deviate silently. Record the human's own instructions given during the migration in the ledger; a change to the target needs a revised plan.
 - **No network and no installs** for this skill's own work.

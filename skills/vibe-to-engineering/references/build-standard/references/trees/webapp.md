@@ -55,8 +55,8 @@ single child.
     infrastructure/database/  earned by: the first stored row
     config/               earned by: the first setting the server has — read configuration
                           in one place (§49, §69)
-  apps/backend/.env.example   earned by: the first setting the server has — every setting
-                          name, no real values (§69)
+  apps/backend/.env.example   earned by: the first server setting read from the environment
+                          — names and safe placeholders (§69)
   docs/architecture/overview.md   earned by: the second part that talks to another
 ```
 

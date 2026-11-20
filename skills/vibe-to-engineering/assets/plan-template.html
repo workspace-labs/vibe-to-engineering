@@ -282,7 +282,8 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
     <tbody>
       <!-- repeat: one row per file, grouped by folder. Change: same, edited, moved → new path, split → parts, removed,
            new, ignored — never touched, nested repository — never touched. A dependency or build-output folder is
-           one row; in a large project a folder whose files all stay the same may be one row ("src/ui/ — 42 files"). -->
+           one row; in a large project a folder whose files all stay the same may be one row ("src/ui/ — 42 files").
+           A proposed file estimated at over 400 lines: begin Holds after with "review candidate (~N lines)" and list its jobs. -->
       <tr><td class="path">{{FILE_PATH}}</td><td>{{FILE_CHANGE}}</td><td>{{FILE_HOLDS_NOW}}</td><td>{{FILE_HOLDS_AFTER}}</td></tr>
       <!-- /repeat -->
     </tbody>
@@ -355,7 +356,8 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
       <thead><tr><th>Check</th><th>Command</th><th>Data it uses</th><th>Pass means</th></tr></thead>
       <tbody>
         <!-- repeat: one row per check (build, type check, tests, smoke run). Data it uses: throwaway data and how the
-             check is pointed at it (for example DB_PATH set to a temporary file) — never the owner's data. -->
+             check is pointed at it (for example DB_PATH set to a temporary file) — never the owner's data.
+             Add one row per VERIFICATION WARNING: what is old or not covered, and the check that would close it. -->
         <tr><td>{{CHECK_NAME}}</td><td class="path">{{CHECK_COMMAND}}</td><td>{{CHECK_DATA}}</td><td>{{CHECK_PASS_MEANS}}</td></tr>
         <!-- /repeat -->
       </tbody>

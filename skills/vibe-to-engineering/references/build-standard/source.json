@@ -1,8 +1,14 @@
 {
-  "schemaVersion": 1,
-  "repository": "https://github.com/workspace-labs/agent-engineering-standard",
-  "commit": "a27317b9f7885b18dc6b5eedc24b5dd29d27fdb9",
-  "version": "1.4.0",
+  "schemaVersion": 2,
+  "repository": "https://github.com/workspace-labs/software-engineering-build-standard",
+  "commit": "d671ceb987084da7bc0103666bc12fc3d29e6758",
+  "version": "1.9.0",
+  "link_rewrite": {
+    "from": "](../SKILL.md",
+    "to": "](../standard.md",
+    "applies_to": "references/*.md",
+    "reason": "the upstream entrypoint SKILL.md is bundled as standard.md"
+  },
   "files": {
     "LICENSE": {
       "upstream_path": "LICENSE",
@@ -10,11 +16,11 @@
     },
     "references/architecture-and-boundaries.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/architecture-and-boundaries.md",
-      "sha256": "8d7792e6f6ad190a45b6890b9e16b8b186fb36f55abf414c3f5f1ba0b92682bd"
+      "sha256": "b8a23f662c669adb35cc4e908a0bb5beec9b89a306ed3ca8de2330ad0227d0bd"
     },
     "references/backend.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/backend.md",
-      "sha256": "e6b368d48c64a1e9a98eabe19b6434a7998e027352df83abf76a2c26c6de219e"
+      "sha256": "e1cc1a758fbed8868696d5f6c95c7bd94070d2f33bff6d42566b376215113f6e"
     },
     "references/coverage-and-evidence.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/coverage-and-evidence.md",
@@ -30,35 +36,36 @@
     },
     "references/layout-map.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/layout-map.md",
-      "sha256": "dd8a9370c88eae2e8863b5002f5105088b973083dcae06ad7ca5c21179857c5c"
+      "sha256": "3a08d99d548fd61389711e2ac9909b8ede584e45a51f59af1517c0a490d54110"
     },
     "references/platform-services.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/platform-services.md",
-      "sha256": "7f20532026149ace4ebea340cb964884e91ec2bc45ff58e0fd3099a4af70b4f2"
+      "sha256": "84f0614dbfe6fae6378a0e7ed393e55fd455022c57c3ff4a75eb25d662af95eb"
     },
     "references/repository-and-delivery.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/repository-and-delivery.md",
-      "sha256": "19771a34a4f4f54b987069d7bdbb85aee2262c42f0c66a4119f2c1a332213c0a"
+      "sha256": "7271531fd10dc635d5d22e9bd85d7755dc2be5e0ed0319cf5620c3e692e68eb6",
+      "upstream_sha256": "3d29dcabb23df93407ecc9e5dc52aa02ce433abb47d938a2adce27b2419884c5"
     },
     "references/review-and-completion.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/review-and-completion.md",
-      "sha256": "102fd2a47a3d8b07178f5eee53b1a8452d8618fd3d90d610ec0318deee5d8b4f"
+      "sha256": "a4a1a7734071fdf233e6ba1dfb8f187604a97cc0ae0a01b3c59e9962cd6e206a"
     },
     "references/team-and-lifecycle.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/team-and-lifecycle.md",
-      "sha256": "b901e6bf8be05287e42137e2c67231c46696d7add0493b17e56915b62db25199"
+      "sha256": "42ebfcfe3b2fb14422973d9d050744295357ff15c5904f94705fd5531f1d334e"
     },
     "references/trees/README.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/trees/README.md",
-      "sha256": "65bec4793b9fd4427f59faf07db9a6b4c12a4308b10cba43c12cc3e3e6a29015"
+      "sha256": "d089cf6d5796888dcc594d6ad19da087c143e4946b411a874c0fc1085884e711"
     },
     "references/trees/ai-service.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/trees/ai-service.md",
-      "sha256": "89ce9d73c4650b7c6da66413d96f0240e33e85ae9cd8e356a8d53c84dde47a51"
+      "sha256": "add0804083172f581d9d57e2b1875130fe7263b1747bebae8c93bd86e3d62df7"
     },
     "references/trees/api-backend.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/trees/api-backend.md",
-      "sha256": "8c1efbbb373f13c119755122b7e3c850c1ec9958760da0cc836e85d4297c9aec"
+      "sha256": "620bbc875a0d42b42146c9aa701e292cee8837181662d4af911d4b0c49a6fb4c"
     },
     "references/trees/cli-tool.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/trees/cli-tool.md",
@@ -71,10 +78,6 @@
     "references/trees/desktop-app.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/trees/desktop-app.md",
       "sha256": "20ac54a3cf88c4a6429702cd29d60d8605554f0a007719daae70b4a11c6dc4e1"
-    },
-    "references/trees/game.md": {
-      "upstream_path": "skills/software-engineering-build-standard/references/trees/game.md",
-      "sha256": "31eb8344b6611bf4cc8ca29e0723e6aedc5c9a15d03db6c5d970e31fb13735ee"
     },
     "references/trees/library.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/trees/library.md",
@@ -90,7 +93,7 @@
     },
     "references/trees/webapp.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/trees/webapp.md",
-      "sha256": "336da30172fde22630bc0288036b844437c9afb577cd1eae2c6eec9a762ee3b0"
+      "sha256": "98951a9f6da5b8f7922f9aa66b597e1c904ee300bd03737fe5ba618a3967984e"
     },
     "references/trees/website.md": {
       "upstream_path": "skills/software-engineering-build-standard/references/trees/website.md",
@@ -98,7 +101,7 @@
     },
     "standard.md": {
       "upstream_path": "skills/software-engineering-build-standard/SKILL.md",
-      "sha256": "6c7fdd5499d791c2643d32b65fdfad2ea2344ec9585f332a8148998df5ef1320"
+      "sha256": "110ac41705df8c5a9d5dc679f878132bf0fbff96550de2f697956baf630cd537"
     }
   }
 }

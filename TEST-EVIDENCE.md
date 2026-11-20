@@ -1,5 +1,60 @@
 # Skill validation evidence
 
+## File-size alarms and verification warning candidate — 2026-11-20
+
+Candidate: **0.3.0-dev**, branch `feat/file-size-alarms`, based on
+`2665259` (`update/engineering-standard-1.4`). Shared standard: **1.9.0** from the local,
+unpublished commit `d671ceb987084da7bc0103666bc12fc3d29e6758`. Instruction text, the bundled
+snapshot and tests changed. Runtime scripts are unchanged.
+
+Host: macOS 27.2 arm64.
+
+- Portable scope, `python3 -B tests/run_validation.py --scope portable`: **97 tests,
+  0 failures, 0 errors, 0 skips** with Homebrew Python 3.15.2 and with system Python 3.9.6
+  (91 before this change; six new tests: three in round 1, two in round 2, one in round 3).
+- `/usr/bin/python3 -B -m unittest discover -s tests -p test_render_pdf.py`: **27 tests,
+  0 failures**. With Homebrew Python 3.15.2 the same file has 3 failures in
+  `test_the_browser_runs_no_script_and_loads_no_local_file_whatever_markup_gets_past_the_checks`;
+  they fail the same way on the unchanged base and were not investigated here.
+- `test_protocol.py`: 8 tests pass.
+- **22 of the 23 upstream files** match the pinned commit byte for byte (read from the commit,
+  not from a working tree). The other, `references/repository-and-delivery.md`, differs only
+  by the recorded link rewrite (two links); undoing it gives the upstream hash in the manifest.
+  The link test now also checks each local link's heading anchor.
+- Review round 2, on temporary copies, each of eleven reversals made a test fail: the 400 and
+  1,000 boundaries made inclusive; the pure-move wording removed; the written reason dropped;
+  warning lines dropped from phase reports; a phase allowed to start with an open warning; an
+  accepted gap allowed as ALL GREEN; acceptance counted as a pass; a bundled link pointed back
+  to the missing `SKILL.md`; a bundled link pointed to a missing heading; the route for a
+  project without an example tree removed.
+- On disposable copies, each of four changes made a test fail: a 600-line rule added to
+  SKILL.md; "File size alone is not a finding" removed from the review-candidate rule; the
+  reload/restart example removed; one byte added to the bundled §7 guide.
+
+- Review round 3 added `test_governed_wording_changes_only_on_purpose`, which fingerprints
+  fifteen passages, and a wider size-number pattern (1000, 1 000, 1k). On temporary copies,
+  21 of 21 reversals made a test fail, among them: an independent 1000-line split rule;
+  warnings reassessed only at planning; reruns forced during read-only planning; the warning
+  moved out of the Verification section; a baseline started without the warning decision; a
+  mixed outcome that hides accepted gaps; a final checkpoint created before the decision;
+  a resume list without the accepted-gap outcome; refresh instructions that restore the
+  broken links.
+
+- Review round 4 fingerprints nineteen passages (the two instructions in the plan form
+  included) and checks each form instruction inside its own table. Still **97 tests**. On
+  temporary copies, 12 of 12 new reversals made a test fail, among them the two form changes
+  the reviewer named: a forced split added to the 400-line marker line, and the warning
+  instruction moved from Verification to Approval. The 21 round-3 reversals still fail.
+
+- Review round 5 corrected one sentence: after a covering check fails at the baseline, reports
+  show `Verification Warning: OPEN` until the owner explicitly accepts, and `ACCEPTED BY OWNER`
+  only afterwards. Still **97 tests**. Six reversals of the two report states each failed
+  twice on temporary copies: with the fingerprint, and with the phrase test run alone.
+
+Not run: the complete native macOS regression suite, the reader matrix, the skill validator,
+and any agent exercise of the new wording. These checks show the text and bundle are
+consistent; they do not show that an agent follows them.
+
 ## Engineering-standard alignment candidate — 2026-11-09
 
 Candidate: **0.2.0-dev**, branch `update/engineering-standard-1.4`, based on Vibe

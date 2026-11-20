@@ -55,6 +55,62 @@ never be seen by another customer earns the tenancy rules.
   denied reads, writes and deletes (§88). Decide early whether tenants share one database
   or get one each — that is a persistence decision through the Human Gate (§30).
 
+### Keycloak and LDAP — when each fits
+
+**Due at:** a requirement for central sign-in, single sign-on (SSO), or an organisation's
+existing user directory. Ordinary sign-in alone requires neither Keycloak nor LDAP.
+
+- **Choose from the need.** Keycloak is an identity and access management service: consider
+  it for shared sign-in across applications, central account management or identity
+  federation. LDAP is a protocol for accessing a directory, such as OpenLDAP or Active
+  Directory; connect it when the product must use that directory's accounts or groups.
+  LDAP alone does not supply an application's browser sessions or SSO. Reuse the accepted
+  identity provider before proposing another; introducing or replacing one follows the
+  existing Human Gate (§30, §44), never a second approval of an accepted design.
+- **Keep the boundary clear.** When both are selected, applications normally sign in
+  through Keycloak using OpenID Connect (OIDC), while Keycloak federates the LDAP directory.
+  Keep directory access on the server; do not give browsers LDAP bind credentials or copy
+  directory passwords into the application's database. A direct LDAP integration belongs
+  behind one server boundary only when the accepted design calls for it. Keep product
+  authorization on the server (§68); successful sign-in is not permission to every record.
+- **Use the chosen protocol safely.** For interactive OIDC clients, use a maintained
+  library and Authorization Code flow, with PKCE for public clients; never embed a client
+  secret in a browser, mobile or desktop build (§69). Preserve an accepted SAML integration
+  rather than replacing it just to use OIDC. Restrict redirect addresses and allowed
+  origins, and validate callbacks with the library's state/nonce protections. APIs verify
+  access tokens against the expected issuer, audience, signature and validity window,
+  then check permissions; decoding a JWT or accepting an ID token is not API authorization.
+- **Decide directory ownership before syncing.** Record the stable user identifier,
+  attribute/group-to-role mapping, account linking, import/cache/sync behaviour and who
+  owns account changes. Do not auto-link accounts solely by a matching email. Prefer
+  `READ_ONLY` LDAP federation unless directory writes are explicitly required and approved;
+  user edit mode and group/role mapper write settings are separate decisions. Use a bind
+  account with only the required permissions, protect its secret (§69), and require LDAPS
+  or StartTLS with certificate validation; a failed TLS connection never falls back to
+  plaintext or disabled verification.
+- **Design access removal and outages.** Agree how quickly a disabled/deleted account or
+  removed group must lose access, including cached directory data, local sessions and
+  issued tokens. Logout or a directory change does not automatically invalidate every
+  JWT already accepted offline; meet the agreed delay with expiry and the selected
+  revocation/session checks. Bound directory/provider calls (§67), and never grant new
+  access or use a weaker login fallback when they fail. Existing sessions follow the
+  documented expiry and revocation policy; an outage must not silently extend them.
+- **Prove the integration and hand it over.** Use an isolated realm/directory and
+  synthetic users (§79, §88): try allowed and denied access, wrong credentials, expired
+  or wrong-issuer/audience tokens, logout, removed groups, disabled/deleted users, sync
+  delay, invalid certificates and provider outages as applicable to the selected path.
+  A mocked test does not prove real federation; name untested paths. Document the issuer,
+  realm, client IDs, redirects, directory address/search bases, mappings, TLS trust and
+  secret sources, plus sync/revocation policy, operator ownership and recovery in the
+  existing settings/security/deployment docs (§85, §89). Keep real credentials, users and
+  unsanitized realm exports out of source and evidence (§27, §69).
+
+Check the selected version's official [OIDC integration guide](https://www.keycloak.org/securing-apps/oidc-layers),
+[client adapter guide](https://www.keycloak.org/securing-apps/javascript-adapter),
+[LDAP federation guide](https://www.keycloak.org/docs/latest/server_admin/index.html#_ldap)
+and [TLS guidance](https://www.keycloak.org/server/enabletls) when implementing; these
+instructions explain the engineering decisions, not a fixed deployment recipe.
+
 ## §93 Background jobs, queues and scheduled tasks
 
 **Due at:** the first work that should not make a request wait, the first repeat on a
@@ -222,7 +278,8 @@ lost — a database, a bucket, a DNS record, a server.
 - The tool's state file and its variables hold secrets and identifiers: keep state in the
   tool's remote backend, never in version control, and pass secrets at apply time (§69).
 - Review the plan before applying it, and apply from one place (a person or CI, not both
-  at once). Destroying infrastructure is a Human Gate action (§30), never automated.
+  at once). Take planned destruction or new recurring spend through the Human Gate (§30).
+  Keep infrastructure destruction out of automatic runs.
 
 ## §103 Public pages and SEO
 

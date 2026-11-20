@@ -6,22 +6,28 @@ evidence, migration plan, human approvals, recovery checkpoints and behavior-pre
 
 ## Pinned source, available offline
 
-This package carries engineering standard **1.4.0**, from
-`workspace-labs/agent-engineering-standard` commit
-`a27317b9f7885b18dc6b5eedc24b5dd29d27fdb9`.
+This package carries engineering standard **1.9.0**, from
+`workspace-labs/software-engineering-build-standard` commit
+`d671ceb987084da7bc0103666bc12fc3d29e6758`.
 
 - [Standard entrypoint](build-standard/standard.md) — the upstream instructions, preserved byte for byte
-  under a different filename so this resource cannot be discovered as a second skill.
+  under a different filename so this resource cannot be discovered as a second skill. One
+  change is made to the bundled guides so their links work offline: a link to `../SKILL.md`
+  points to `../standard.md`. The manifest records that rewrite and both hashes of each file
+  it touched.
 - [Layout map](build-standard/references/layout-map.md) — responsibility homes and the moment each is due.
-- [Project-tree chooser](build-standard/references/trees/README.md) — eleven staged project families.
+- [Project-tree chooser](build-standard/references/trees/README.md) — ten staged project families.
 - [Source manifest](build-standard/source.json) — source paths and SHA-256 for every bundled document.
 - [Upstream licence](build-standard/LICENSE).
 
 Read the entrypoint, layout map and chooser. Then read the matching family tree(s), plus only the
 conditional guides earned by the project's existing responsibilities. A desktop app, CLI,
-website, webapp, API, mobile app, game, library, AI service, data pipeline and monorepo have
+website, webapp, API, mobile app, library, AI service, data pipeline and monorepo have
 different shapes; do not manufacture a second deployable or turn examples into empty scaffolding.
 An Agent Skill keeps its instruction-package layout, as the coverage guide explains.
+A project with no matching example tree — a game, for instance — is still judged: use the layout
+map and the conventions of its engine or framework, record "no example tree" as the tree
+selection in the plan, and never force it into another family's tree.
 
 The bundle is self-contained. Do not fetch a newer standard, install a sibling skill or choose
 whichever installed copy happens to be newer. If the pinned resources are missing, inconsistent
@@ -44,7 +50,7 @@ Do not guess from memory or silently fall back to the old criteria alone.
    authorize new features, new services, changed dependencies, changed data, bug fixes or altered
    product behavior inside a structural migration. Keep structural corrections and the approved
    characterization safety net in the plan; let the owner decide other work separately.
-5. **Use the same basis throughout.** The plan and ledger name version 1.4.0, the source commit,
+5. **Use the same basis throughout.** The plan and ledger name version 1.9.0, the source commit,
    selected tree guides and project overrides. The final reviewer uses that approved basis,
    checks every changed responsibility against it and verifies the actual target tree.
 
@@ -53,6 +59,14 @@ webhooks, search or other services need a structural home. Their existence earns
 rules; an example folder is never a reason to add the capability. The data, frontend, backend,
 lifecycle and coverage guides apply by the same due-at rule, within the migration boundary above.
 This skill's stricter read-only planning, data protection and approval rules still govern execution.
+
+## File size has one home
+
+The file-size alarms live in §7 of the bundled
+[architecture guide](build-standard/references/architecture-and-boundaries.md) and nowhere else in
+this skill. Read them there at diagnosis (C12), when estimating the target's files for the
+before → after table, and at the final review. An alarm starts a review of responsibilities;
+file size alone is not a finding and never a reason to split a cohesive file.
 
 ## The plan is the owner's decision
 
@@ -71,7 +85,11 @@ do not start checks or change code while merely waiting for the answer.
 
 Update the snapshot only as an explicit skill-maintenance change, never during a project migration.
 Take the upstream standard entrypoint and its complete reference tree from one reviewed commit,
-keep their bytes and relative links intact, include its licence, and regenerate `source.json`.
+and keep their bytes intact, with one exception that must be carried forward on every refresh:
+in the bundled guides, rewrite each link target `](../SKILL.md` to `](../standard.md`, because
+the entrypoint is bundled under that name. Without it those links break offline. Include the
+licence and regenerate `source.json` with the `link_rewrite` record and, for each file the
+rewrite touched, both `sha256` (bundled) and `upstream_sha256`.
 Update this router, package version, changelog and plan guidance together. Run the package and
 portable checks and independent agent exercises; record what was actually observed.
 

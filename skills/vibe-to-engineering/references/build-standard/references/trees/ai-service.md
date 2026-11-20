@@ -23,9 +23,9 @@ project that never calls a model never grows any of this.
 
 Product code calls `ai/` through its contract; nothing outside `ai/providers/` knows which
 provider or model serves the call. Swapping providers must not rewrite product code.
-The key is read only in `config/`, from an environment variable or secret manager; `.env.example`
-at the host app's root is due at the first setting the server has and contains names, no real
-values (§69). A secret never reaches the frontend: when there is a browser frontend, the
+The key is read only at the configuration boundary, from an environment variable or secret manager.
+The first environment-backed setting earns `.env.example` at the host app's root. Use names and safe
+placeholders (§69). A secret never reaches the frontend: when there is a browser frontend, the
 backend calls the model provider and the frontend calls that backend proxy (§69).
 
 ## Stage 2 — the feature earns structure
