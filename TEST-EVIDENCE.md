@@ -1,5 +1,22 @@
 # Skill validation evidence
 
+## Abstraction rule — 2026-11-20
+
+Candidate **0.4.0-dev** on `feat/abstraction-rule`, based on `main` at `b9a1b1e`.
+The source and tests validated here were committed as `29f23b480393a65a46abb34e9347a8ca3ec142fa`.
+The run used macOS 27.2.1 arm64, CLT Python 3.9.6, local Node v20.20.2, Bash 3.2.57
+at `/bin/sh`, pinned Chrome Headless Shell 156.0.8078.4 (revision 1248) and Poppler 26.07.0.
+The pinned reader matrix ran all four tests.
+
+- `/Library/Developer/CommandLineTools/usr/bin/python3 -B tests/run_validation.py --scope macos`
+  with the prepared reader matrix and browser. **404 passed, 0 failures, 0 errors, 0 skips.**
+  The runner reported `Ran 404 tests in 357.240s` and `OK`.
+- The new protocol test failed against the original C16 as expected. With the approved
+  wording in place, all 26 focused protocol, standard-alignment and package tests passed.
+- The first run under the workspace sandbox reported 7 failures and 1 error in 404 tests
+  with 0 skips. The loopback bind was denied and the headless browser exited with signal 5.
+  The approved rerun used the same source and prerequisites and passed the renderer checks.
+
 ## Chrome PDF and FIFO test repairs — 2026-11-20
 
 Candidate **0.3.2-dev** on `fix/chrome-keychain-and-fifo-test`, based on `main` at `728856c`.

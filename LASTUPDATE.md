@@ -1,5 +1,16 @@
 # Latest update — 2026-11-20
 
+## November 20 abstraction rule
+
+Version **0.4.0-dev** on `feat/abstraction-rule` is based on `main` at `b9a1b1e`.
+The tested source commit is `29f23b480393a65a46abb34e9347a8ca3ec142fa`.
+C16 now requires evidence that an abstraction solves a present problem and that the
+simplest design needs it. Each proposed abstraction gets its own Key decisions row.
+
+Native validation passed all 404 tests with zero failures, errors or skips on macOS 27.2.1
+arm64 with CLT Python 3.9.6, Node v20.20.2, Bash 3.2.57, pinned Chrome Headless Shell
+156.0.8078.4 (revision 1248) and Poppler 26.07.0. See the [validation evidence](TEST-EVIDENCE.md).
+
 ## November 20 Chrome PDF and FIFO test repairs
 
 Version **0.3.2-dev** on `fix/chrome-keychain-and-fifo-test` is based on `main` at `728856c`.
