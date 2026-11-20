@@ -52,6 +52,7 @@ LOCKS = {
     "skill: final review": "0af62ff7e3ca3fc3d21ece589657f33ce8be7cf1b40661a2b232b61060c72690",
     "skill: evidence rule": "e085f5bfd7f0c8cb0dda53295ca914ee98497fa4cb58bc0a67662b333ead33a6",
     "criteria: C12": "d9ebb49ae1525979e80fc9045b638801b6e9e8d447e28eb2bcd1ca79ff03c58f",
+    "criteria: C16": "e2e73d3b4c1983ff0b8e48bd75211af6d72f510849e6e080892c4bf97ac7a74a",
     "router: file size": "1c09c42bb4ab293b9ff562645810a94d4ffe539fe1055804dd0fa28dab86c2da",
     "router: maintenance": "1b97c9ae23eed84a542733b179084cd2c025e6ee85343ebd0bb5fc242043667f",
 }
@@ -237,6 +238,8 @@ class StandardAlignment(unittest.TestCase):
             "skill: evidence rule": between(skill, "- **Evidence:** every PASS rests", "\n"),
             "criteria: C12": between(own["references/engineering-standard.md"],
                                      "### C12 Oversized multi-responsibility modules", "\n### "),
+            "criteria: C16": between(own["references/engineering-standard.md"],
+                                     "### C16 Overengineering risk", "\n## "),
             "router: file size": between(own["references/standard-alignment.md"],
                                          "## File size has one home", "\n## "),
             "router: maintenance": between(own["references/standard-alignment.md"],

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0-dev] - 2026-11-20
+
+- Define when an abstraction earns its keep in C16. Require evidence of a present cost or
+  risk and show why the simplest design needs the abstraction.
+- Record each proposed abstraction in the plan's Key decisions with its finding ID, C16
+  reason, evidence and why the simpler alternative falls short.
+- Lock C16's wording and test the rule and its use in target design.
+
 ## [0.3.2-dev] - 2026-11-20
 
 - Use Chrome's mock keychain for the disposable macOS PDF browser profile so printing works

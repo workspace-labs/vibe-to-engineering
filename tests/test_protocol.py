@@ -54,6 +54,24 @@ class Protocol(unittest.TestCase):
                       "every file before → after, and who owns each job — as they actually came out"):
             self.assertIn(words, self.text)
 
+    def test_each_proposed_abstraction_earns_its_keep_and_is_recorded(self):
+        standard = (SKILL_DIR / "references" / "engineering-standard.md").read_text(encoding="utf-8")
+        criterion = standard.split("### C16 Overengineering risk", 1)[1].split("\n## ", 1)[0]
+        for words in ("**Ownership or dependency direction:**", "**One shared rule:**",
+                      "**Outside boundary:**", "**Testing:**", "**Change isolation:**", "**Platform split:**",
+                      "the simplest design that solves that cost needs it", "An outside call alone is not enough",
+                      "A future need is not a reason by itself"):
+            self.assertIn(words, criterion)
+
+        problem = criterion.split("- **Problem evidence in the current project:**", 1)[1].split("\n- ", 1)[0]
+        self.assertIn("none of the reasons above shown", problem)
+        self.assertNotIn("no boundary or testing reason", problem)
+
+        design = self.text.split("## 3. DESIGN TARGET ARCHITECTURE (read-only)", 1)[1].split("\n## ", 1)[0]
+        for words in ("however small", "the C16 reason it meets", "the concrete evidence",
+                      "why the simpler alternative falls short"):
+            self.assertIn(words, design)
+
     def test_every_plan_ends_with_a_record_of_the_structure_left_in_the_project(self):   # RA-02
         for words in ("the documentation phase ends every plan", 'Leave it out only when the human declines it ("no docs")',
                       "every folder and file it names exists and holds what it says", "say that the project holds none",

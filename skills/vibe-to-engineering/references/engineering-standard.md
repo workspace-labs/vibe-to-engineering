@@ -158,8 +158,17 @@ Each criterion gives what good looks like, the evidence of a problem, what is no
 ### C16 Overengineering risk
 
 - **Good:** every layer, abstraction and folder earns its keep.
-- **Problem evidence in the current project:** layers that only pass calls through; interfaces with a single implementation and no boundary or testing reason; factories, managers or services created for appearance; deep folder nesting around a handful of files; a home-made framework inside the application. Excess structure is ad-hoc structure too, so it is a finding.
-- **For your own target design:** never add any of these. Apply C16 to every folder and abstraction you propose.
+- **Earns its keep when** it solves a real, present cost or risk shown in the code or its history, and the simplest design that solves that cost needs it. Each reason is a concrete form of the bundled standard's §22:
+  1. **Ownership or dependency direction:** a responsibility or piece of state with no single owner (C2), or a reversed dependency or import cycle (C6, name every module in it), that giving an existing contract one independent owner resolves.
+  2. **One shared rule:** two live copies (name both) that represent one rule which must stay in sync (C11).
+  3. **Outside boundary:** code that talks to storage, the network, the operating system, a third-party service or another runtime is mixed into code that should not know about it, with a cost shown (C3, C4, C6). An outside call alone is not enough: a pass-through around a call that is already isolated still fails C16.
+  4. **Testing:** a test the project needs is impractical to write or run reliably with the current structure.
+  5. **Change isolation:** a typical change, from history or traced by hand as in C14, touches many unrelated places, and the abstraction keeps it in one.
+  6. **Platform split:** two or more platforms the project really ships to need different code at that spot.
+
+  A future need is not a reason by itself: a second backend, platform or caller that does not exist yet does not count (§22 and the bundled data-state rule). Extensibility counts only through reason 5 or a concrete C15 roadmap item that exposes a structural gap today.
+- **Problem evidence in the current project:** layers that only pass calls through; interfaces with a single implementation and none of the reasons above shown; factories, managers or services created for appearance; deep folder nesting around a handful of files; a home-made framework inside the application. Excess structure is ad-hoc structure too, so it is a finding.
+- **For your own target design:** never add any of these. Apply C16 to every folder and abstraction you propose, and record the case for each abstraction as SKILL.md section 3 asks.
 
 ## 4. Severity and the verdict rule
 

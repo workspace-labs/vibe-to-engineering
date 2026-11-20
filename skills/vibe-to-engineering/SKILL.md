@@ -3,7 +3,7 @@ name: vibe-to-engineering
 description: "Decides from evidence whether an existing software project's structure shows vibe-coded or ad-hoc development and, only if restructuring is justified, converts it into a project-specific engineered architecture through a controlled migration the human approves step by step: read-only inspection and diagnosis, current and target trees, a phased plan with Engineering-Migration-Plan.pdf, a verified recovery baseline, one approved phase at a time with tests and a checkpoint after each, failure investigation against the last known-good checkpoint, and a final review that reports ALL GREEN only when every final check passes. Use when the user invokes vibe-to-engineering, asks whether a project is vibe-coded or structurally sound, or asks to restructure a whole existing project into a proper engineering architecture. Not for building features, fixing bugs or small local refactors."
 license: MIT
 metadata:
-  version: "0.3.2-dev"
+  version: "0.4.0-dev"
 ---
 
 # vibe-to-engineering
@@ -143,6 +143,7 @@ project-type tree as DIAGNOSE. Design the target for this project only:
 - trace every structural change to a finding ID;
 - keep every external contract working;
 - add no layer, abstraction, framework, dependency or empty folder that the findings do not require;
+- for every abstraction you propose, however small, record its case as a row in Key decisions: the finding ID, the C16 reason it meets, the concrete evidence, and why the simpler alternative falls short;
 - prefer moving and splitting existing code over rewriting it.
 
 Produce the CURRENT TREE, the TARGET TREE and the reason for each major decision, including the simpler alternative you rejected. Then account for every file: one before → after row per file of the project — what happens to it, what it holds today and afterwards — including every file the migration never touches, and who owns each job (database access, settings, routes, UI, tests…) before and after. Together the rows must cover every file `checkpoint.py tree --current` counts (a folder row counts its files). Mark every proposed file estimated at over 400 lines as a review candidate and list its jobs (`references/migration-plan.md`, section 4); the number is the review alarm in §7 of the bundled standard, and file size alone is not a finding.
