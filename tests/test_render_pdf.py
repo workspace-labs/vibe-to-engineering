@@ -254,7 +254,10 @@ class Renderer(unittest.TestCase):
 
     @unittest.skipIf(installed_browser() is None, "no Chrome-family browser installed")
     def test_renders_the_template_with_a_landscape_overview_page(self):
-        code, output, pdf = self.render(filled_template())
+        empty_home = self.tmp / "empty-home"
+        empty_home.mkdir()
+        env = dict(os.environ, HOME=str(empty_home), V2E_BROWSER=installed_browser())
+        code, output, pdf = self.render(filled_template(), env=env)
         self.assertEqual(code, 0, output)
         self.assertTrue(pdf.read_bytes().startswith(b"%PDF-"))
         if shutil.which("pdftotext"):
@@ -370,7 +373,8 @@ class RendererOutputSafety(unittest.TestCase):
             self.print_pdf(command, **kwargs)
             raise subprocess.TimeoutExpired(command, 180)
 
-        code, output, _ = self.invoke(timeout_after_print)
+        code, output, launch = self.invoke(timeout_after_print)
+        self.assertEqual(launch.call_args.kwargs["timeout"], 180)
         self.assertEqual(code, 1, output)
         self.assertEqual(self.pdf.read_bytes(), self.previous)
         self.assertEqual(sorted(path.name for path in self.tmp.iterdir()), ["plan.html", "plan.pdf"])
@@ -430,6 +434,13 @@ class RendererOutputSafety(unittest.TestCase):
         replace.assert_called_once()
         self.assertEqual(Path(replace.call_args.args[1]), self.pdf)
         self.assertEqual(sorted(path.name for path in self.tmp.iterdir()), ["plan.html", "plan.pdf"])
+
+    def test_only_the_macos_browser_launch_uses_a_mock_keychain(self):
+        for platform in ("darwin", "linux", "win32"):
+            with self.subTest(platform=platform), mock.patch.object(self.renderer.sys, "platform", platform):
+                code, output, launch = self.invoke(self.print_pdf)
+                self.assertEqual(code, 0, output)
+                self.assertEqual("--use-mock-keychain" in launch.call_args.args[0], platform == "darwin")
 
     def test_nonexecutable_browser_override_is_not_selected(self):
         browser = self.tmp / "browser"

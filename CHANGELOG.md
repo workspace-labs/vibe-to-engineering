@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2-dev] - 2026-11-20
+
+- Use Chrome's mock keychain for the disposable macOS PDF browser profile so printing works
+  with an empty home directory.
+- Bound the evidence-destination regression test to five seconds per case so a writer that
+  blocks on a FIFO fails the test promptly.
+
 ## [0.3.1-dev] - 2026-11-20
 
 - Integrate the safety repairs written on 2026-10-21 (`3125d38`) and 2026-10-07 (`036ec7f`)

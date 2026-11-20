@@ -272,7 +272,11 @@ def render_plan(argv):
         rendered = Path(output_work) / "plan.pdf"
         page = work / "plan.html"
         page.write_bytes(with_policy(text).encode("utf-8"))
-        command = [browser, "--headless", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+        command = [browser]
+        if sys.platform == "darwin":
+            # This disposable profile needs no credentials or macOS Keychain prompts.
+            command.append("--use-mock-keychain")
+        command += ["--headless", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
                    "--enable-logging=stderr",  # policy violations must reach the refusal check below
                    "--disable-extensions", "--user-data-dir=" + str(work / "profile"), "--no-pdf-header-footer",
                    "--print-to-pdf-no-header",

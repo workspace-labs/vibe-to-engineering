@@ -14,14 +14,13 @@ is justified, the agent shows its exact proposed work and target tree in a PDF. 
 `approve plan v1` (or explicitly approving the presented version in your own words) authorizes
 the verified recovery baseline and Phase 1. Every later phase has its own approval.
 
-The 0.3.1-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
+The 0.3.2-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
 **1.9.0**, including its layout map and ten project-type trees. File-size alarms live only in §7 of
 that standard; this skill keeps no number of its own. The versioned references are
 bundled for offline use; plans record the source commit and the selected project tree.
 See [standard alignment](skills/vibe-to-engineering/references/standard-alignment.md).
-The safety repair branch brings the October fixes forward from a base of `main` at `1f44989`.
-The fixes cover distinct pre-restore checkpoints, plain CLI errors, boolean secret masking, guarded
-Git inspection, escaped examples in plan PDFs and a post-run check of the evidence destination. See the
+This repair lets the macOS PDF renderer print with an empty home directory, and the evidence
+destination test now fails promptly if a writer blocks on a FIFO. See the
 [validation results](TEST-EVIDENCE.md). Use this candidate on disposable projects with synthetic secrets.
 
 ## What it does
@@ -127,7 +126,7 @@ precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|
-| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.3.1-dev candidate and earlier revisions, including the October 8 candidate's 346 native arm64 regression tests. Workflow exams and release approval remain pending. |
+| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.3.2-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
 | Linux | Unsupported execution target. Portable package/unit and refusal checks do not establish Linux support. |
 | Windows | Unsupported execution target. Portable package/unit and refusal checks do not establish Windows support. |
 

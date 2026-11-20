@@ -1,13 +1,21 @@
 # Latest update — 2026-11-20
 
-## November 20 safety repair candidate
+## November 20 Chrome PDF and FIFO test repairs
+
+Version **0.3.2-dev** on `fix/chrome-keychain-and-fifo-test` is based on `main` at `728856c`.
+The macOS renderer uses a mock keychain for its disposable browser profile. The FIFO test
+fails at a five-second timeout if the writer blocks. See the
+[builder validation evidence](TEST-EVIDENCE.md).
+Independent review, owner acceptance and the release workflow remain pending for this candidate.
+
+## November 20 safety repairs (merged baseline)
 
 Version **0.3.1-dev** on `fix/unmerged-safety-repairs` brings the October 21 and October 7
 repairs together on top of `main` at `1f44989`. The changes cover restore checkpoints, CLI
 errors, boolean secret masking, guarded Git inspection, escaped plan examples and evidence
 destination checks. The candidate also includes the standard 1.9.0 alignment and the Windows
-line-ending fix. See [current validation evidence](TEST-EVIDENCE.md) for the local results.
-Independent review, owner acceptance and the release workflow remain pending.
+line-ending fix. It was merged into `main` at `728856c`. All four jobs passed in its
+[CI run](https://github.com/workspace-labs/vibe-to-engineering/actions/runs/44715989493).
 
 ## November 20 file-size alarms and verification warning candidate
 

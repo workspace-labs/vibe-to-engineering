@@ -4,6 +4,7 @@ import io
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -43,11 +44,31 @@ class EvidenceDestination(unittest.TestCase):
         self.env.stop()
         shutil.rmtree(self.root)
 
-    def run_check(self, script, *args):
+    def run_check(self, script, *args, timeout=None):
+        command = ["--project", str(self.project), "--out", str(self.output),
+                   "--", "/bin/sh", "-c", script, "fixture", *map(str, args)]
+        if timeout is not None:
+            # A blocking filesystem call must be killable. Keep the child's scratch test-owned.
+            launcher = ("import sys\n"
+                        "sys.path.insert(0, sys.argv.pop(1))\n"
+                        "import childenv, evidence\n"
+                        "childenv.SCRATCH_BASE = sys.argv.pop(1)\n"
+                        "sys.exit(evidence.main())")
+            try:
+                done = subprocess.run(
+                    [sys.executable, "-I", "-B", "-c", launcher, str(TOOL.parent.resolve()),
+                     str(self.scratch), *command],
+                    capture_output=True, encoding="utf-8", timeout=timeout,
+                )
+            except subprocess.TimeoutExpired:
+                raise self.failureException(
+                    f"Evidence wrapper did not refuse the {self.output.name} within {timeout} seconds"
+                ) from None
+            return done.returncode, done.stdout, done.stderr, emission.read_result(done.stderr)
+
         printed, report = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(report):
-            code = evidence.main(["--project", str(self.project), "--out", str(self.output),
-                                  "--", "/bin/sh", "-c", script, "fixture", *map(str, args)])
+            code = evidence.main(command)
         return code, printed.getvalue(), report.getvalue(), emission.read_result(report.getvalue())
 
     def assert_integrity(self, result, child=0):
@@ -62,7 +83,7 @@ class EvidenceDestination(unittest.TestCase):
                 self.output = self.folder / kind
                 self.output.mkdir() if kind == "directory" else os.mkfifo(self.output)
                 before = self.output.lstat()
-                code, printed, report, record = self.run_check("printf ran > check-ran; printf synthetic")
+                code, printed, report, record = self.run_check("printf ran > check-ran; printf synthetic", timeout=5)
                 self.assertEqual(code, 2, report)
                 self.assertEqual(record, dict(v=1, wrapper=2, launched=False, saved=False, child=None))
                 self.assertEqual(printed, "")

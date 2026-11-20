@@ -1,6 +1,36 @@
 # Skill validation evidence
 
-## Unmerged safety repairs candidate — 2026-11-20
+## Chrome PDF and FIFO test repairs — 2026-11-20
+
+Candidate **0.3.2-dev** on `fix/chrome-keychain-and-fifo-test`, based on `main` at `728856c`.
+Local host was macOS 27.2.1 arm64 with CLT Python 3.9.6, Node v20.20.2 and Poppler 26.07.0.
+The native scopes used the pinned reader matrix and ran all four of its tests.
+
+- `tests/run_validation.py --scope macos` with `V2E_BROWSER` pointing to pinned Chrome Headless
+  Shell 156.0.8078.4, revision 1248. **403 passed, 0 failures, 0 errors, 0 skips** in 360.319 seconds.
+- The same macOS scope with `V2E_BROWSER` unset and installed Google Chrome 157.0.8103.80.
+  **403 passed, 0 failures, 0 errors, 0 skips** in 360.811 seconds.
+- `tests/run_validation.py --scope portable` with CLT Python 3.9.6.
+  **104 passed, 0 failures, 0 errors, 0 skips** in 4.253 seconds.
+
+A direct render of the filled plan template with a fresh empty home and default browser discovery
+produced a seven-page PDF in 0.873 seconds with installed Chrome. No blocking keychain dialog was
+observed. The modified landscape test also rendered from a fresh empty home under both browser
+configurations. The mocked launch regression failed with the macOS switch removed from a disposable
+copy and passed with the switch restored. A separate missing-browser check produced the expected
+skip for `test_renders_the_template_with_a_landscape_overview_page`
+(`no Chrome-family browser installed`). That skip was outside the validation scopes above.
+
+The directory/FIFO regression runs each writer invocation in a subprocess with a five-second
+timeout. With the historical writer extracted from `1f44989`, the FIFO reached the timeout and failed
+with `Evidence wrapper did not refuse the fifo within 5 seconds`. The old writer also failed the
+separate directory assertion. The focused test exited 1 in 5.378 seconds wall time on that writer
+and exited 0 in 0.599 seconds on the branch.
+
+This is builder verification on one host. Independent review, full workflow exams and release
+approval remain pending.
+
+## Historical safety repairs candidate — 2026-11-20
 
 Candidate **0.3.1-dev** on `fix/unmerged-safety-repairs`, based on `main` at `1f44989`.
 The local host ran macOS 27.2.1 arm64, CLT Python 3.9.6, Node v20.20.2, and Poppler 26.07.0.
