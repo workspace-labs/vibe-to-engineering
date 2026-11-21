@@ -1,5 +1,45 @@
 # Skill validation evidence
 
+## Plan evidence and Migration Map — 2026-11-21
+
+Candidate **0.6.0-dev** on `feat/plan-evidence-and-map`, based on
+`639fc30deffc6f5cda44777207c1846ce9470ecb`. Both scopes used CLT Python 3.9.6
+on macOS 27.2.1 arm64 with `node --version` reporting `v20.20.2`. Native validation
+used the pinned reader matrix and Chrome Headless Shell revision 1248. The browser startup
+refused in the default sandbox. The isolated native run used that same executable with
+elevated execution.
+
+- `python3 -B tests/run_validation.py --scope portable` ran **139 tests with 0 failures,
+  0 errors and 0 skips**. The increase from 110 is 26 portable map tests and three protocol tests.
+- `python3 -B tests/run_validation.py --scope macos` ran **439 tests with 0 failures,
+  0 errors and 0 skips**. The increase from 409 includes those 29 tests and one real PDF test
+  for the embedded solid and dashed connectors.
+- Only the fingerprint for `form: every-file rows` changed.
+  It moved from `3c46c5c70ebe418fa6e5745681b01bc47fc424da30b97492ca65c176d8e0163a`
+  to `f6669d7c4c53bdde537c3c4a7c21d8aee48744b80b5116c9c7ae19672e3744c3`.
+  The bundled standard and PDF renderer matched the base.
+
+### Disposable Harbor Log exercise
+
+- **Planning observed.** A fresh agent used a candidate copy and found two material issues
+  in a 444-line source file. The plan showed measured totals of 3 files and 479 lines and
+  estimated totals of 5 files and 230 lines, with the largest file in each column. It
+  showed line counts on each file row and three new-file rows with source evidence and
+  findings. The agent stopped at `AWAITING HUMAN APPROVAL`. All three original files
+  matched their starting SHA-256 hashes.
+- **Map states observed.** Five playback copies used synthetic ledger headings for approved
+  and waiting, started, failed, restored to the checked baseline, and all phases done.
+  The done map measured the three synthetic output files, including the approved
+  characterization check in the state folder.
+- **Visual checks observed.** All 11 plan pages and five one-page maps were rasterized
+  with macOS PDF drawing and inspected. Text fit, and solid and dashed connectors reached
+  their intended file rows. The fixture plan used compact print spacing. A separate
+  render with the shipped stylesheet also showed readable totals and evidence tables.
+  Additional large-map renders kept phases together across pages at the original text size.
+
+The playback tested reporting with staged fixture files and ledger events. Real-project use
+and independent review remain outside this build evidence.
+
 ## Engineering standard 1.11.0 bundle — 2026-11-20
 
 Candidate **0.5.0-dev** on `update/engineering-standard-1.11.0`, based on `main` at

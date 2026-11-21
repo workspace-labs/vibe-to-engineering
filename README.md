@@ -11,10 +11,12 @@ INSPECT → DIAGNOSE → DESIGN TARGET ARCHITECTURE → CREATE MIGRATION PLAN �
 **Read the project → present a plan → wait for human approval → execute the approved phase.**
 Invoking the skill starts inspection and planning, not permission to change code. When a migration
 is justified, the agent shows its exact proposed work and target tree in a PDF. Replying
-`approve plan v1` (or explicitly approving the presented version in your own words) authorizes
-the verified recovery baseline and Phase 1. Every later phase has its own approval.
+`approve plan v1` (or explicitly approving the presented version in your own words) records
+the approval and generates the Migration Map. For a project you explicitly confirm is disposable
+and uses synthetic secrets, the approval also covers the verified recovery baseline and Phase 1.
+Every later phase has its own approval.
 
-The 0.5.0-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
+The 0.6.0-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
 **1.11.0**, including its layout map and ten project-type trees. File-size alarms live only in §7 of
 that standard; this skill keeps no number of its own. The versioned references are
 bundled for offline use; plans record the source commit and the selected project tree.
@@ -22,17 +24,19 @@ See [standard alignment](skills/vibe-to-engineering/references/standard-alignmen
 
 C16 requires evidence of a present cost or risk and a reason the simplest design needs each
 proposed abstraction. The plan's Key decisions record its finding ID, C16 reason, evidence
-and why the simpler alternative falls short. Use this candidate on disposable projects with
-synthetic secrets. See the [validation results](TEST-EVIDENCE.md).
+and why the simpler alternative falls short. You can inspect, diagnose, design and produce a
+plan PDF for a real project. Backup, baseline checks, runner enrollment and all phases require
+a disposable project with synthetic secrets. See the [validation results](TEST-EVIDENCE.md).
 
 ## What it does
 
 - **Reads before it judges.** Inspection and diagnosis are read-only: no builds, tests or scripts run, and nothing in the project is written.
 - **Can say no.** Every finding cites evidence someone else can re-check. A project whose structure already fits gets `NO MIGRATION REQUIRED`, and nothing is written. It never imposes one folder tree on every project, and it treats more folders or more abstraction as a cost, not as engineering.
-- **Plans before it touches anything.** A justified migration gets a current tree, a target tree designed for that project, every file of the project listed before → after (the ones it never touches included), phased steps and an `Engineering-Migration-Plan.pdf` that shows CURRENT → MIGRATION → TARGET on one page. Then it stops at `AWAITING HUMAN APPROVAL`.
+- **Plans before it touches anything.** A justified migration gets current and target trees, a before → after file inventory, phased steps and an `Engineering-Migration-Plan.pdf`. The PDF shows CURRENT → MIGRATION → TARGET on one page, measured and estimated file and line totals, per-file line counts and source evidence for every new file. Then it stops at `AWAITING HUMAN APPROVAL`.
 - **Flags long files without judging them.** In the before → after table, every proposed file estimated at over 400 lines is marked a review candidate with its jobs listed. The number is the standard's review alarm. File size alone is not a finding, and a file with one job stays whole.
 - **Warns when the proof is thin.** A check result that is old, or that never exercises what the plan changes the way it is really used (storage checked with a page reload but never with a full restart), gets a `VERIFICATION WARNING`. It is never reported as a pass, and the human decides whether to add the check or accept the gap. An accepted gap stays in every report and the migration ends as `COMPLETE WITH ACCEPTED VERIFICATION GAPS`, never as ALL GREEN.
-- **Backs up by itself.** After approval, and before Phase 1, it saves the recovery contract's covered files, including uncommitted work in that set, and proves those files restore byte for byte. Ignored files and nested repositories are outside that saved set; checkpoints do not comprehensively back up local data or secrets. It refuses when it cannot account for the covered files or a nested repository has uncommitted work.
+- **Maps the approved plan.** The separate Migration Map shows which old ranges feed each planned file, the line estimates and the phase states recorded in the ledger. It refreshes as a phase starts, completes or fails, and after a restore or stop.
+- **Verifies a recovery baseline.** After approval and explicit confirmation that the project is disposable with synthetic secrets, it saves the recovery contract's covered files, including uncommitted work in that set, and proves those files restore byte for byte. Ignored files and nested repositories are outside that saved set; checkpoints do not comprehensively back up local data or secrets. It refuses when it cannot account for the covered files or a nested repository has uncommitted work.
 - **One phase per approval.** After each phase: checks compared with the baseline, the change compared with the plan, a new verified checkpoint, a report, and a stop.
 - **Investigates failures instead of guessing.** A break stops the work, saves the broken state, compares it with the last known-good checkpoint and reports the root cause and the options. Stopping never rolls anything back; a restore needs the human's own approval and refuses, changing nothing, when it cannot be done safely.
 - **Finishes with an independent review.** The approved target tree is compared with the actual final tree, and `VIBE-TO-ENGINEERING — ALL GREEN` is reported only when nothing blocking remains and every final check passes. Checks that were already failing when the human approved going ahead anyway are named in a separate completion status instead.
@@ -55,7 +59,10 @@ scratch retention and A4 macOS-only execution refusal. The October 8 candidate p
 macOS regression tests**, plus **84 portable checks on each of Windows, Linux and macOS**, with no
 failures, errors or skips. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md) for the tested revision and CI logs.
 Workflow and release verification remain pending. The historical 307-test result above predates these changes.
-Keep evaluation on disposable projects with synthetic secrets until the release gates are satisfied.
+On a real project, keep writes to the plan, PDF, ledger and approved map in the skill's state folder.
+Before any backup, baseline check, enrollment or phase, the owner must explicitly confirm the
+project is disposable and uses synthetic secrets. Without that confirmation the agent records
+plan approval, makes the map, reports `PLAN ONLY` and stops. Approving a plan is not that confirmation.
 See `skills/vibe-to-engineering/references/env-boundary.md`.
 
 **Latest update:** [LASTUPDATE.md](LASTUPDATE.md) records what is fixed, the review evidence,
@@ -64,8 +71,10 @@ use LASTUPDATE.md for current release status and the verification still required
 
 ## Install
 
-For development evaluation on disposable macOS projects only, the installable package is
-`skills/vibe-to-engineering`, including its bundled license. Copy that folder into your agent's skills folder. Installation does not approve this development version for real-project use.
+For development evaluation on macOS, the installable package is `skills/vibe-to-engineering`,
+including its bundled license. Copy that folder into your agent's skills folder. Real projects
+are limited to planning and the approved map. Migration execution requires a disposable project
+with synthetic secrets and the owner's explicit confirmation.
 
 Claude Code:
 
@@ -103,6 +112,9 @@ Nothing during inspection and diagnosis, and nothing at all when no migration is
 ├── Engineering-Migration-Plan.html    the plan
 ├── Engineering-Migration-Plan.pdf     what the human approves
 ├── ledger.md                          approvals, baseline, phases, failures, restores
+├── migration-map.json                 sources and phases from the approved plan
+├── Migration-Map.html                  the ledger-backed map
+├── Migration-Map.pdf                   the map the human reads
 ├── evidence/                          check output (secret values masked), trees and diffs
 └── checkpoints.git/                   the recovery store; the project's own repository is only read
 ```
@@ -128,7 +140,7 @@ precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|
-| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.5.0-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
+| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.6.0-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
 | Linux | Unsupported execution target. Portable package/unit and refusal checks do not establish Linux support. |
 | Windows | Unsupported execution target. Portable package/unit and refusal checks do not establish Windows support. |
 
@@ -215,7 +227,8 @@ skills/vibe-to-engineering/
 │   ├── secretformats.py             reads each kind of secret file for evidence.py
 │   ├── secretforms.py               every form a secret value may be printed in
 │   ├── nodekeys.py                  the keys Node's .env loaders read (provenance record; not wired)
-│   └── render_pdf.py                HTML plan → PDF
+│   ├── render_pdf.py                static HTML → PDF
+│   └── render_map.py                approved plan and ledger → Migration Map
 └── assets/plan-template.html        the plan's layout
 tests/                               conformance, renderer and protocol tests
 ```

@@ -149,6 +149,49 @@ class Protocol(unittest.TestCase):
         self.assertIn("never edited, rewritten or converted to get it admitted", boundary)
         self.assertIn("throwaway data with `--env`", boundary)
 
+    def test_approval_without_disposable_confirmation_stays_plan_only(self):
+        status = self.text.split("**Development status", 1)[1].split("\n\n", 1)[0]
+        for text in ("INSPECT, DIAGNOSE and DESIGN", "real project",
+                     "plan HTML, PDF and ledger", "disposable projects with synthetic secrets"):
+            self.assertIn(text, status)
+        gate = self.text.split("## 5. GENERATE PDF, then stop", 1)[1].split("\n## 6.", 1)[0]
+        self.assertIn("explicit statement that this project is disposable", gate)
+        self.assertIn("Approving a plan is not that statement.", gate)
+        self.assertIn("`PLAN ONLY`", gate)
+        self.assertIn("record the approval, make the map", gate)
+        self.assertIn("the human explicitly confirmed this project is disposable", self.text)
+
+    def test_owner_sees_measured_totals_and_file_evidence_before_approval(self):
+        summary = self.template.split('id="summary">', 1)[1].split("</section>", 1)[0]
+        for field in ("TOTAL_FILES", "TOTAL_LINES", "LARGEST_FILE"):
+            for state in ("BEFORE", "AFTER"):
+                self.assertIn("{{%s_%s}}" % (field, state), summary)
+        self.assertIn("Before (measured)", summary)
+        self.assertIn("After (estimated)", summary)
+        files = self.template.split('<section class="sheet" id="files">', 1)[1].split("</section>", 1)[0]
+        self.assertIn('<td class="num">{{FILE_LINES_NOW}}</td><td class="num">{{FILE_LINES_AFTER}}</td>', files)
+        evidence = files.split("Why each new file exists", 1)[1].split("Who owns each job", 1)[0]
+        for field in ("NEW_FILE_PATH", "NEW_FILE_OLD_LINES", "NEW_FILE_FINDING",
+                      "NEW_FILE_WHY", "NEW_FILE_EVIDENCE_STATE"):
+            self.assertIn("{{%s}}" % field, evidence)
+        for text in ("exact line ranges", "finding ID", "`not yet exact`", "before the split"):
+            self.assertIn(text, self.plan)
+
+    def test_map_uses_approval_and_ledger_and_preserves_the_protocol_gate(self):
+        rule = self.text.split("## The migration map\n", 1)[1].split("\n## ", 1)[0]
+        rule = " ".join(rule.split())
+        for text in ("## <UTC time> — PLAN APPROVED v<version> — <state>",
+                     "migration-map.json", "render_map.py --project <project>",
+                     "Migration-Map.html", "Migration-Map.pdf", "git hash-object --no-filters",
+                     "PHASE n STARTED", "PHASE n COMPLETE", "PHASE n FAILED",
+                     "RESTORED <label>", "MIGRATION STOPPED", "Map: NOT UPDATED — <reason>",
+                     "The ledger governs", "never counts as approval", "continue to the protocol's own gate"):
+            self.assertIn(text, rule)
+        backup = self.text.split("## 6. CREATE + VERIFY BACKUP", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("The migration map", backup)
+        phase = self.text.split("## 7. PHASE n", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("The migration map", phase)
+
 
 if __name__ == "__main__":
     unittest.main()

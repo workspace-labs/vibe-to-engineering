@@ -80,6 +80,11 @@ code, .path { font-family: var(--mono); font-size: .9em; }
 .tile { border: .8pt solid var(--soft); border-radius: 2mm; padding: 3mm 4mm; }
 .tile b { display: block; font-size: 20pt; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .tile span { font-size: 8pt; color: var(--muted); }
+.totals { break-inside: avoid; }
+.totals h3 { margin: 0 0 1.5mm; }
+.totals tbody th { background: var(--wash); color: var(--ink); border: .8pt solid var(--line); }
+.totals tbody tr:nth-child(even) th { background: var(--zebra); }
+.totals tbody tr:last-child th { border-bottom: 1.6pt solid var(--banner); }
 .story { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 5mm; }
 .card { border: .8pt solid var(--soft); border-radius: 2mm; padding: 3.4mm 4mm; break-inside: avoid; }
 .card h3 { margin: 0 0 1.8mm; display: flex; align-items: center; gap: 2mm; font-size: 10pt; }
@@ -167,6 +172,18 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
     <div class="tile"><b>{{FILES_TOUCHED}}</b><span>files moved, split or edited across the plan</span></div>
   </div>
 
+  <div class="totals">
+    <h3>Project totals</h3>
+    <table>
+      <colgroup><col style="width:28%"><col style="width:12%"><col style="width:14%"><col style="width:46%"></colgroup>
+      <thead><tr><th>Plan stage</th><th class="num">Files</th><th class="num">Lines</th><th>Largest file</th></tr></thead>
+      <tbody>
+        <tr><th>Before (measured)</th><td class="num">{{TOTAL_FILES_BEFORE}}</td><td class="num">{{TOTAL_LINES_BEFORE}}</td><td class="path">{{LARGEST_FILE_BEFORE}}</td></tr>
+        <tr><th>After (estimated)</th><td class="num">{{TOTAL_FILES_AFTER}}</td><td class="num">{{TOTAL_LINES_AFTER}}</td><td class="path">{{LARGEST_FILE_AFTER}}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
   <div class="story">
     <div class="card now"><h3><span class="dot">1</span>Where the project is now</h3><p>{{SUMMARY_NOW}}</p></div>
     <div class="card wrong"><h3><span class="dot">2</span>What is wrong</h3><p>{{SUMMARY_WRONG}}</p></div>
@@ -176,7 +193,7 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
 
   <div class="authorize">
     <p class="eyebrow">What your approval authorizes</p>
-    <p>No code changes or baseline checks start until you approve this plan version. Approval authorizes creating and verifying a recovery baseline for the files checkpoints cover, and then <b>Phase 1 only</b>. Ignored files and nested repositories are outside checkpoint recovery; checkpoints are not a comprehensive backup of secrets or user data. These protected files stay untouched. Every later phase waits for its own approval. The product's behavior stays the same, nothing is committed or published, and nothing is deleted without a saved copy.</p>
+    <p>Approval records this plan version and generates the Migration Map. Creating and verifying the recovery baseline and starting <b>Phase 1</b> also require your explicit confirmation that this project is disposable and uses synthetic secrets. Checkpoint recovery covers the files named in the plan. Ignored files, nested repositories, secrets and user data stay untouched. Every later phase waits for its own approval.</p>
   </div>
 </section>
 
@@ -277,14 +294,24 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
   <h2><span class="n">3</span>Every file: before → after</h2>
   <p class="lead">Every file in the project, including the ones the migration never touches. Totals, from <span class="path">checkpoint.py tree --current</span>: {{FILE_TOTALS}}</p>
   <table>
-    <colgroup><col style="width:26%"><col style="width:18%"><col style="width:28%"><col style="width:28%"></colgroup>
-    <thead><tr><th>File</th><th>Change</th><th>Holds today</th><th>Holds after</th></tr></thead>
+    <colgroup><col style="width:22%"><col style="width:15%"><col style="width:11%"><col style="width:11%"><col style="width:20.5%"><col style="width:20.5%"></colgroup>
+    <thead><tr><th>File</th><th>Change</th><th class="num">Lines today <small>(measured)</small></th><th class="num">Lines after <small>(estimated)</small></th><th>Holds today</th><th>Holds after</th></tr></thead>
     <tbody>
       <!-- repeat: one row per file, grouped by folder. Change: same, edited, moved → new path, split → parts, removed,
            new, ignored — never touched, nested repository — never touched. A dependency or build-output folder is
            one row; in a large project a folder whose files all stay the same may be one row ("src/ui/ — 42 files").
            A proposed file estimated at over 400 lines: begin Holds after with "review candidate (~N lines)" and list its jobs. -->
-      <tr><td class="path">{{FILE_PATH}}</td><td>{{FILE_CHANGE}}</td><td>{{FILE_HOLDS_NOW}}</td><td>{{FILE_HOLDS_AFTER}}</td></tr>
+      <tr><td class="path">{{FILE_PATH}}</td><td>{{FILE_CHANGE}}</td><td class="num">{{FILE_LINES_NOW}}</td><td class="num">{{FILE_LINES_AFTER}}</td><td>{{FILE_HOLDS_NOW}}</td><td>{{FILE_HOLDS_AFTER}}</td></tr>
+      <!-- /repeat -->
+    </tbody>
+  </table>
+  <h3>Why each new file exists</h3>
+  <table>
+    <colgroup><col style="width:23%"><col style="width:25%"><col style="width:10%"><col style="width:28%"><col style="width:14%"></colgroup>
+    <thead><tr><th>New file</th><th>Old file and lines</th><th>Finding</th><th>Reason</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <!-- repeat: one row per new file; evidence is "exact" or "not yet exact" with its reason -->
+      <tr><td class="path">{{NEW_FILE_PATH}}</td><td class="path">{{NEW_FILE_OLD_LINES}}</td><td>{{NEW_FILE_FINDING}}</td><td>{{NEW_FILE_WHY}}</td><td>{{NEW_FILE_EVIDENCE_STATE}}</td></tr>
       <!-- /repeat -->
     </tbody>
   </table>
@@ -418,7 +445,7 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
       <p class="eyebrow">Status: AWAITING HUMAN APPROVAL</p>
       <p>To approve this plan, reply:</p>
       <p class="reply">approve plan v{{PLAN_VERSION}}</p>
-      <p>Approval authorizes the recovery baseline and Phase 1 only. To change anything first, say what should be different; the plan is revised and comes back to you as a new version.</p>
+      <p>Approval records this plan version and generates the Migration Map. The recovery baseline and Phase 1 also require your explicit confirmation that this project is disposable and uses synthetic secrets. To revise the plan, say what should change and review the new version.</p>
       <p class="lead">Plan file: <span class="path">.vibe-to-engineering/Engineering-Migration-Plan.html</span> · its fingerprint and your approval are recorded in <span class="path">.vibe-to-engineering/ledger.md</span></p>
     </div>
   </div>

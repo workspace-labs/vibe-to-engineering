@@ -3,14 +3,18 @@ name: vibe-to-engineering
 description: "Decides from evidence whether an existing software project's structure shows vibe-coded or ad-hoc development and, only if restructuring is justified, converts it into a project-specific engineered architecture through a controlled migration the human approves step by step: read-only inspection and diagnosis, current and target trees, a phased plan with Engineering-Migration-Plan.pdf, a verified recovery baseline, one approved phase at a time with tests and a checkpoint after each, failure investigation against the last known-good checkpoint, and a final review that reports ALL GREEN only when every final check passes. Use when the user invokes vibe-to-engineering, asks whether a project is vibe-coded or structurally sound, or asks to restructure a whole existing project into a proper engineering architecture. Not for building features, fixing bugs or small local refactors."
 license: MIT
 metadata:
-  version: "0.5.0-dev"
+  version: "0.6.0-dev"
 ---
 
 # vibe-to-engineering
 
-**Development status — not released or approved for real-project use.** Evaluate this build only on
-disposable projects with synthetic secrets. Execution is macOS-only; Linux, Windows and other platforms
-refuse before project, registry, scratch or probe operations. Native macOS regression and workflow exams,
+**Development status — unreleased candidate.** Read-only INSPECT, DIAGNOSE and DESIGN are allowed on
+a real project.
+The plan HTML, PDF and ledger go in `<project>/.vibe-to-engineering/` with its `.gitignore`.
+The approved plan's map files go in that same folder. Backup, baseline checks, runner enrollment
+and every phase are limited to disposable projects with synthetic secrets. Execution is macOS-only.
+Linux, Windows and other platforms refuse before project, registry, scratch or probe operations.
+Native macOS regression and workflow exams,
 fresh-user verification, independent review and owner release approval remain required. Installing this
 folder does not establish readiness or close NEW-5.
 
@@ -149,6 +153,14 @@ project-type tree as DIAGNOSE. Design the target for this project only:
 
 Produce the CURRENT TREE, the TARGET TREE and the reason for each major decision, including the simpler alternative you rejected. Then account for every file: one before → after row per file of the project — what happens to it, what it holds today and afterwards — including every file the migration never touches, and who owns each job (database access, settings, routes, UI, tests…) before and after. Together the rows must cover every file `checkpoint.py tree --current` counts (a folder row counts its files). Mark every proposed file estimated at over 400 lines as a review candidate and list its jobs (`references/migration-plan.md`, section 4); the number is the review alarm in §7 of the bundled standard, and file size alone is not a finding.
 
+Put measured before totals and labelled after estimates for files, lines and the largest file in the
+first-page totals box. Show measured lines today and estimated lines after on every file row.
+A folder row carries its folder totals. For every new file, show its source file and exact line ranges
+from the current file, finding ID, and why the file exists. Mark the evidence `exact` when the ranges
+were read from the current file. Use `not yet exact` only when the boundary cannot be known before
+the split and say why in the row. Show this evidence before the owner approves. Preserve the
+inspection limits on secrets and report any totals that could not be measured safely.
+
 ## 4. CREATE MIGRATION PLAN
 
 Cut the migration into phases with the rules in `references/migration-plan.md`: one objective per phase, the application works at the end of every phase, moves are kept apart from logic edits, remnants are removed last, and the documentation phase ends every plan — it leaves a short record of the new structure and the reasons for it inside the project, in the form the project already uses, and the plan shows its exact text. Leave it out only when the human declines it ("no docs"). Each phase states its objective, finding IDs, exact changes (old path → new path; what is split into what), files in scope, expected tree afterwards, verification and risks.
@@ -163,13 +175,13 @@ Before writing, verify that `<project>/.vibe-to-engineering/` resolves inside th
 python3 <skill>/scripts/render_pdf.py <project>/.vibe-to-engineering/Engineering-Migration-Plan.html <project>/.vibe-to-engineering/Engineering-Migration-Plan.pdf
 ```
 
-Look at the result — open it or render its pages as images — and make sure the CURRENT → MIGRATION → TARGET page is readable. If no browser is found, the tool says so: tell the human, give the HTML file's path (it opens in any browser) and still stop here.
+Look at the result — open it or render its pages as images — and make sure the totals, file counts, evidence rows and CURRENT → MIGRATION → TARGET page are readable. If no browser is found, the tool says so: tell the human, give the HTML file's path (it opens in any browser) and still stop here.
 
 Fingerprint the plan with `git hash-object --no-filters <the .html file>` and start `.vibe-to-engineering/ledger.md` with the plan's version and fingerprint. Record its engineering standard version,
 source commit, selected tree guides and project-specific overrides too. They are part of the approved
 plan; changing the standard or target later needs a plan revision, not an automatic upgrade.
 
-Report in plain language: where the project is now → what is wrong → the proposed architecture → how it gets there (one line per phase) → the PDF's path → what approval authorizes (creating the backup and Phase 1, nothing more). End with:
+Report in plain language: where the project is now → what is wrong → the proposed architecture → how it gets there (one line per phase) → the PDF's path → what approval authorizes. Approval records the plan and generates its map. For a project the human explicitly confirms is disposable and uses synthetic secrets, approval also covers the verified backup and Phase 1. End with:
 
 ```
 AWAITING HUMAN APPROVAL
@@ -180,9 +192,17 @@ currently presented version is enough; exact wording is not a password. A reques
 revises the plan and returns to this gate. Silence, an unanswered question or an earlier general
 "go" cannot approve a plan first presented afterwards.
 
+Before section 6, require the human's explicit statement that this project is disposable.
+Approving a plan is not that statement. Without it, record the approval, make the map as described
+in [The migration map](#the-migration-map), report `PLAN ONLY`, and stop. Apply this gate when
+resuming too. All backup, baseline checks, runner enrollment and migration work remain limited to
+disposable projects with synthetic secrets.
+
 ## 6. CREATE + VERIFY BACKUP
 
 Only after the human approves this plan version. Load `references/recovery.md`.
+
+Follow [The migration map](#the-migration-map) at plan approval before proceeding.
 
 Before step 1, the ledger holds an answer for every verification warning the plan presented: the covering check is in the approved plan version, or the owner accepted the gap. If one has no answer, create nothing: ask, and end with `AWAITING HUMAN APPROVAL`. A covering check that runs in step 3 and passes closes its warning; record that. One that fails is a failed check (step 5) and leaves its warning open.
 
@@ -198,6 +218,7 @@ Before step 1, the ledger holds an answer for every verification warning the pla
 
 Before starting, confirm all of these; if one fails, stop and report:
 
+- the human explicitly confirmed this project is disposable and it uses synthetic secrets;
 - the plan's fingerprint equals the approved one (otherwise the plan changed and needs approval again);
 - the bundled standard version and source commit still match the plan (otherwise stop and propose
   a revision; never silently substitute a newer installed standard);
@@ -228,6 +249,8 @@ AWAITING HUMAN APPROVAL
 While any verification warning is open or accepted, add one line for each, above `Recovery Checkpoint`: `Verification Warning: OPEN — <what is not covered>` or `Verification Warning: ACCEPTED BY OWNER — <what is not covered>`. Passing checks never remove such a line; only a fresh run of the check that covers the behavior does. A warning first seen in this phase is OPEN.
 
 After the last phase, write `NEXT: Final review`. Follow the block with a few plain-language lines: what changed and what stayed the same.
+
+Follow [The migration map](#the-migration-map) to refresh it as the ledger changes.
 
 **The only fix allowed inside a phase:** while doing steps 2 and 3, you may use the build, type checker and tests to find references you missed, and fix exactly those — the error names a path or name this phase changed, and the fix points it at the new one. Anything else is a break.
 
@@ -320,7 +343,7 @@ Follow the outcome with the before and after trees (every file, as `tree` prints
 
 - **Behavior:** preserve the product's intended behavior. No new features, no bug fixes (write down bugs you notice for the human), no dependency changes (adding, removing or upgrading), no formatting sweeps, no renames for taste.
 - **Scope:** only planned changes. Files git ignores, secrets, databases, user data and nested repositories (folders with their own git, which checkpoints do not save) are never moved, edited or deleted — so move files by name, never with wildcards or whole-folder moves that could carry them along. External contracts keep working.
-- **The skill's own folder:** no phase moves, edits or deletes the plan, ledger, evidence or checkpoints in `.vibe-to-engineering/`; the only files a phase adds there are a safety net's checks, in `checks/`.
+- **The skill's own folder:** no phase moves, edits or deletes the plan, ledger, evidence or checkpoints in `.vibe-to-engineering/`. A safety net may add checks in `checks/`. The map protocol may write `migration-map.json`, `Migration-Map.html` and `Migration-Map.pdf`.
 - **Checks stay local:** a check never installs or updates dependencies, deploys, publishes, migrates a database or sends anything anywhere. If running a check changes a dependency manifest or lockfile, stop and ask: that is a dependency change.
 - **Checks use throwaway data:** a check never reads or writes the owner's data. The plan names, for each check, the data it uses and how it is redirected (an environment variable pointing at a temporary file, a temporary copy, a test fixture); a check that cannot be redirected is not run — the human decides. A check that starts a server takes a free port and proves the answers come from the process it started (`references/migration-plan.md`, section 3).
 - **Git:** never push. Never commit, branch, reset, clean, stash or rewrite history in the project's repository unless the human asks; if they ask for commits, commit one completed phase at a time.
@@ -331,6 +354,34 @@ Follow the outcome with the before and after trees (every file, as `tree` prints
 - **Plan changes:** when reality contradicts the plan — a framework constraint, a hidden dependency, a contract the plan missed — stop and propose a revised plan (new version, new PDF, new fingerprint). Never deviate silently. Record the human's own instructions given during the migration in the ledger; a change to the target needs a revised plan.
 - **No network and no installs** for this skill's own work.
 
+## The migration map
+
+On approval of the presented plan version, append `## <UTC time> — PLAN APPROVED v<version> — <state>`
+and quote the human's approval under it. Use `PLAN ONLY` as the state when the disposable-project
+gate is unmet. Record this approval once for the version. Write `migration-map.json` from the approved
+plan and apply section 4's state-path checks before writing. Use these fields:
+
+- `schema` is `1`, `plan_version` is the approved version as a string, `plan_fingerprint` is the
+  `git hash-object --no-filters` of the plan HTML, and `project` is the project name.
+- `sources` lists old files with `path`, measured `lines`, and `parts` with a unique `id`, `label`,
+  `from` and `to`. Inclusive part ranges cover the entire source in order without overlap or gaps.
+  Every part connects to a mapped file.
+- `phases` lists every approved phase in order with its `number`, `title` and `files`. Match the
+  plan's `Phase N — title` headings. Each mapped file has a project-relative `path` matching a path
+  cell in the plan, estimated `lines_low` and `lines_high`, and a `from` list of objects with a
+  `part` ID and an `exact` boolean. Use the plan's evidence state for each link.
+
+Run `python3 <skill>/scripts/render_map.py --project <project>` and show `Migration-Map.pdf`.
+It is separate from the plan PDF and has an HTML copy, `Migration-Map.html`. Then continue only
+as the disposable-project gate allows. Keep the input tied to this approval until another
+plan version is approved.
+
+Refresh the map after appending `PHASE n STARTED`, after each `PHASE n COMPLETE` or `PHASE n FAILED`
+report, and after recording `RESTORED <label>` or `MIGRATION STOPPED`. Use those events in the ledger's
+heading format below. The ledger governs every state. The map never counts as approval or adds work.
+If writing or rendering the map fails, report `Map: NOT UPDATED — <reason>` and continue to the
+protocol's own gate. A map failure never changes or blocks the migration.
+
 ## Files written in the project
 
 ```
@@ -339,6 +390,9 @@ Follow the outcome with the before and after trees (every file, as `tree` prints
 ├── Engineering-Migration-Plan.html      the plan: its one source of truth
 ├── Engineering-Migration-Plan.pdf       what the human reads and approves
 ├── ledger.md                            append-only record: approvals (quoted), baseline, phases, failures, restores
+├── migration-map.json                   sources and phases from the approved plan
+├── Migration-Map.html                    the ledger-backed map
+├── Migration-Map.pdf                     the map the human reads
 ├── evidence/                            check output (secret values masked), trees and diffs, one folder per step
 └── checkpoints.git/                     the recovery store (a separate git store; the project's own repository is only read)
 ```

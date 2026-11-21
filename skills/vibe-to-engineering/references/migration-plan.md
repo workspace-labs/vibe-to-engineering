@@ -102,7 +102,7 @@ Every phase report, a failed one and a `RESTORED` report included, carries one `
 
 The plan is written for the project's owner, who may not be a developer: plain language first, technical detail after. Its sections, in this order (the template has them all):
 
-1. **Summary for the owner** — where the project is now; what is wrong (the Material findings in plain words); the proposed architecture in one paragraph; how it gets there (one line per phase); what approving authorizes (the backup and Phase 1, nothing else).
+1. **Summary for the owner** — where the project is now, the Material findings in plain words, the proposed architecture, one line per phase, and the approval scope. Approval records the plan and generates the map. The backup and Phase 1 also require the owner's explicit statement that the project is disposable and has synthetic secrets.
 2. **CURRENT → MIGRATION → TARGET** — one landscape page: the current tree, the phases as numbered steps, the target tree.
 3. **Findings** — ID, severity, criterion, evidence, impact. Minor findings too, marked as not acted on.
 4. **Target architecture** — the target tree with a one-line responsibility for each folder, and every major decision with its reason and the simpler alternative rejected.
@@ -110,6 +110,16 @@ The plan is written for the project's owner, who may not be a developer: plain l
    tree guides, due-at placement decisions and accepted project-specific overrides. This fixes
    which rules the owner approves and the final reviewer checks.
 5. **Every file: before → after** — one row per file of the project, the ones the migration never touches included: its path; what happens to it (same · edited · moved → new path · split → parts · removed · new · ignored — never touched · nested repository — never touched); what it holds today and what it will hold afterwards, one line each. Rows are grouped by folder; a dependency or build-output folder is one row, and in a large project a folder whose files all stay the same may be one row (`src/ui/ — 42 files, unchanged`). The totals from the closing line of `checkpoint.py tree --current` stand above it, so the owner can see that no file was left out. Then **who owns each job**: every responsibility — database access, settings, routes, UI, domain rules, tests… — with the file or files that own it today and afterwards. Two owners before and one after is the point of a migration, in one glance. **Review candidates:** estimate the line count of every file the plan creates, moves, renames, edits, merges or splits, as it will be afterwards — a file moved intact and an edit that leaves the length unchanged included. Mark each one estimated at over 400 lines, the review alarm in §7 of the bundled standard, as `review candidate (~N lines)` in its row and list its jobs there; "over" means 401 or more. One estimated at over 1,000 lines (1,001 or more) also carries the written reason §7 asks for — for a cohesive file, that it has one job — or is split by responsibility. The mark asks the owner to look. File size alone is not a finding: a review candidate with one job stays whole.
+
+   Fill the summary's totals box with measured before values and labelled after estimates for files,
+   lines and the largest file. Give the largest file's path and its line count in each column. On every
+   file row, give measured lines today and estimated lines after. Use folder totals for a folder row.
+   Keep the inspection limits on secrets and state any gaps in measured coverage. Under **Why each new
+   file exists**, list every new path, the old path and exact line ranges it comes from, the finding ID,
+   and why the new file exists. Mark ranges read from the current file as `exact`. Use `not yet exact`
+   only when the boundary cannot be known before the split, and give the reason in that row.
+   The owner sees these rows before approval.
+
 6. **Migration phases** — a summary table, then for each phase: objective, findings fixed, changes (old path → new path; what is split into what), files in scope, expected tree afterwards, verification, risks. Then the record the documentation phase leaves in the project: where it goes and its exact text.
 7. **Verification and recovery** — the checks and what a pass means; how the backup and checkpoints work; what happens on a failure; that a restore needs approval.
 8. **What will not change** — the behavior and external contracts that stay as they are; what is out of scope (features, bug fixes, dependencies, data).

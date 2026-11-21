@@ -1,4 +1,17 @@
-# Latest update — 2026-11-20
+# Latest update — 2026-11-21
+
+## November 21 plan evidence and Migration Map
+
+Version **0.6.0-dev** on `feat/plan-evidence-and-map` starts from `main` at `639fc30`.
+Real-project planning can produce a PDF, and approval produces a separate ledger-backed map.
+Backup, baseline checks, runner enrollment and migration phases remain limited to disposable
+projects with synthetic secrets. The plan shows measured and estimated sizes and the source
+ranges, findings and reasons for new files.
+
+Portable validation passed **139** tests and native macOS validation passed **439**, both with
+zero failures, errors or skips. A fresh agent stopped at plan approval on the synthetic Harbor
+Log project. Five simulated ledger states produced five one-page maps. The test and PDF evidence
+is in [TEST-EVIDENCE.md](TEST-EVIDENCE.md). This candidate is ready for Claude's independent review.
 
 ## November 20 engineering standard 1.11.0 bundle
 

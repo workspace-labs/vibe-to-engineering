@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.0-dev] - 2026-11-21
+
+- Allow real-project inspection, diagnosis, design and planning so the owner can judge a proposal
+  before deciding whether to use a disposable copy. Backup, baseline checks, enrollment and phases
+  remain limited to disposable projects with synthetic secrets.
+- Show file and line totals, the largest file, per-file line counts and the source ranges and findings
+  behind new files so the owner can see the size and evidence for the proposed split before approving.
+- Render a separate Migration Map from the approved plan and ledger so the owner can follow the
+  source ranges, planned and actual line counts, and phase progress through completion or recovery.
+
 ## [0.5.0-dev] - 2026-11-20
 
 - Refresh the offline engineering standard from 1.9.0 to 1.11.0 at commit
