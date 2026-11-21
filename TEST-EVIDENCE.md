@@ -1,5 +1,37 @@
 # Skill validation evidence
 
+## Migration Map layout on real plans — 2026-11-30
+
+Candidate **0.6.1-dev** on `fix/map-real-plan-layout` is based on
+`6ffdc45e11ff03164667bc00cc01d74731acf469`. Eight new layout regressions produced
+**8 failures, 0 errors, 0 skips** against the archived base and passed on the candidate
+with **0 failures, 0 errors, 0 skips**.
+
+- The layout tests cover page breaks with many short source parts, fitting dense source
+  headers, row connector positions, exact and inexact range text, whole filenames, shared
+  and mixed folders, compact estimates, thousands commas, and the no-source message.
+- The pinned browser printed a no-source page and a phase split across two sheets.
+  All three are A4. The continuation repeats the title, keeps every file whole,
+  and draws only the parts linked on each sheet with the source's full line count.
+- The existing two-phase pagination test passes as written. The escaping test uses a
+  shorter hostile part label so that it still exercises a visible label.
+
+Both scopes used CLT Python 3.9.6 on macOS 27.2.1 arm64 with Node v20.20.2. Native
+validation used the pinned reader matrix and Chrome Headless Shell revision 1248 (156.0.8078.4).
+
+- `python3 -B tests/run_validation.py --scope portable` ran **183 tests, 0 failures,
+  0 errors, 0 skips**.
+- `python3 -B tests/run_validation.py --scope macos` ran **484 tests, 0 failures,
+  0 errors, 0 skips**.
+
+The package validator passed. The read-only skill audit found zero structural errors
+and the same 31 review notices as the base.
+
+A disposable SmartRoute rehearsal reused the supplied map JSON and a synthetic approval.
+The rendered **one-page A4** PDF contains every one of the **15 whole filenames** and
+**34 linked ranges**. The render was inspected as a page image, and both endpoints of
+all **34 connectors** were matched against their source parts and destination rows.
+
 ## Migration Map re-review fixes J1–J4 — 2026-11-22
 
 Candidate **0.6.0-dev** on `feat/plan-evidence-and-map` is based on

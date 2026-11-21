@@ -1,4 +1,19 @@
-# Latest update — 2026-11-22
+# Latest update — 2026-11-30
+
+## Migration Map layout on real plans
+
+Candidate **0.6.1-dev** on `fix/map-real-plan-layout` addresses the layout finding on
+`6ffdc45`. Phase cards determine A4 pagination. An oversized phase continues between file
+rows with its title and approval stop repeated. Source bars stay proportional, and each row
+shows its linked ranges beneath the filename.
+
+The SmartRoute rehearsal used a disposable copy with a synthetic approval. The map fits
+on **one A4 page** with all **15 filenames**, **34 linked ranges**, and **34 connectors**.
+Eight new layout tests fail on the base and pass on the candidate. Portable validation
+passed **183** tests and native macOS validation passed **484** tests, both with zero
+failures, errors or skips. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md).
+
+Claude's re-review follows.
 
 ## November 22 Migration Map fixes J1–J4
 

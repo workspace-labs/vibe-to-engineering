@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.1-dev] - 2026-11-30
+
+- Fit Migration Maps to A4 using the phase cards for pagination. Keep phase titles and
+  approval stops visible when a phase continues across file rows.
+- Draw the linked source parts to scale on each page and show their labels where they
+  fit. Put every linked range under its destination filename and identify inexact ranges.
+- Show shared folders in phase headers and mixed folders on their file rows. Keep
+  filenames whole where they fit, and format estimates and line counts for easier reading.
+
 ## [0.6.0-dev] - 2026-11-21
 
 - Allow real-project inspection, diagnosis, design and planning so the owner can judge a proposal

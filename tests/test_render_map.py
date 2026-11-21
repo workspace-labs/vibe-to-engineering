@@ -1,4 +1,4 @@
-"""Migration Map contract on disposable projects, with one native PDF check."""
+"""Migration Map contract on disposable projects, with native PDF checks."""
 
 import base64
 import contextlib
@@ -919,15 +919,18 @@ class MapPortable(MapFixture, unittest.TestCase):
 
     def test_user_labels_are_escaped_text(self):
         hostile = '<img src="https://example.invalid/fixture.png" onerror="oops()"> & quoted'
+        short_hostile_label = "<script>x</script>"
         self.specification["project"] = hostile
-        self.specification["sources"][0]["parts"][0]["label"] = hostile
+        self.specification["sources"][0]["parts"][0]["label"] = short_hostile_label
         self.specification["phases"][0]["title"] = hostile
         self.write_plan()
         self.write_ledger(APPROVAL)
         self.write_mapping()
         text = self.map_text()
         self.assertNotIn(hostile, text)
-        self.assertGreaterEqual(text.replace("<br>", "").count(escape(hostile)), 3)
+        self.assertGreaterEqual(text.replace("<br>", "").count(escape(hostile)), 2)
+        self.assertNotIn(short_hostile_label, text)
+        self.assertIn(f"<b>{escape(short_hostile_label)}</b>", text)
         self.assertEqual(self.renderer.render_pdf.static_problems(text), [])
 
     def test_hostile_theme_markup_is_refused_before_pdf_rendering(self):
@@ -959,6 +962,137 @@ class MapPortable(MapFixture, unittest.TestCase):
         self.assertNotEqual(code, 0, output)
         render.assert_called_once()
         self.assertEqual(self.snapshot_state(), before)
+
+    def test_many_small_source_parts_do_not_add_pages(self):
+        source = self.specification["sources"][0]
+        source["lines"] = 100
+        source["parts"] = [{"id": "flow", "label": "Flow", "from": 1, "to": 67}] + [
+            {"id": f"part-{line}", "label": f"Slice {line}", "from": line, "to": line}
+            for line in range(68, 101)
+        ]
+        (self.project / source["path"]).write_bytes(b"# original\n" * 100)
+        first, second = self.specification["phases"]
+        first["files"][0]["from"] = [{"part": p["id"], "exact": True} for p in source["parts"][:17]]
+        second["files"][0]["from"] = [{"part": p["id"], "exact": True} for p in source["parts"][17:]]
+        self.write_plan()
+        self.write_ledger(APPROVAL)
+        self.write_mapping()
+
+        text = self.map_text()
+        self.assertEqual(len(re.findall(r'<section class="sheet\b', text)), 1)
+        self.assertEqual(text.count('class="segment '), 34)
+        self.assertEqual(text.count('class="source-label '), 1)
+        self.assertIn("<b>Flow</b>", text)
+        payload = re.search(r'data:image/svg\+xml;base64,([A-Za-z0-9+/=]+)', text)[1]
+        paths = ElementTree.fromstring(base64.b64decode(payload, validate=True))
+        self.assertEqual(len(paths), 34)
+        # File positions are relative to the inside of the card's one-pixel border.
+        for number, links in ((1, paths[:17]), (2, paths[17:])):
+            card_top = int(re.search(r'id="phase-%d"[^>]+top:(\d+)px' % number, text)[1])
+            row = re.search(r'class="file"[^>]+top:(\d+)px;height:(\d+)px', self.phase_card(text, number))
+            row_center = card_top + 1 + int(row[1]) + int(row[2]) / 2
+            self.assertTrue(all(float(path.attrib["d"].rsplit(" ", 1)[-1]) == row_center for path in links))
+
+    def test_file_rows_display_their_linked_ranges_and_exactness(self):
+        first, second = self.specification["phases"]
+        first["files"][0]["from"].append({"part": "record", "exact": False})
+        self.write_plan()
+        self.write_ledger(APPROVAL)
+        self.write_mapping()
+
+        text = self.map_text()
+        self.assertIn('class="file-evidence">1–12, part of 13–20<', self.phase_card(text, first["number"]))
+        self.assertIn('class="file-evidence">part of 13–20<', self.phase_card(text, second["number"]))
+
+    def test_many_source_headings_leave_room_for_positive_bar_segments(self):
+        phase = self.specification["phases"][0]
+        phase["files"] = []
+        self.specification.update(sources=[], phases=[phase])
+        for index in range(20):
+            path = f"src/original/substantial-component/source-{index:02d}.py"
+            part = f"part-{index}"
+            count = 10 + index
+            self.specification["sources"].append({"path": path, "lines": count, "parts": [
+                {"id": part, "label": "Whole file", "from": 1, "to": count},
+            ]})
+            parent = self.project / path
+            parent.parent.mkdir(parents=True, exist_ok=True)
+            parent.write_bytes(b"# original\n" * count)
+            phase["files"].append({"path": f"src/target-{index:02d}.py", "lines_low": count, "lines_high": count,
+                                   "from": [{"part": part, "exact": True}]})
+        self.write_plan()
+        self.write_ledger(APPROVAL)
+        self.write_mapping()
+
+        text = self.map_text()
+        self.assertIn("Page 1 of 1", text)
+        self.assertNotIn("@page extended-", text)
+        self.assertEqual(text.count('class="source-range" title='), 20)
+        heights = re.findall(r'class="segment [^"]+" style="[^"]+height:([-\d.]+)px', text)
+        self.assertEqual(len(heights), 20)
+        self.assertTrue(all(float(height) > 0 for height in heights))
+
+    def test_filenames_stay_whole_and_shared_folders_appear_once_per_phase(self):
+        first = self.specification["phases"][0]
+        name = "AnUnbrokenFileNameThatNeedsTheFullWidthOfTheRow.tsx"
+        first["files"][0]["path"] = "src/shared-folder/" + name
+        first["files"].append(dict(first["files"][0], path="src/shared-folder/Second.tsx"))
+        self.write_plan()
+        self.write_ledger(APPROVAL)
+        self.write_mapping()
+
+        card = self.phase_card(self.map_text(), 1)
+        self.assertIn(f">{name}</", card)
+        self.assertIn(">Second.tsx</", card)
+        self.assertEqual(card.count(">src/shared-folder/</"), 1)
+
+    def test_mixed_folders_are_shown_on_their_rows_and_wrap_after_slashes(self):
+        first = self.specification["phases"][0]
+        parent = "src/specific-eligibility/assessment-implementation/external-result/"
+        first["files"][0]["path"] = parent + "First.tsx"
+        first["files"].append(dict(first["files"][0], path="packages/reader/Second.tsx"))
+        self.write_plan()
+        self.write_ledger(APPROVAL)
+        self.write_mapping()
+
+        card = self.phase_card(self.map_text(), 1)
+        folders = re.findall(r'class="file-folder">(.*?)</', card)
+        self.assertEqual([folder.replace("<br>", "") for folder in folders], [parent, "packages/reader/"])
+        self.assertIn("/<br>", folders[0])
+        self.assertEqual(folders[0].count("<br>"), folders[0].count("/<br>"))
+        self.assertIn(">First.tsx</", card)
+        self.assertIn(">Second.tsx</", card)
+
+    def test_equal_estimates_and_line_counts_use_compact_number_format(self):
+        source = self.specification["sources"][0]
+        source["lines"] = source["parts"][1]["to"] = 3691
+        (self.project / source["path"]).write_bytes(b"# original\n" * 3691)
+        first, second = self.specification["phases"]
+        first["files"][0].update(lines_low=1381, lines_high=1381)
+        second["files"][0].update(lines_low=1240, lines_high=1600)
+        self.write_plan()
+        self.write_ledger(APPROVAL, "PHASE 1 COMPLETE")
+        self.write_mapping()
+        self.seed_approved_copy()
+        (self.project / first["files"][0]["path"]).write_bytes(b"# extracted\n" * 1234)
+
+        text = self.map_text()
+        self.assertIn("3,691 lines today", text)
+        self.assertIn("~1,381<br>Actual: 1,234", self.phase_card(text, 1))
+        self.assertIn("1,240–1,600", self.phase_card(text, 2))
+
+    def test_no_source_page_uses_a_short_message_in_the_source_column(self):
+        self.specification["sources"] = []
+        for phase in self.specification["phases"]:
+            phase["files"][0]["from"] = []
+        self.write_plan()
+        self.write_ledger(APPROVAL)
+        self.write_mapping()
+
+        text = self.map_text()
+        self.assertIn('<p class="source empty">No source ranges.</p>', text)
+        self.assertNotIn('class="segment ', text)
+        self.assertIn("Page 1 of 1", text)
 
     def test_long_map_breaks_between_phases_and_keeps_every_file(self):
         for phase in self.specification["phases"]:
@@ -1011,6 +1145,47 @@ class MapRenderer(MapFixture, unittest.TestCase):
         pdf = self.pdf.read_bytes()
         self.assertTrue(pdf.startswith(b"%PDF-"))
         self.assertEqual(len(re.findall(rb"/Type\s*/Page(?!s)\b", pdf)), 1)
+
+    def test_oversized_phase_continues_on_a4_with_only_page_local_source_parts(self):
+        if not os.environ.get("V2E_BROWSER"):
+            if os.environ.get("V2E_REQUIRE_MATRIX"):
+                self.fail("native validation requires the pinned V2E_BROWSER")
+            self.skipTest("set V2E_BROWSER to a native Chrome-family browser")
+        first, second = self.specification["phases"]
+        prototype = first["files"][0]
+        first["files"][0] = dict(prototype, path="src/check.py", **{"from": []})
+        second["files"] = [dict(prototype, path=f"src/chunk-{index:02d}.py") for index in range(30)]
+        second["files"].append(dict(second["files"][-1], path="src/final.py",
+                                    **{"from": [{"part": "record", "exact": False}]}))
+        self.write_plan()
+        self.write_ledger(APPROVAL)
+        self.write_mapping()
+
+        env = dict(os.environ, HOME=str(self.home), USERPROFILE=str(self.home))
+        result = subprocess.run([sys.executable, "-B", str(SCRIPT), "--project", str(self.project)],
+                                env=env, capture_output=True, text=True, timeout=195)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        pdf = self.pdf.read_bytes()
+        boxes = re.findall(rb"/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]", pdf)
+        self.assertEqual(len(boxes), 3)
+        self.assertEqual(len(re.findall(rb"/Type\s*/Page(?!s)\b", pdf)), 3)
+        for width, height in boxes:
+            self.assertAlmostEqual(float(width), 595, delta=1)
+            self.assertAlmostEqual(float(height), 842, delta=1)
+
+        first_page, second_page, third_page, _ = self.html.read_text(encoding="utf-8").split("</section>")
+        self.assertIn("No source ranges.", first_page)
+        self.assertNotIn('class="segment ', first_page)
+        self.assertIn("Move records", second_page)
+        self.assertIn("Move records", third_page)
+        self.assertIn("20 lines today", second_page)
+        self.assertIn("20 lines today", third_page)
+        self.assertEqual(second_page.count('class="segment '), 1)
+        self.assertEqual(third_page.count('class="segment '), 2)
+        self.assertNotIn("part of 13–20", second_page)
+        self.assertIn("part of 13–20", third_page)
+        for file in second["files"]:
+            self.assertEqual((second_page + third_page).count(">" + file["path"].split("/")[-1] + "</"), 1)
 
 
 if __name__ == "__main__":

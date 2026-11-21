@@ -595,7 +595,17 @@ def theme_css():
 DIAGRAM_WIDTH = 710
 SOURCE_END = 198
 PHASE_START = 262
-DIAGRAM_BUDGET = 805
+DIAGRAM_BUDGET = 815
+STOP_NOTICE_HEIGHT = 40
+PHASE_GAP = 5
+SOURCE_GAP = 6
+MIN_BAR_SPACE = 32
+# Columns of 12px monospace text in the source, phase header and file row.
+SOURCE_COLUMNS = 27
+LABEL_COLUMNS = 20
+FOLDER_COLUMNS = 36
+NAME_COLUMNS = 43
+ROW_COLUMNS = 58
 CSS = """
 :root {
   --ink: #27282b; --muted: #555962; --edge: #bfc1c7; --paper: #fff;
@@ -609,24 +619,27 @@ body { color: var(--ink); background: var(--paper); font: 14px/1.35 system-ui, s
 .sheet { min-height: 1119px; padding: 30px 0 23px; display: flex; flex-direction: column; break-after: page; }
 .sheet:last-child { break-after: auto; }
 .frame { width: 710px; margin: 0 auto; }
-.sheet-header { margin-bottom: 18px; }
+.sheet-header { margin-bottom: 12px; }
 h1, h2, h3, p { margin: 0; }
 h1 { font-size: 29px; line-height: 34px; margin: 0 0 7px; }
 .subtitle { color: var(--muted); overflow-wrap: anywhere; }
-.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 15px; }
+.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 .fact { border-top: 2px solid var(--edge); padding-top: 5px; overflow-wrap: anywhere; }
 .fact span, .gate, .source-range, .counts { font-size: 12px; color: var(--muted); }
 .fact strong { display: block; margin-top: 2px; }
 .stopped { margin-top: 12px; padding: 4px 10px; border-left: 3px solid var(--ink); background: var(--failed); }
 .column-labels { display: grid; grid-template-columns: 262px auto; border-bottom: 1px solid var(--edge); padding-bottom: 6px; }
 .column-labels h2 { font-size: 13px; }
-.diagram { position: relative; margin-top: 11px; }
+.diagram { position: relative; margin-top: 8px; }
 .connectors { position: absolute; inset: 0; width: 100%; height: 100%; }
 .source, .phase { position: absolute; }
 .source { left: 0; width: 198px; }
 .source h3 { font: 600 12px/16px ui-monospace, monospace; }
-.source-name, .source-label, .phase-title, .file-path { overflow-wrap: anywhere; }
-.source-label { position: absolute; left: 0; width: 143px; padding-left: 8px;
+.source-name, .source-label, .phase-folder, .file-path, .file-folder, .file-evidence { white-space: pre; }
+.phase-title { overflow-wrap: anywhere; }
+.source-range { line-height: 16px; }
+.source-range[title] { font-family: ui-monospace, monospace; white-space: pre; }
+.source-label { position: absolute; left: 0; width: 156px; padding-left: 8px;
                 font: 12px/16px ui-monospace, monospace; }
 .source-label.even { border-left: 3px solid var(--segment-even); }
 .source-label.odd { border-left: 3px solid var(--segment-odd); }
@@ -634,22 +647,28 @@ h1 { font-size: 29px; line-height: 34px; margin: 0 0 7px; }
 .segment.even { background: var(--segment-even); }
 .phase { left: 262px; right: 0; border: 1px solid var(--edge); border-radius: 5px; background: var(--paper); }
 .phase.now { border-color: var(--ink); }
-.phase-head { padding: 6px 9px; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 7px; align-items: start; }
+.phase-head { padding: 2px 9px; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto;
+              column-gap: 7px; align-items: start; }
 .phase h3 { font: 700 13px/16px ui-monospace, monospace; }
 .phase-mark, .pill { line-height: 19px; text-align: center; background: var(--wash); border-radius: 10px; }
-.phase-mark { border: 1px solid var(--edge); width: 22px; font-size: 11px; font-weight: 700; }
+.phase-mark { line-height: 17px; border: 1px solid var(--edge); width: 22px; font-size: 11px; font-weight: 700; }
 .pill { padding: 0 7px; font-size: 11px; font-weight: 700; }
 .done .pill { background: var(--done); }
 .now .pill { background: var(--now); }
 .failed .pill { background: var(--failed); }
-.gate { line-height: 15px; margin-top: 1px; }
+.phase-meta { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto;
+              column-gap: 7px; align-items: end; }
+.gate { grid-column: 2; line-height: 15px; }
 .file { position: absolute; left: 0; right: 0; display: grid; grid-template-columns: minmax(0, 1fr) 107px; gap: 7px;
-        align-items: center; padding: 2px 9px; border-top: 1px solid var(--edge); background: var(--wash); }
+        row-gap: 0; align-items: start; align-content: start; padding: 0 9px;
+        border-top: 1px solid var(--edge); background: var(--wash); }
 .file:last-child { border-radius: 0 0 4px 4px; }
 .file-path { font: 600 12px/16px ui-monospace, monospace; }
-.counts { text-align: right; line-height: 15px; overflow-wrap: anywhere; }
+.phase-folder, .file-folder, .file-evidence { color: var(--muted); font: 12px/15px ui-monospace, monospace; }
+.wide, .file-folder, .file-evidence { grid-column: 1 / -1; }
+.counts { grid-column: 2; text-align: right; line-height: 15px; white-space: nowrap; }
 .empty { color: var(--muted); }
-.legend { display: flex; flex-wrap: wrap; gap: 10px 18px; color: var(--muted); font-size: 12px; padding: 12px 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 18px; color: var(--muted); font-size: 12px; padding: 8px 0; }
 .line-key { display: inline-block; width: 24px; border-top: 2px solid var(--muted); vertical-align: middle; margin-right: 5px; }
 .line-key.dashed { border-top-style: dashed; }
 footer { margin-top: auto; }
@@ -670,65 +689,179 @@ def wrapped(value, width):
     return "<br>".join(escaped(line) for line in lines), len(lines)
 
 
-def phase_layout(phases, states, actual):
-    cards, destinations, top = [], [], 0
-    for phase in phases:
-        number = phase["number"]
-        state = states[number]
-        title, title_lines = wrapped(phase["title"], 42)
-        position = max(43, 30 + 16 * title_lines)
-        files = []
-        for file in phase["files"]:
-            path, path_lines = wrapped(file["path"], 40)
-            height = max(32, 7 + 16 * path_lines, 37 if state == "Done" else 0)
-            planned = "%s–%s" % (file["lines_low"], file["lines_high"])
-            count = "<br>Actual: " + actual[file["path"]] if state == "Done" else ""
-            files.append(f'<div class="file" style="top:{position}px;height:{height}px">'
-                         f'<span class="file-path">{path}</span><span class="counts">{planned}{count}</span></div>')
-            destinations.append((top + position + height / 2, file["from"]))
-            position += height
-        mark = {"Done": "✓", "Failed": "!"}.get(state, str(number))
-        cards.append(f'<article id="phase-{number}" class="phase {state.lower()}" '
-                     f'style="top:{top}px;height:{position + 1}px"><div class="phase-head">'
-                     f'<span class="phase-mark">{mark}</span><div><h3 class="phase-title">{title}</h3>'
-                     f'<p class="gate">then stop for your approval</p></div><span class="pill">{state}</span></div>'
-                     + "".join(files) + "</article>")
-        top += position + 11
-    return "".join(cards), destinations, top - 10
+def text_columns(value):
+    return sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+               for ch in value if not unicodedata.combining(ch))
 
 
-def source_layout(sources, destinations, phase_height):
+def packed_lines(pieces, columns):
+    lines, line = [], ""
+    for piece in pieces:
+        if line and text_columns(line + piece) > columns:
+            lines.append(line)
+            line = ""
+        line += piece
+    return lines + [line] if line else lines
+
+
+def path_lines(path, columns):
+    return packed_lines(re.findall(r"[^/]+/?", path), columns)
+
+
+def display_lines(lines):
+    return "<br>".join(escaped(line) for line in lines)
+
+
+def old_range(part):
+    return f'{part["from"]}–{part["to"]}'
+
+
+def range_lines(links, origins):
+    groups = {}
+    for link in links:
+        source, part = origins[link["part"]]
+        prefix = "" if link["exact"] else "part of "
+        groups.setdefault(source["path"], (source["lines"], []))[1].append(prefix + old_range(part))
+    lines = []
+    for source, (total, ranges) in groups.items():
+        pieces = [item + ", " for item in ranges[:-1]] + ranges[-1:]
+        if len(groups) > 1:
+            pieces = re.findall(r"[^/]+/?", source) + [f" ({total:,} lines): "] + pieces
+        lines.extend(packed_lines(pieces, ROW_COLUMNS))
+    return lines
+
+
+class MapRow(NamedTuple):
+    content: str
+    height: int
+    links: list
+
+
+class MapCard(NamedTuple):
+    number: int
+    state: str
+    heading: str
+    heading_height: int
+    rows: list
+    fragment: int = 1
+
+    @property
+    def height(self):
+        return 2 + self.heading_height + sum(row.height for row in self.rows)
+
+
+def file_layout(file, shared, actual, origins):
+    path = file["path"]
+    folder, slash, basename = path.rpartition("/")
+    folders = path_lines(folder + slash, ROW_COLUMNS) if not shared else []
+    wide = text_columns(basename) > NAME_COLUMNS
+    names = packed_lines(basename, ROW_COLUMNS) if wide else [basename]
+    evidence = range_lines(file["from"], origins)
+    low, high = file["lines_low"], file["lines_high"]
+    counts = f"~{low:,}" if low == high else f"{low:,}–{high:,}"
+    count_height = 15
+    if actual is not None:
+        counts += "<br>Actual: " + ("missing" if actual == "missing" else f"{int(actual):,}")
+        count_height *= 2
+    name_height = 16 * len(names)
+    height = 1 + 15 * (len(folders) + len(evidence))
+    height += name_height + count_height if wide else max(name_height, count_height)
+    content = (
+        (f'<span class="file-folder">{display_lines(folders)}</span>' if folders else "")
+        + f'<span class="file-path{" wide" if wide else ""}" title="{escaped(path)}">{display_lines(names)}</span>'
+        + f'<span class="counts">{counts}</span>'
+        + (f'<span class="file-evidence">{display_lines(evidence)}</span>' if evidence else "")
+    )
+    return MapRow(content, height, file["from"])
+
+
+def phase_layout(phase, state, actual, origins):
+    number = phase["number"]
+    title, title_lines = wrapped(phase["title"], 42)
+    parents = {file["path"].rpartition("/")[0] for file in phase["files"]}
+    shared = next(iter(parents)) if len(parents) == 1 else ""
+    folders = path_lines(shared + "/", FOLDER_COLUMNS) if shared else []
+    wide = any(text_columns(line) > FOLDER_COLUMNS for line in folders)
+    if wide:
+        folders = path_lines(shared + "/", ROW_COLUMNS)
+    folder_html = (f'<span class="phase-folder{" wide" if wide else ""}">{display_lines(folders)}</span>'
+                   if folders else "")
+    mark = {"Done": "✓", "Failed": "!"}.get(state, str(number))
+    heading = (f'<div class="phase-head"><span class="phase-mark">{mark}</span>'
+               f'<h3 class="phase-title">{title}</h3><span class="pill">{state}</span>'
+               f'<div class="phase-meta">{folder_html}<p class="gate">then stop for your approval</p></div></div>')
+    meta_lines = len(folders) + 1 if wide else max(1, len(folders))
+    heading_height = 4 + max(19, 16 * title_lines) + 15 * meta_lines
+    rows = [file_layout(file, shared, actual[file["path"]] if state == "Done" else None, origins)
+            for file in phase["files"]]
+    return MapCard(number, state, heading, heading_height, rows)
+
+
+def source_headings(sources, destinations, origins, budget):
+    headings = {}
+    for source in sources:
+        path = source["path"]
+        name = path_lines(path, SOURCE_COLUMNS)
+        content = (f'<h3 class="source-name">{display_lines(name)}</h3>'
+                   f'<p class="source-range">{source["lines"]:,} lines today</p>')
+        headings[path] = (16 * (len(name) + 1) + 2, content)
+    gap_space = SOURCE_GAP * (len(sources) - 1)
+    if sum(height for height, _ in headings.values()) + gap_space + MIN_BAR_SPACE <= budget:
+        return headings, SOURCE_GAP
+
+    # Reserve one line first for sources referenced alone. Mixed-source rows also name their sources and totals.
+    solo = set()
+    for _, links in destinations:
+        paths = {origins[link["part"]][0]["path"] for link in links}
+        if len(paths) == 1:
+            solo.update(paths)
+    capacity = (budget - MIN_BAR_SPACE) // 16
+    compact = {}
+    for source in sorted(sources, key=lambda source: source["path"] not in solo)[:capacity]:
+        path = source["path"]
+        count = f'{source["lines"]:,} lines'
+        caption = f'{path.rsplit("/", 1)[-1]} · {count}'
+        if text_columns(caption) > SOURCE_COLUMNS:
+            caption = count + " today"
+        compact[path] = (16, f'<p class="source-range" title="{escaped(path)}">{escaped(caption)}</p>')
+    return compact, 0
+
+
+def source_layout(sources, destinations, origins, phase_height, budget):
     used = {link["part"] for _, links in destinations for link in links}
     visible = [source for source in sources if any(part["id"] in used for part in source["parts"])]
+    height = max(phase_height, 60)
     if not visible:
-        return '<p class="empty">No source ranges mapped to these phases.</p>', {}, 0
-    # One scale across sources on this page, with separate labels that keep even short ranges legible.
-    total = sum(source["lines"] for source in visible)
-    available = max(100, min(610, phase_height - 55 * len(visible)))
+        return '<p class="source empty">No source ranges.</p>', {}, height
+
+    # Source headings can use spare space on the sheet. Only phase cards select the pages.
+    headings, gap = source_headings(visible, destinations, origins, budget)
+    reserved = sum(height for height, _ in headings.values()) + gap * (len(visible) - 1)
+    height = max(height, reserved + MIN_BAR_SPACE)
+    scale = (height - reserved) / sum(source["lines"] for source in visible)
     drawings, anchors, top = [], {}, 0
     for source in visible:
-        name, name_lines = wrapped(source["path"], 25)
-        bar_top = 18 + 16 * name_lines
-        bar_height = (source["lines"] / total) * available
-        drawings.append(f'<div class="source" style="top:{top}px"><h3 class="source-name">{name}</h3>'
-                        f'<p class="source-range">{source["lines"]} lines today</p>')
-        label_top = bar_top
+        bar_top, heading = headings.get(source["path"], (0, ""))
+        bar_height = source["lines"] * scale
+        drawings.append(f'<div class="source" style="top:{top:.4f}px">{heading}')
         for index, part in enumerate(sorted(source["parts"], key=lambda part: part["from"])):
-            part_height = ((part["to"] - part["from"] + 1) / source["lines"]) * bar_height
-            part_top = bar_top + ((part["from"] - 1) / source["lines"]) * bar_height
+            if part["id"] not in used:
+                continue
+            part_height = (part["to"] - part["from"] + 1) * scale
+            part_top = bar_top + (part["from"] - 1) * scale
             anchors[part["id"]] = top + part_top + part_height / 2
             tint = "even" if index % 2 == 0 else "odd"
-            title, title_lines = wrapped(part["label"], 18)
-            label_height = 16 * (title_lines + 1)
-            label_top = max(label_top, min(part_top + (part_height - label_height) / 2,
-                                           bar_top + bar_height - label_height))
-            drawings.append(f'<div class="segment {tint}" style="top:{part_top:.4f}px;height:{part_height:.4f}px"></div>'
-                            f'<div class="source-label {tint}" style="top:{label_top:.4f}px"><b>{title}</b><br>'
-                            f'<span class="source-range">{part["from"]}–{part["to"]}</span></div>')
-            label_top += label_height + 3
+            drawings.append(f'<div class="segment {tint}" style="top:{part_top:.4f}px;height:{part_height:.4f}px"></div>')
+            title = packed_lines(re.findall(r"\S+\s*", part["label"]), LABEL_COLUMNS)
+            label_height = 16 * (len(title) + 1)
+            if label_height + 2 <= part_height and all(text_columns(line) <= LABEL_COLUMNS for line in title):
+                label_top = part_top + (part_height - label_height) / 2
+                drawings.append(f'<div class="source-label {tint}" style="top:{label_top:.4f}px">'
+                                f'<b>{display_lines(title)}</b><br>'
+                                f'<span class="source-range">{old_range(part)}</span></div>')
         drawings.append("</div>")
-        top += max(bar_top + bar_height, label_top) + 16
-    return "".join(drawings), anchors, int(top + 0.999)
+        top += bar_top + bar_height + gap
+    return "".join(drawings), anchors, height
 
 
 def connector_image(destinations, anchors, height):
@@ -746,23 +879,52 @@ def connector_image(destinations, anchors, height):
     return f'<img class="connectors" src="data:image/svg+xml;base64,{encoded}" alt="">'
 
 
-def diagram(sources, phases, states, actual):
-    cards, destinations, phase_height = phase_layout(phases, states, actual)
-    drawings, anchors, source_height = source_layout(sources, destinations, phase_height)
-    height = max(phase_height, source_height, 60)
+def diagram(sources, cards, origins, budget):
+    drawings, destinations, top = [], [], 0
+    for card in cards:
+        suffix = f"-part-{card.fragment}" if card.fragment > 1 else ""
+        drawings.append(f'<article id="phase-{card.number}{suffix}" class="phase {card.state.lower()}" '
+                        f'style="top:{top}px;height:{card.height}px">{card.heading}')
+        position = card.heading_height
+        for row in card.rows:
+            drawings.append(f'<div class="file" style="top:{position}px;height:{row.height}px">'
+                            f'{row.content}</div>')
+            destinations.append((top + 1 + position + row.height / 2, row.links))
+            position += row.height
+        drawings.append("</article>")
+        top += card.height + PHASE_GAP
+    parts, anchors, height = source_layout(sources, destinations, origins, top - PHASE_GAP, budget)
     image = connector_image(destinations, anchors, height)
-    return height, f'<div class="diagram" style="height:{height}px">{image}{drawings}{cards}</div>'
+    return f'<div class="diagram" style="height:{height}px">{image}{parts}{"".join(drawings)}</div>'
 
 
-def diagrams(data, states, actual):
-    pages, current = [], []
+def card_fragments(card, budget):
+    rows, height, fragment = [], 2 + card.heading_height, 1
+    for row in card.rows:
+        if rows and height + row.height > budget:
+            yield card._replace(rows=rows, fragment=fragment)
+            rows, height, fragment = [], 2 + card.heading_height, fragment + 1
+        rows.append(row)
+        height += row.height
+    yield card._replace(rows=rows, fragment=fragment)
+
+
+def diagrams(data, states, actual, budget):
+    sources = data["sources"]
+    origins = {part["id"]: (source, part) for source in sources for part in source["parts"]}
+    pages, current, used_height = [], [], 0
     for phase in data["phases"]:
-        candidate = diagram(data["sources"], current + [phase], states, actual)
-        if candidate[0] > DIAGRAM_BUDGET and current:
-            pages.append(diagram(data["sources"], current, states, actual))
-            current = []
-        current.append(phase)
-    pages.append(diagram(data["sources"], current, states, actual))
+        card = phase_layout(phase, states[phase["number"]], actual, origins)
+        if current and used_height + PHASE_GAP + card.height > budget:
+            pages.append(diagram(sources, current, origins, budget))
+            current, used_height = [], 0
+        if card.height > budget:
+            fragments = list(card_fragments(card, budget))
+            pages.extend(diagram(sources, [fragment], origins, budget) for fragment in fragments[:-1])
+            card = fragments[-1]
+        used_height += (PHASE_GAP if current else 0) + card.height
+        current.append(card)
+    pages.append(diagram(sources, current, origins, budget))
     return pages
 
 
@@ -797,30 +959,26 @@ def summary(data, progress):
 
 
 def map_html(data, progress, actual, theme):
-    pages = diagrams(data, progress.states, actual)
+    stopped = progress.stopped and not progress.outcome
+    budget = DIAGRAM_BUDGET - (STOP_NOTICE_HEIGHT if stopped else 0)
+    pages = diagrams(data, progress.states, actual, budget)
     header = ('<header class="sheet-header"><h1>Migration Map</h1><p class="subtitle">'
               f'{escaped(data["project"])} · Plan v{escaped(data["plan_version"])}</p>'
               + summary(data, progress)
               + ('<p class="stopped"><strong>Stopped</strong></p>'
-                 if progress.stopped and not progress.outcome else '') + '</header>')
+                 if stopped else '') + '</header>')
     names = '<div class="column-labels"><h2>Source files</h2><h2>Migration phases</h2></div>'
     legend = ('<div class="legend"><span><i class="line-key"></i>Exact source range</span>'
               '<span><i class="line-key dashed"></i>Source range not yet exact</span>'
               '<span>Planned lines are estimates</span></div>')
-    sheets, print_sizes = [], []
-    for index, (height, content) in enumerate(pages, 1):
-        size_class = ""
-        if height > DIAGRAM_BUDGET:
-            # Preserve a single oversized phase as one longer sheet, without slicing its rows or reducing text.
-            size_class = f" long-{index}"
-            print_sizes.append(f'@page extended-{index} {{ size: 210mm {height + 314}px; }} '
-                               f'.long-{index} {{ page: extended-{index}; min-height: {height + 311}px; }}')
-        sheets.append(f'<section class="sheet{size_class}"><main class="frame">'
+    sheets = []
+    for index, content in enumerate(pages, 1):
+        sheets.append(f'<section class="sheet"><main class="frame">'
                       f'{header}{names}{content}{legend}</main><footer class="frame">'
                       f'<div class="footer-row"><span>Migration Map</span><span>Page {index} of {len(pages)}</span></div>'
                       '</footer></section>')
     return ('<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><title>Migration Map</title><style>'
-            + CSS + "\n" + "\n".join(print_sizes) + "\n" + theme + "\n</style></head><body>\n"
+            + CSS + "\n" + theme + "\n</style></head><body>\n"
             + "\n".join(sheets) + "\n</body></html>\n")
 
 

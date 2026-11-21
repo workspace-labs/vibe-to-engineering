@@ -16,7 +16,7 @@ the approval and generates the Migration Map. For a project you explicitly confi
 and uses synthetic secrets, the approval also covers the verified recovery baseline and Phase 1.
 Every later phase has its own approval.
 
-The 0.6.0-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
+The 0.6.1-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
 **1.11.0**, including its layout map and ten project-type trees. File-size alarms live only in §7 of
 that standard; this skill keeps no number of its own. The versioned references are
 bundled for offline use; plans record the source commit and the selected project tree.
@@ -141,7 +141,7 @@ precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|
-| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.6.0-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
+| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.6.1-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
 | Linux | Unsupported execution target. Portable package/unit and refusal checks do not establish Linux support. |
 | Windows | Unsupported execution target. Portable package/unit and refusal checks do not establish Windows support. |
 
