@@ -376,8 +376,10 @@ plan and apply section 4's state-path checks before writing. Use these fields:
 - `phases` lists every approved phase in order with its `number`, `title` and `files`. Match the
   plan's `Phase N — title` headings. Each mapped file has a project-relative `path` matching a path
   cell in the plan, estimated `lines_low` and `lines_high`, and a `from` list of objects with a
-  `part` ID and an `exact` boolean. Include every path in the plan's **Why each new file exists**
-  table (`id="new-files"`) exactly once. Write exactly `exact` in the evidence cell when all
+  `part` ID and an `exact` boolean. Every mapped file needs a row in the plan's
+  **Why each new file exists** table (`id="new-files"`), including a file that keeps its path
+  but receives code. Include every path in that table exactly once on the map. Write exactly
+  `exact` in the evidence cell when all
   links for the file are exact. When any link is provisional, write `not yet exact: <reason>`
   with a nonempty reason. For a file created from scratch, put exactly `none` in the old-lines
   cell, use `exact` for evidence, and leave `from` empty. Every new file with old lines needs

@@ -22,6 +22,9 @@ from pathlib import Path
 from textwrap import wrap
 from typing import NamedTuple, Optional
 
+if os.name == "posix":
+    import fcntl
+
 import render_pdf
 from checkpoint import STATE_DIR, check_state_folder, resolve_project
 from gitrun import Fail, git, is_link
@@ -35,6 +38,7 @@ MAP_PDF = "Migration-Map.pdf"
 PHASE_HEADING = re.compile(r"Phase ([1-9]\d*)\s*—\s*(.+)\Z")
 PLAN_VERSION = re.compile(r"Plan version\s+(\S+)\Z")
 SAFE_VERSION = re.compile(r"[A-Za-z0-9._-]+")
+APPROVED_MAP_TEMP = re.compile(r"\.v2e-approved-[0-9a-f]{32}\.tmp")
 NEW_FILE_EVIDENCE = re.compile(r"exact|not yet exact: .+")
 OLD_RANGE = re.compile(r"(part of )?([0-9]+)[-–]([0-9]+)")
 OLD_LINE_GROUP = re.compile(
@@ -196,6 +200,25 @@ def approved_map_name(version):
     if not isinstance(version, str) or not SAFE_VERSION.fullmatch(version):
         raise Fail("unsafe or missing approved plan version")
     return "approved-map-v%s.json" % version
+
+
+@contextlib.contextmanager
+def approved_map_state(project, state):
+    """Recover interrupted copies while keeping other refreshes out of publication."""
+    open_state = (project_directory_fd(project, (STATE_DIR,)) if os.open in os.supports_dir_fd
+                  else contextlib.nullcontext())
+    with open_state as directory:
+        if directory is not None:
+            fcntl.flock(directory, fcntl.LOCK_EX)
+        for name in os.listdir(state if directory is None else directory):
+            if not APPROVED_MAP_TEMP.fullmatch(name):
+                continue
+            entry = state / name if directory is None else name
+            with contextlib.suppress(FileNotFoundError):
+                info = os.lstat(entry, dir_fd=directory)
+                if stat.S_ISREG(info.st_mode) and (directory is not None or not is_link(str(entry))):
+                    os.unlink(entry, dir_fd=directory)
+        yield
 
 
 def read_approved_map(project, version):
@@ -385,20 +408,20 @@ def validate_map(data, plan):
             path = relative_path(file["path"])
             if path not in plan.paths:
                 raise Fail("mapped file path is absent from the plan: %s" % path)
+            if path not in plan.new_files:
+                raise Fail("mapped file is missing a plan evidence row: %s" % path)
             if path in file_paths:
                 raise Fail("mapped file path is listed more than once: %s" % path)
             file_paths.add(path)
             low = required_count(file["lines_low"], "estimated lower line count", minimum=0)
             required_count(file["lines_high"], "estimated upper line count", minimum=low)
             origins = required_rows(file["from"], "file origins")
-            evidence = plan.new_files.get(path)
-            if evidence is not None:
-                old_lines, exact = evidence
-                no_source = old_lines == "none"
-                if no_source and (origins or not exact):
-                    raise Fail("new file with old lines marked none must have no source links and exact evidence: %s" % path)
-                if not no_source and not origins:
-                    raise Fail("new file with old lines must have a source link: %s" % path)
+            old_lines, exact = plan.new_files[path]
+            no_source = old_lines == "none"
+            if no_source and (origins or not exact):
+                raise Fail("new file with old lines marked none must have no source links and exact evidence: %s" % path)
+            if not no_source and not origins:
+                raise Fail("new file with old lines must have a source link: %s" % path)
             links = []
             for origin in origins:
                 part = required_text(origin["part"], "file origin part")
@@ -408,11 +431,10 @@ def validate_map(data, plan):
                     raise Fail("part exactness must be true or false")
                 links.append(SourceRange(*known_parts[part], origin["exact"]))
                 used_parts.add(part)
-            if evidence is not None:
-                if all(link.exact for link in links) != exact:
-                    raise Fail("mapped link exactness does not match plan evidence for %s" % path)
-                if not no_source:
-                    check_old_lines(path, old_lines, exact, sources, links)
+            if all(link.exact for link in links) != exact:
+                raise Fail("mapped link exactness does not match plan evidence for %s" % path)
+            if not no_source:
+                check_old_lines(path, old_lines, exact, sources, links)
     missing_files = plan.new_files.keys() - file_paths
     if missing_files:
         raise Fail("planned new file is missing from the map: %s" % sorted(missing_files)[0])
@@ -477,7 +499,7 @@ def phase_states(ledger, version, fingerprint, numbers):
         phase = PHASE_EVENT.fullmatch(event)
         approved = APPROVAL_EVENT.fullmatch(event)
         restore = event == "RESTORED" or event.startswith("RESTORED ")
-        if outcome is not None and (phase or restore):
+        if outcome is not None and (phase or restore or event == "MIGRATION STOPPED"):
             raise Fail("ledger event %s follows the final outcome" % event)
         if approved:
             active_version = approved[1]
@@ -523,7 +545,7 @@ def phase_identity(phase):
     return phase["title"], {file["path"] for file in phase["files"]}
 
 
-def check_completed_phases(project, phases, progress):
+def check_completed_phases(project, phases, progress, current_version, *, earlier):
     """Tie every displayed completion to the phase approved at that event."""
     archived = {}
     for phase in phases:
@@ -531,6 +553,9 @@ def check_completed_phases(project, phases, progress):
         if progress.states[number] != "Done":
             continue
         version = progress.completions[number]
+        completed_earlier = version != current_version
+        if completed_earlier != earlier:
+            continue
         try:
             if version not in archived:
                 archived[version] = read_approved_map(project, version)
@@ -825,8 +850,11 @@ def render_project(project):
             measured = actual_lines(project, path)
             if measured != str(source["lines"]):
                 raise Fail("source line count differs from the map for %s (measured: %s)" % (path, measured))
-    record_approved_map(project, data)
-    check_completed_phases(project, data["phases"], progress)
+    phases, version = data["phases"], data["plan_version"]
+    with approved_map_state(project, state):
+        check_completed_phases(project, phases, progress, version, earlier=True)
+        record_approved_map(project, data)
+        check_completed_phases(project, phases, progress, version, earlier=False)
     theme = theme_css()
     actual = {file["path"]: actual_lines(project, file["path"])
               for phase in data["phases"] if progress.states[phase["number"]] == "Done" for file in phase["files"]}

@@ -1,4 +1,17 @@
-# Latest update — 2026-11-21
+# Latest update — 2026-11-22
+
+## November 22 Migration Map fixes J1–J4
+
+Candidate **0.6.0-dev** on `feat/plan-evidence-and-map` addresses Claude's findings on
+`6c31ca3`. A refused revision leaves no approved copy for that version, so a corrected retry
+can render. Every mapped file needs a plan evidence row, including kept files that receive
+code. Refreshing recovers a copy interrupted during publication, and a stop after a final
+outcome in the same run is refused.
+
+Portable validation passed **176** tests and native macOS validation passed **476**,
+with zero failures, errors or skips. The synthetic proof refused an invalid v2 and rendered
+the corrected map under the same approval. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md).
+Claude's re-review follows.
 
 ## November 21 Migration Map fixes H1–H3
 

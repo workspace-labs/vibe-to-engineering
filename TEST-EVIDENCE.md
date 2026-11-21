@@ -1,5 +1,42 @@
 # Skill validation evidence
 
+## Migration Map re-review fixes J1–J4 — 2026-11-22
+
+Candidate **0.6.0-dev** on `feat/plan-evidence-and-map` is based on
+`6c31ca34f38ab04f675107b8403d6184d4d4457d`. All eight targeted test methods failed on
+an archive of that commit, with ten failed assertions across their cases. All **62** focused
+portable map tests passed on the candidate.
+
+- **J1** An invalid revision that moved a Done phase's file wrote the v2 copy and blocked a
+  corrected retry on the base. The candidate checks earlier completions before saving v2.
+  The refusal leaves no v2 copy, and the corrected map renders under the same approval.
+- **J2** The base accepted a mapped file with no evidence row. The candidate names the missing
+  file, then accepts the kept file once its valid evidence row is present.
+- **J3** The base left a temporary approval name in place and refused a copy with two links.
+  The candidate removes only matching regular temporary files before approval I/O, recovers
+  the linked copy and preserves look-alike names, directories and symbolic links. The H3 test
+  now requires removal of the matching leftover file. A two-process fixture confirmed that
+  a concurrent refresh waits through publication.
+- **J4** The base accepted a stop after each of the three final outcomes. The candidate
+  refuses each stop in the same run.
+
+Both scopes used CLT Python 3.9.6 on macOS 27.2.1 arm64 with Node v20.20.2. Native validation
+used the pinned readers and Chrome Headless Shell revision 1248 (156.0.8078.4).
+
+- `python3 -B tests/run_validation.py --scope portable` ran **176 tests, 0 failures,
+  0 errors, 0 skips**.
+- `python3 -B tests/run_validation.py --scope macos` ran **476 tests, 0 failures,
+  0 errors, 0 skips**.
+
+The skill package validator passed. The static audit found zero structural errors and the
+same 31 review findings as the base.
+
+A synthetic Harbor Notes plan used the shipped plan template. The invalid v2 exited with
+code 1, preserved every fixture file hash and left no v2 approval copy. Correcting only the
+map data let the same approved v2 render. The one-page macOS rasterization showed Phase 1
+Done, Phase 2 Waiting, one of two files done and Phase 2 approval next. The labels, counts
+and source connectors were legible on the page image.
+
 ## Migration Map re-review fixes H1–H3 — 2026-11-21
 
 Candidate **0.6.0-dev** on `feat/plan-evidence-and-map`, based on

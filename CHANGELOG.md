@@ -17,13 +17,13 @@
 - Save each approved map once and check completed phases against it before carrying them into
   a revision. Require explicit source links and exact evidence wording for new files. Show the
   recorded outcome and no next stop after final review.
-- Require every phase to be Done before showing a final outcome. Refuse phase and restore events
-  that follow it in the same run.
-- Check each old-lines range against the linked source parts for the new file, including exact
-  matches and provisional overlaps.
-- Publish the approved map copy atomically before checking completed phases or loading the theme.
-  Recover a missing copy for the current approval and require earlier copies for historical
-  completions.
+- Require every phase to be Done before showing a final outcome. Refuse phase, restore, and stop
+  events that follow it in the same run.
+- Require a plan evidence row for every mapped file, including a file that keeps its path and
+  receives code. Check each old-lines range against its linked source parts.
+- Check completions from earlier approvals before publishing a revised map copy. Check current
+  completions after publication so a first render can still recover a missing current copy.
+  Remove matching temporary approval files to recover from an interrupted publication.
 
 ## [0.5.0-dev] - 2026-11-20
 

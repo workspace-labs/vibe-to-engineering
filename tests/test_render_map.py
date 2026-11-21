@@ -68,7 +68,7 @@ class MapFixture:
         self.write_ledger(APPROVAL)
         self.write_mapping()
 
-    def write_plan(self, *, version=None, evidence=None, old_lines=None):
+    def write_plan(self, *, version=None, evidence=None, old_lines=None, without_evidence=()):
         version = self.specification["plan_version"] if version is None else version
         evidence = {} if evidence is None else evidence
         old_lines = {} if old_lines is None else old_lines
@@ -81,6 +81,8 @@ class MapFixture:
         new_rows = []
         for file in files:
             path = file["path"]
+            if path in without_evidence:
+                continue
             ranges = {}
             for link in file["from"]:
                 source, start, end = parts[link["part"]]
@@ -470,13 +472,13 @@ class MapPortable(MapFixture, unittest.TestCase):
                 else:
                     phases[0]["files"][0]["path"] = "src/new-unbuilt-file.py"
                 self.approve_revision_after_phase_one(original["plan_fingerprint"], version=str(version))
-                self.assert_refuses("phase 1", saves_approval=True)
+                self.assert_refuses("phase 1")
 
     def test_fix_g1_refuses_missing_completed_phase_approved_copy(self):
         original = deepcopy(self.specification)
         with self.subTest("earlier version"):
             self.approve_revision_after_phase_one(original["plan_fingerprint"])
-            self.assert_refuses("phase 1", saves_approval=True)
+            self.assert_refuses("phase 1")
         with self.subTest("current version"):
             self.specification = original
             self.write_plan()
@@ -496,6 +498,31 @@ class MapPortable(MapFixture, unittest.TestCase):
         self.assertNotIn('id="phase-1"', text)
         self.assertRegex(self.phase_card(text, 2), r">\s*Waiting\s*<")
         self.assertIn("Phase 2 approval", text)
+
+    def submit_moved_file_revision(self):
+        original_fingerprint = self.specification["plan_fingerprint"]
+        self.seed_approved_copy()
+        self.approve_revision_after_phase_one(original_fingerprint)
+        first, second = self.specification["phases"]
+        second["files"].append(first["files"].pop())
+        self.write_mapping()
+
+    def test_fix_j1_refused_revision_does_not_save_v2_copy(self):
+        self.submit_moved_file_revision()
+        self.assert_refuses("phase 1 cannot carry completion")
+
+    def test_fix_j1_corrected_revision_renders_after_refusal(self):
+        self.submit_moved_file_revision()
+        code, output, pdf = self.run_map()
+        self.assertNotEqual(code, 0, output)
+        self.assertIn("Phase 1 cannot carry completion", output)
+        pdf.assert_not_called()
+
+        first, second = self.specification["phases"]
+        first["files"].append(second["files"].pop())
+        self.write_mapping()
+        self.assert_states(self.map_text(), "Done", "Waiting")
+        self.assertEqual(json.loads(self.approved_copy().read_bytes()), self.specification)
 
     def test_fix_g1_records_parsed_map_in_write_once_approved_copy(self):
         # The layout supports an unsorted map, but the saved copy must keep its submitted order.
@@ -609,6 +636,18 @@ class MapPortable(MapFixture, unittest.TestCase):
                 self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", "PHASE 2 COMPLETE", ALL_GREEN, event)
                 self.assert_refuses("follows the final outcome")
 
+    def test_fix_j4_refuses_stop_after_each_final_outcome(self):
+        self.seed_approved_copy()
+        for outcome in (
+            ALL_GREEN,
+            "VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED BASELINE FAILURES",
+            "VIBE-TO-ENGINEERING — COMPLETE WITH ACCEPTED VERIFICATION GAPS",
+        ):
+            with self.subTest(outcome=outcome):
+                self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", "PHASE 2 COMPLETE", outcome,
+                                  "MIGRATION STOPPED")
+                self.assert_refuses("migration stopped follows the final outcome")
+
     def test_fix_h1_later_approval_starts_a_new_run_after_outcome(self):
         original_fingerprint = self.specification["plan_fingerprint"]
         self.specification["plan_version"] = "2"
@@ -698,6 +737,30 @@ class MapPortable(MapFixture, unittest.TestCase):
         self.write_plan(old_lines={flow["path"]: "src/large.py: 1–7, 8-20"})
         self.validate_plan_map()
 
+    def map_kept_file(self):
+        path = "src/edited.py"
+        (self.project / path).write_bytes(b"# existing file\n")
+        self.specification["phases"][0]["files"][0]["path"] = path
+        return path
+
+    def test_fix_j2_refuses_mapped_file_without_evidence_row(self):
+        path = self.map_kept_file()
+        self.write_plan(without_evidence=(path,))
+        with self.assertRaisesRegex(self.renderer.Fail, r"evidence.*src/edited\.py|src/edited\.py.*evidence"):
+            self.validate_plan_map()
+
+    def test_fix_j2_renders_kept_file_with_valid_evidence_row(self):
+        path = self.map_kept_file()
+        self.write_plan(without_evidence=(path,))
+        self.write_ledger(APPROVAL)
+        self.write_mapping()
+        self.assert_refuses("mapped file is missing a plan evidence row: " + path)
+
+        self.write_plan()
+        self.write_ledger(APPROVAL)
+        self.write_mapping()
+        self.assertIn(path, self.phase_card(self.map_text(), 1))
+
     def test_fix_h3_recovers_after_bad_theme_at_approval(self):
         theme = self.home / ".vibe-to-engineering" / "map-theme.css"
         theme.parent.mkdir()
@@ -722,14 +785,44 @@ class MapPortable(MapFixture, unittest.TestCase):
         self.assertEqual(json.loads(self.approved_copy().read_bytes()), self.specification)
 
     def test_fix_h3_ignores_leftover_temporary_approval_file(self):
-        stale = self.state / ".v2e-approved-abandoned.tmp"
+        stale = self.state / (".v2e-approved-" + "a" * 32 + ".tmp")
         stale.write_bytes(b'{"plan_version":')
         with mock.patch.object(os, "link", wraps=os.link) as publish:
             self.map_text()
         publish.assert_called_once()
-        self.assertEqual(stale.read_bytes(), b'{"plan_version":')
-        self.assertEqual(list(self.state.glob(".v2e-approved-*.tmp")), [stale])
+        self.assertFalse(stale.exists())
         self.assertEqual(self.approved_copy().stat().st_nlink, 1)
+
+    def test_fix_j3_recovers_approved_copy_after_two_link_hard_stop(self):
+        self.seed_approved_copy()
+        archive = self.approved_copy()
+        stale = self.state / (".v2e-approved-" + "b" * 32 + ".tmp")
+        os.link(archive, stale)
+        self.assertEqual(archive.stat().st_nlink, 2)
+
+        self.assert_states(self.map_text(), "Waiting", "Waiting")
+        self.assertFalse(stale.exists())
+        self.assertEqual(archive.stat().st_nlink, 1)
+        self.assertEqual(json.loads(archive.read_bytes()), self.specification)
+
+    def test_fix_j3_preserves_look_alike_names_and_nonregular_entries(self):
+        for name in (
+            ".v2e-approved-abandoned.tmp",
+            ".v2e-approved-" + "A" * 32 + ".tmp",
+            ".v2e-approved-" + "a" * 31 + ".tmp",
+            ".v2e-approved-" + "a" * 32 + ".tmp.keep",
+        ):
+            (self.state / name).write_bytes(b"keep this file")
+        (self.state / (".v2e-approved-" + "c" * 32 + ".tmp")).mkdir()
+        linked = self.state / (".v2e-approved-" + "d" * 32 + ".tmp")
+        with self.fixture_link(linked, self.mapping):
+            before = self.snapshot_state()
+            stale = self.state / (".v2e-approved-" + "e" * 32 + ".tmp")
+            stale.write_bytes(b"remove this file")
+            self.map_text()
+            after = self.snapshot_state()
+            outputs = {self.html.name, self.pdf.name, self.approved_copy().name}
+            self.assertEqual({name: details for name, details in after.items() if name not in outputs}, before)
 
     def test_fix_h3_failure_before_publish_never_exposes_the_final_copy(self):
         visible_at_fsync = []

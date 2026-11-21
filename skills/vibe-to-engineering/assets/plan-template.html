@@ -310,7 +310,8 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
     <colgroup><col style="width:23%"><col style="width:25%"><col style="width:10%"><col style="width:28%"><col style="width:14%"></colgroup>
     <thead><tr><th>New file</th><th>Old file and lines</th><th>Finding</th><th>Reason</th><th>Evidence</th></tr></thead>
     <tbody>
-      <!-- repeat: one row per new file. Evidence is exactly "exact" or "not yet exact: <reason>" with a nonempty reason.
+      <!-- repeat: one row per new file, plus one per kept file that receives code. Every mapped file needs a row here.
+           Evidence is exactly "exact" or "not yet exact: <reason>" with a nonempty reason.
            Use "none" in Old file and lines for a file created from scratch, with "exact" evidence and no map links.
            Otherwise use <source path>: <range>[, <range>][; <source path>: <range>[, <range>]].
            A range is <from>-<to> or part of <from>-<to>, using a hyphen or en dash. Use listed sources and valid bounds.
