@@ -1,5 +1,18 @@
 # Latest update — 2026-11-21
 
+## November 21 Migration Map fixes H1–H3
+
+Candidate **0.6.0-dev** on `feat/plan-evidence-and-map` addresses Claude's findings on
+`f08f43b`. A final outcome requires every phase to be Done and ends the run's phase and
+restore events. Each new file's old-lines cell now determines which source ranges may
+connect to it. The renderer publishes the current approved copy atomically before checking
+historical completion or loading the theme.
+
+Portable validation passed **169** tests and native macOS validation passed **469**, with
+zero failures, errors or skips. The synthetic proof rendered mixed and finished maps and
+refused swapped source ranges and a premature All green. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md).
+Claude's re-review follows.
+
 ## November 21 Migration Map re-review fixes
 
 Version **0.6.0-dev** on `feat/plan-evidence-and-map` addresses G1–G4 from the review of

@@ -16,6 +16,7 @@ import re
 import stat
 import tempfile
 import unicodedata
+import uuid
 from html.parser import HTMLParser
 from pathlib import Path
 from textwrap import wrap
@@ -35,6 +36,10 @@ PHASE_HEADING = re.compile(r"Phase ([1-9]\d*)\s*—\s*(.+)\Z")
 PLAN_VERSION = re.compile(r"Plan version\s+(\S+)\Z")
 SAFE_VERSION = re.compile(r"[A-Za-z0-9._-]+")
 NEW_FILE_EVIDENCE = re.compile(r"exact|not yet exact: .+")
+OLD_RANGE = re.compile(r"(part of )?([0-9]+)[-–]([0-9]+)")
+OLD_LINE_GROUP = re.compile(
+    rf"(?P<source>.+?): (?P<ranges>{OLD_RANGE.pattern}(?:, {OLD_RANGE.pattern})*)(?:; |\Z)"
+)
 APPROVAL_EVENT = re.compile(r"PLAN APPROVED v(\S+)\Z")
 FINAL_OUTCOMES = {
     "VIBE-TO-ENGINEERING — ALL GREEN": "All green",
@@ -119,7 +124,7 @@ class PlanEntries(HTMLParser):
         evidence = " ".join(row[-1].split())
         if not NEW_FILE_EVIDENCE.fullmatch(evidence):
             raise Fail("invalid plan evidence for new file: %s" % path)
-        self.new_files[path] = (row[1] == "none", evidence == "exact")
+        self.new_files[path] = (row[1], evidence == "exact")
 
 
 def regular_file(path, missing_ok=False):
@@ -208,27 +213,27 @@ def read_approved_map(project, version):
 
 
 def create_approved_map(project, state, name, body):
-    """Create exclusively and roll back this inode if its write fails."""
+    """Publish a fully written copy without replacing a previous approval."""
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     with contextlib.ExitStack() as opened:
         directory = None
-        target = state / name
         if os.open in os.supports_dir_fd:
             directory = opened.enter_context(project_directory_fd(project, (STATE_DIR,)))
-            target = name
-        fd = os.open(target, flags, 0o600, dir_fd=directory)
-        identity = os.fstat(fd)
+            state = Path()
+        target = state / name
+        temporary = state / (".v2e-approved-%s.tmp" % uuid.uuid4().hex)
+        fd = os.open(temporary, flags, 0o600, dir_fd=directory)
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as destination:
                 destination.write(body + "\n")
                 destination.flush()
                 os.fsync(destination.fileno())
-        except (OSError, KeyboardInterrupt):
-            with contextlib.suppress(OSError):
-                current = os.stat(target, dir_fd=directory, follow_symlinks=False)
-                if os.path.samestat(identity, current):
-                    os.unlink(target, dir_fd=directory)
-            raise
+            if directory is None:
+                os.link(temporary, target)
+            else:
+                os.link(temporary, target, src_dir_fd=directory, dst_dir_fd=directory, follow_symlinks=False)
+        finally:
+            os.unlink(temporary, dir_fd=directory)
 
 
 def record_approved_map(project, data):
@@ -271,6 +276,67 @@ def required_rows(value, name):
     return value
 
 
+class SourceRange(NamedTuple):
+    source: str
+    start: int
+    end: int
+    exact: bool
+
+    def overlaps(self, other):
+        return self.source == other.source and self.start <= other.end and other.start <= self.end
+
+
+def parse_old_lines(cell, sources, path):
+    ranges = []
+    position = 0
+    while True:
+        group = OLD_LINE_GROUP.match(cell, position)
+        if not group:
+            raise Fail("invalid old-lines format for %s" % path)
+        source = group["source"]
+        if source not in sources:
+            raise Fail("old-lines cell names unlisted source %s for %s" % (source, path))
+        for match in OLD_RANGE.finditer(group["ranges"]):
+            start, end = int(match[2]), int(match[3])
+            if not 1 <= start <= end <= sources[source]:
+                raise Fail("old-lines range %s is outside source %s for %s" % (match[0], source, path))
+            ranges.append(SourceRange(source, start, end, match[1] is None))
+        position = group.end()
+        if position == len(cell):
+            return ranges
+
+
+def merge_ranges(ranges):
+    merged = []
+    for item in sorted(ranges):
+        if merged and merged[-1].source == item.source and item.start <= merged[-1].end + 1:
+            previous = merged[-1]
+            merged[-1] = previous._replace(end=max(previous.end, item.end))
+        else:
+            merged.append(item)
+    return merged
+
+
+def check_old_lines(path, cell, exact, sources, links):
+    ranges = parse_old_lines(cell, sources, path)
+    if exact:
+        if any(not item.exact for item in ranges):
+            raise Fail("exact evidence cannot use part of old-lines ranges for %s" % path)
+        if merge_ranges(ranges) != merge_ranges(links):
+            raise Fail("exact old-lines ranges differ from linked parts for %s" % path)
+        return
+
+    for link in links:
+        if link.exact:
+            if not any(item.exact and item.source == link.source and item.start <= link.start <= link.end <= item.end
+                       for item in ranges):
+                raise Fail("exact link needs a containing plain old-lines range for %s" % path)
+        elif not any(not item.exact and link.overlaps(item) for item in ranges):
+            raise Fail("inexact link needs an overlapping part of old-lines range for %s" % path)
+    if any(not any(item.overlaps(link) for link in links) for item in ranges):
+        raise Fail("old-lines range has no linked part for %s" % path)
+
+
 def validate_map(data, plan):
     if type(data["schema"]) is not int or data["schema"] != 1:
         raise Fail("unsupported migration map schema")
@@ -282,24 +348,24 @@ def validate_map(data, plan):
         raise Fail("visible plan version does not match map plan_version")
     if not plan.has_new_files_table:
         raise Fail("plan is missing its new-files table")
-    known_parts, sources = set(), set()
+    known_parts, sources = {}, {}
     for source in required_rows(data["sources"], "sources"):
         path = relative_path(source["path"])
         if path not in plan.paths:
             raise Fail("source path is absent from the plan: %s" % path)
         if path in sources:
             raise Fail("source path is listed more than once: %s" % path)
-        sources.add(path)
         total = required_count(source["lines"], "source lines")
+        sources[path] = total
         parts = required_rows(source["parts"], "source parts")
         for part in parts:
             part_id = required_text(part["id"], "part id")
             if part_id in known_parts:
                 raise Fail("part id is listed more than once: %s" % part_id)
-            known_parts.add(part_id)
             required_text(part["label"], "part label")
-            required_count(part["from"], "range start")
-            required_count(part["to"], "range end", minimum=part["from"])
+            start = required_count(part["from"], "range start")
+            end = required_count(part["to"], "range end", minimum=start)
+            known_parts[part_id] = (path, start, end)
         next_line = 1
         for part in sorted(parts, key=lambda part: part["from"]):
             if part["from"] != next_line or part["to"] > total:
@@ -327,27 +393,31 @@ def validate_map(data, plan):
             origins = required_rows(file["from"], "file origins")
             evidence = plan.new_files.get(path)
             if evidence is not None:
-                no_source, exact = evidence
+                old_lines, exact = evidence
+                no_source = old_lines == "none"
                 if no_source and (origins or not exact):
                     raise Fail("new file with old lines marked none must have no source links and exact evidence: %s" % path)
                 if not no_source and not origins:
                     raise Fail("new file with old lines must have a source link: %s" % path)
-            has_inexact = False
+            links = []
             for origin in origins:
                 part = required_text(origin["part"], "file origin part")
                 if part not in known_parts:
                     raise Fail("mapped file names an unknown part: %s" % part)
                 if type(origin["exact"]) is not bool:
                     raise Fail("part exactness must be true or false")
-                has_inexact |= not origin["exact"]
+                links.append(SourceRange(*known_parts[part], origin["exact"]))
                 used_parts.add(part)
-            if evidence is not None and has_inexact != (not exact):
-                raise Fail("mapped link exactness does not match plan evidence for %s" % path)
+            if evidence is not None:
+                if all(link.exact for link in links) != exact:
+                    raise Fail("mapped link exactness does not match plan evidence for %s" % path)
+                if not no_source:
+                    check_old_lines(path, old_lines, exact, sources, links)
     missing_files = plan.new_files.keys() - file_paths
     if missing_files:
         raise Fail("planned new file is missing from the map: %s" % sorted(missing_files)[0])
-    if used_parts != known_parts:
-        raise Fail("source part is unused: %s" % sorted(known_parts - used_parts)[0])
+    if used_parts != known_parts.keys():
+        raise Fail("source part is unused: %s" % sorted(known_parts.keys() - used_parts)[0])
 
 
 def ledger_headings(lines):
@@ -406,6 +476,9 @@ def phase_states(ledger, version, fingerprint, numbers):
         _, event, _ = events[index]
         phase = PHASE_EVENT.fullmatch(event)
         approved = APPROVAL_EVENT.fullmatch(event)
+        restore = event == "RESTORED" or event.startswith("RESTORED ")
+        if outcome is not None and (phase or restore):
+            raise Fail("ledger event %s follows the final outcome" % event)
         if approved:
             active_version = approved[1]
         elif phase:
@@ -424,8 +497,11 @@ def phase_states(ledger, version, fingerprint, numbers):
         elif event == "MIGRATION STOPPED":
             stopped = True
         elif event in FINAL_OUTCOMES and index > last:
+            unfinished = ["Phase %d is %s" % (number, state) for number, state in states.items() if state != "Done"]
+            if unfinished:
+                raise Fail("final outcome requires every phase to be Done (%s)" % ", ".join(unfinished))
             outcome = FINAL_OUTCOMES[event]
-        elif event == "RESTORED" or event.startswith("RESTORED "):
+        elif restore:
             label = event[len("RESTORED "):]
             saved_phase = PHASE_RESTORE.fullmatch(label)
             if BASELINE_RESTORE.fullmatch(label):
@@ -749,6 +825,7 @@ def render_project(project):
             measured = actual_lines(project, path)
             if measured != str(source["lines"]):
                 raise Fail("source line count differs from the map for %s (measured: %s)" % (path, measured))
+    record_approved_map(project, data)
     check_completed_phases(project, data["phases"], progress)
     theme = theme_css()
     actual = {file["path"]: actual_lines(project, file["path"])
@@ -757,7 +834,6 @@ def render_project(project):
     problems = render_pdf.static_problems(document)
     if render_pdf.PLACEHOLDER.search(document) or problems:
         raise Fail("map is not static and self-contained: %s" % (", ".join(problems) or "unfilled placeholder"))
-    record_approved_map(project, data)
     with tempfile.TemporaryDirectory(prefix=".v2e-map-", dir=state) as scratch:
         draft_html, draft_pdf = Path(scratch) / MAP_HTML, Path(scratch) / MAP_PDF
         draft_html.write_text(document, encoding="utf-8")

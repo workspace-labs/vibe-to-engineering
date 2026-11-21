@@ -23,6 +23,7 @@ from xml.etree import ElementTree
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills" / "vibe-to-engineering" / "scripts"
 SCRIPT = SCRIPTS / "render_map.py"
 APPROVAL = "PLAN APPROVED v1"
+ALL_GREEN = "VIBE-TO-ENGINEERING — ALL GREEN"
 PDF_FIXTURE = b"%PDF-1.4\nfixture\n"
 
 
@@ -72,16 +73,25 @@ class MapFixture:
         evidence = {} if evidence is None else evidence
         old_lines = {} if old_lines is None else old_lines
         files = [file for phase in self.specification["phases"] for file in phase["files"]]
-        paths = ["src/large.py", "src/decoy.py.backup"] + [file["path"] for file in files]
+        sources = self.specification["sources"]
+        parts = {part["id"]: (source["path"], part["from"], part["to"])
+                 for source in sources for part in source["parts"]}
+        paths = [source["path"] for source in sources] + ["src/decoy.py.backup"] + [file["path"] for file in files]
         rows = "".join('<tr><td class="path">%s</td></tr>' % escape(path) for path in paths)
         new_rows = []
         for file in files:
             path = file["path"]
+            ranges = {}
+            for link in file["from"]:
+                source, start, end = parts[link["part"]]
+                prefix = "" if link["exact"] else "part of "
+                ranges.setdefault(source, []).append(f"{prefix}{start}–{end}")
+            cell = "; ".join(f"{source}: {', '.join(items)}" for source, items in ranges.items()) or "none"
             state = "exact" if all(link["exact"] for link in file["from"]) else "not yet exact: split boundary"
             new_rows.append(
                 '<tr><td class="path">%s</td><td>%s</td><td>F1</td>'
                 '<td>Extract a responsibility</td><td>%s</td></tr>' %
-                (escape(path), escape(old_lines.get(path, "src/large.py:1–20")), escape(evidence.get(path, state))),
+                (escape(path), escape(old_lines.get(path, cell)), escape(evidence.get(path, state))),
             )
         headings = "".join(
             '<article class="phase"><h3><span>Phase %d — %s</span>'
@@ -161,7 +171,7 @@ class MapPortable(MapFixture, unittest.TestCase):
             return {".": record(self.state)}
         return {str(path.relative_to(self.state)): record(path) for path in self.state.rglob("*")}
 
-    def assert_refuses(self, *reason):
+    def assert_refuses(self, *reason, saves_approval=False):
         before = self.snapshot_state()
         code, output, pdf = self.run_map()
         self.assertNotEqual(code, 0, output)
@@ -170,7 +180,12 @@ class MapPortable(MapFixture, unittest.TestCase):
         if reason:
             self.assertTrue(any(word in output.lower() for word in reason), output)
         pdf.assert_not_called()
-        self.assertEqual(self.snapshot_state(), before)
+        after = self.snapshot_state()
+        if saves_approval:
+            archive = self.approved_copy()
+            self.assertEqual(json.loads(archive.read_bytes()), self.specification)
+            del after[archive.name]
+        self.assertEqual(after, before)
 
     def map_text(self):
         code, output, pdf = self.run_map()
@@ -342,11 +357,13 @@ class MapPortable(MapFixture, unittest.TestCase):
 
     def test_fix_f2_refuses_an_omitted_planned_new_file(self):
         phases = self.specification["phases"]
-        omitted = phases[0]["files"].pop()
-        # Keep the old ranges covered so the missing new file is the only mismatch.
-        phases[1]["files"][0]["from"].extend(omitted["from"])
+        flow, records = (phase["files"][0] for phase in phases)
+        records["from"].extend(flow["from"])
+        self.write_plan()
+        self.write_ledger(APPROVAL)
+        phases[0]["files"].pop()
         self.write_mapping()
-        self.assert_refuses("new file", omitted["path"])
+        self.assert_refuses("planned new file is missing from the map: src/flow.py")
 
     def test_fix_f3_requires_plan_version_and_fingerprint_from_its_approval(self):
         with self.plan.open("ab") as plan:
@@ -441,7 +458,7 @@ class MapPortable(MapFixture, unittest.TestCase):
     def test_fix_g1_refuses_changed_completed_phases(self):
         original = deepcopy(self.specification)
         self.seed_approved_copy()
-        for change in ("retitle", "swap", "file set"):
+        for version, change in enumerate(("retitle", "swap", "file set"), start=2):
             with self.subTest(change=change):
                 self.specification = deepcopy(original)
                 phases = self.specification["phases"]
@@ -452,16 +469,21 @@ class MapPortable(MapFixture, unittest.TestCase):
                     phases[0]["number"], phases[1]["number"] = 1, 2
                 else:
                     phases[0]["files"][0]["path"] = "src/new-unbuilt-file.py"
-                self.approve_revision_after_phase_one(original["plan_fingerprint"])
-                self.assert_refuses("phase 1")
+                self.approve_revision_after_phase_one(original["plan_fingerprint"], version=str(version))
+                self.assert_refuses("phase 1", saves_approval=True)
 
     def test_fix_g1_refuses_missing_completed_phase_approved_copy(self):
-        with self.subTest("current version"):
-            self.write_ledger(APPROVAL, "PHASE 1 STARTED", "PHASE 1 COMPLETE")
-            self.assert_refuses("phase 1")
+        original = deepcopy(self.specification)
         with self.subTest("earlier version"):
-            self.approve_revision_after_phase_one(self.specification["plan_fingerprint"])
-            self.assert_refuses("phase 1")
+            self.approve_revision_after_phase_one(original["plan_fingerprint"])
+            self.assert_refuses("phase 1", saves_approval=True)
+        with self.subTest("current version"):
+            self.specification = original
+            self.write_plan()
+            self.write_mapping()
+            self.write_ledger(APPROVAL, "PHASE 1 STARTED", "PHASE 1 COMPLETE")
+            self.assert_states(self.map_text(), "Done", "Waiting")
+            self.assertEqual(json.loads(self.approved_copy().read_bytes()), self.specification)
 
     def test_removed_completed_phase_stays_allowed_in_revision(self):
         original_fingerprint = self.specification["plan_fingerprint"]
@@ -553,7 +575,7 @@ class MapPortable(MapFixture, unittest.TestCase):
 
     def test_fix_g3_refuses_exact_file_with_unmapped_old_lines(self):
         path = self.move_flow_link_to_records()
-        self.write_plan(old_lines={path: "src/large.py:1–12"})
+        self.write_plan(old_lines={path: "src/large.py: 1–12"})
         self.write_ledger(APPROVAL)
         self.write_mapping()
         self.assert_refuses("src/flow.py", "link")
@@ -572,6 +594,156 @@ class MapPortable(MapFixture, unittest.TestCase):
                 self.assert_states(text, "Done", "Done")
                 self.assertIn("<span>Status</span><strong>%s</strong>" % state, text)
                 self.assertIn("<span>Next stop</span><strong>None</strong>", text)
+
+    def test_fix_h1_refuses_outcome_with_a_waiting_now_or_failed_phase(self):
+        self.seed_approved_copy()
+        for second_phase in ((), ("PHASE 2 STARTED",), ("PHASE 2 STARTED", "PHASE 2 FAILED")):
+            with self.subTest(second_phase=second_phase):
+                self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", *second_phase, ALL_GREEN)
+                self.assert_refuses("final outcome requires every phase to be done")
+
+    def test_fix_h1_refuses_phase_and_restore_events_after_an_outcome(self):
+        self.seed_approved_copy()
+        for event in ("PHASE 2 STARTED", "PHASE 2 COMPLETE", "PHASE 2 FAILED", "RESTORED 01-phase-1"):
+            with self.subTest(event=event):
+                self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", "PHASE 2 COMPLETE", ALL_GREEN, event)
+                self.assert_refuses("follows the final outcome")
+
+    def test_fix_h1_later_approval_starts_a_new_run_after_outcome(self):
+        original_fingerprint = self.specification["plan_fingerprint"]
+        self.specification["plan_version"] = "2"
+        self.write_plan()
+        self.write_mapping()
+        revised = "PLAN APPROVED v2"
+        fingerprints = {APPROVAL: original_fingerprint, revised: self.specification["plan_fingerprint"]}
+        self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", "PHASE 2 COMPLETE", ALL_GREEN,
+                          revised, "PHASE 1 STARTED", fingerprints=fingerprints)
+        text = self.map_text()
+        self.assert_states(text, "Now", "Waiting")
+        self.assertNotIn("All green", text)
+
+    def validate_plan_map(self):
+        plan = self.renderer.PlanEntries(self.plan.read_text(encoding="utf-8"))
+        self.renderer.validate_map(self.specification, plan)
+
+    def test_fix_h2_refuses_swapped_ranges_on_exact_rows(self):
+        flow, records = (phase["files"][0] for phase in self.specification["phases"])
+        records["from"][0]["exact"] = True
+        self.write_plan()
+        flow["from"], records["from"] = records["from"], flow["from"]
+        with self.assertRaisesRegex(self.renderer.Fail, r"old-lines ranges.*src/flow\.py"):
+            self.validate_plan_map()
+
+    def test_fix_h2_refuses_partial_or_provisional_ranges_on_exact_rows(self):
+        for cell in ("src/large.py: 1–10", "src/large.py: part of 1–12"):
+            with self.subTest(cell=cell):
+                self.write_plan(old_lines={"src/flow.py": cell})
+                with self.assertRaisesRegex(self.renderer.Fail, r"old-lines.*src/flow\.py"):
+                    self.validate_plan_map()
+
+    def test_fix_h2_checks_mixed_links_against_plain_and_provisional_ranges(self):
+        source = self.specification["sources"][0]
+        source["parts"][1]["to"] = 18
+        source["parts"].append({"id": "tail", "label": "Tail", "from": 19, "to": 20})
+        flow, records = (phase["files"][0] for phase in self.specification["phases"])
+        flow["from"].append({"part": "tail", "exact": True})
+        records["from"].append({"part": "flow", "exact": True})
+        for ranges, reason in (
+            ("1–10, part of 13–18", "plain old-lines range"),
+            ("1–12, 13–18", "part of old-lines range"),
+            ("1–12, part of 10–12", "part of old-lines range"),
+            ("1–12, part of 13–18, part of 19–20", "old-lines range has no linked part"),
+        ):
+            with self.subTest(ranges=ranges):
+                self.write_plan(old_lines={records["path"]: "src/large.py: " + ranges})
+                with self.assertRaisesRegex(self.renderer.Fail, reason):
+                    self.validate_plan_map()
+        self.write_plan(old_lines={records["path"]: "src/large.py: 1–12, part of 12–15"})
+        self.validate_plan_map()
+
+    def test_fix_h2_checks_ranges_from_two_sources(self):
+        self.specification["sources"].append({"path": "src/previous.py", "lines": 9, "parts": [
+            {"id": "previous", "label": "Previous", "from": 1, "to": 9},
+        ]})
+        flow = self.specification["phases"][0]["files"][0]
+        flow["from"].append({"part": "previous", "exact": True})
+        self.write_plan(old_lines={flow["path"]: "src/large.py: 1–12"})
+        with self.assertRaisesRegex(self.renderer.Fail, "old-lines ranges"):
+            self.validate_plan_map()
+        self.write_plan(old_lines={flow["path"]: "src/large.py: 1–12; src/previous.py: 1-9"})
+        self.validate_plan_map()
+
+    def test_fix_h2_refuses_bad_format_unlisted_sources_and_out_of_bounds_lines(self):
+        for cell, reason in (
+            ("", "invalid old-lines format"),
+            ("src/large.py:1–12", "invalid old-lines format"),
+            ("src/large.py: 1—12", "invalid old-lines format"),
+            ("src/large.py: 1–12;", "invalid old-lines format"),
+            ("src/decoy.py.backup: 1–12", "unlisted source"),
+            ("src/large.py: 0–12", "outside source"),
+            ("src/large.py: 1–21", "outside source"),
+            ("src/large.py: 13–12", "outside source"),
+        ):
+            with self.subTest(cell=cell):
+                self.write_plan(old_lines={"src/flow.py": cell})
+                with self.assertRaisesRegex(self.renderer.Fail, reason):
+                    self.validate_plan_map()
+
+    def test_fix_h2_merges_adjacent_ranges_without_closing_a_gap(self):
+        flow = self.specification["phases"][0]["files"][0]
+        flow["from"].append({"part": "record", "exact": True})
+        self.write_plan(old_lines={flow["path"]: "src/large.py: 1–7, 9–20"})
+        with self.assertRaisesRegex(self.renderer.Fail, "old-lines ranges"):
+            self.validate_plan_map()
+        self.write_plan(old_lines={flow["path"]: "src/large.py: 1–7, 8-20"})
+        self.validate_plan_map()
+
+    def test_fix_h3_recovers_after_bad_theme_at_approval(self):
+        theme = self.home / ".vibe-to-engineering" / "map-theme.css"
+        theme.parent.mkdir()
+        theme.write_text("</style>", encoding="utf-8")
+        code, output, pdf = self.run_map()
+        self.assertEqual(code, 1, output)
+        self.assertIn("theme", output)
+        pdf.assert_not_called()
+        recorded_before_phase = self.approved_copy().is_file()
+        theme.write_text(":root {}", encoding="utf-8")
+        self.write_ledger(APPROVAL, "PHASE 1 STARTED", "PHASE 1 COMPLETE")
+        self.assert_states(self.map_text(), "Done", "Waiting")
+        self.assertTrue(recorded_before_phase)
+
+    def test_fix_h3_first_render_after_phase_one_saves_current_approval(self):
+        self.write_ledger(APPROVAL, "PHASE 1 STARTED", "PHASE 1 COMPLETE")
+        (self.project / "src" / "large.py").write_text("# already split\n", encoding="utf-8")
+        (self.project / "src" / "flow.py").write_text("# moved flow\n", encoding="utf-8")
+        text = self.map_text()
+        self.assert_states(text, "Done", "Waiting")
+        self.assertIn("Actual: 1", self.phase_card(text, 1))
+        self.assertEqual(json.loads(self.approved_copy().read_bytes()), self.specification)
+
+    def test_fix_h3_ignores_leftover_temporary_approval_file(self):
+        stale = self.state / ".v2e-approved-abandoned.tmp"
+        stale.write_bytes(b'{"plan_version":')
+        with mock.patch.object(os, "link", wraps=os.link) as publish:
+            self.map_text()
+        publish.assert_called_once()
+        self.assertEqual(stale.read_bytes(), b'{"plan_version":')
+        self.assertEqual(list(self.state.glob(".v2e-approved-*.tmp")), [stale])
+        self.assertEqual(self.approved_copy().stat().st_nlink, 1)
+
+    def test_fix_h3_failure_before_publish_never_exposes_the_final_copy(self):
+        visible_at_fsync = []
+
+        def failed_sync(_fd):
+            visible_at_fsync.append(self.approved_copy().exists())
+            raise OSError("simulated fsync failure")
+
+        with mock.patch.object(os, "fsync", side_effect=failed_sync):
+            self.assert_refuses("simulated fsync failure")
+        self.assertEqual(visible_at_fsync, [False])
+        self.assertFalse(self.approved_copy().exists())
+        self.map_text()
+        self.assertEqual(json.loads(self.approved_copy().read_bytes()), self.specification)
 
     def test_ledger_waiting_now_failed_and_done(self):
         events = [APPROVAL]
@@ -669,12 +841,13 @@ class MapPortable(MapFixture, unittest.TestCase):
         theme = self.home / ".vibe-to-engineering" / "map-theme.css"
         theme.parent.mkdir()
         theme.write_text('</style><img src="https://example.invalid/fixture.png">', encoding="utf-8")
-        self.assert_refuses("theme")
+        self.assert_refuses("theme", saves_approval=True)
 
     def test_theme_css_must_pass_the_existing_pdf_checks(self):
         theme = self.home / ".vibe-to-engineering" / "map-theme.css"
         theme.parent.mkdir()
         theme.write_text('@import "https://example.invalid/theme.css";', encoding="utf-8")
+        self.seed_approved_copy()
         before = self.snapshot_state()
         real_pdf = self.renderer.render_pdf.main
         with mock.patch.object(self.renderer.render_pdf, "require_supported_platform"), \

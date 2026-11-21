@@ -1,5 +1,43 @@
 # Skill validation evidence
 
+## Migration Map re-review fixes H1–H3 — 2026-11-21
+
+Candidate **0.6.0-dev** on `feat/plan-evidence-and-map`, based on
+`f08f43becbfd09ea94df68b05001e034b63f5f48`. The new tests in `tests/test_render_map.py`
+produced 28 failures across 12 regression methods on an archive of the base. The new-run
+control passed there as well. All **55** focused portable map tests passed on the candidate.
+
+- **H1** The base accepted an outcome with a phase Waiting, Now or Failed, and accepted
+  phase and restore events after a final outcome. The candidate refuses those combinations.
+  A later approval starts a fresh run.
+- **H2** The base accepted swapped or partial exact ranges, `part of` under exact evidence,
+  unlisted sources, malformed or out-of-bounds ranges, and mismatches in mixed or multi-source
+  cells. The candidate rejects these cases and accepts valid mixed links, two-source cells,
+  and equivalent adjacent ranges.
+- **H3** The base refused the first render after Phase 1 and a retry following a bad theme
+  at approval. The candidate saves the current approved copy before theme and completion
+  checks and recovers in both cases. A missing earlier copy still refuses. An abandoned
+  temporary file does not block a render. The injected `fsync` failure observed a final copy
+  on the base and none on the candidate, where a retry saved the correct data.
+
+Both scopes used CLT Python 3.9.6 on macOS 27.2.1 arm64 with Node v20.20.2. Native validation
+used the pinned reader matrix and Chrome Headless Shell revision 1248 (156.0.8078.4).
+
+- `python3 -B tests/run_validation.py --scope portable` ran **169 tests, 0 failures,
+  0 errors, 0 skips**.
+- `python3 -B tests/run_validation.py --scope macos` ran **469 tests, 0 failures,
+  0 errors, 0 skips**.
+
+Each scope gained 13 tests. All four reader-matrix tests and the native map PDF test ran.
+The governed fingerprints matched the base. The static skill audit reported zero structural
+errors and the same 31 review findings on both copies.
+
+The synthetic Harbor Notes plan used the shipped template. Its first map rendered after
+Phase 1 and displayed solid and dashed links, one of two files done, and Phase 2 approval
+next. The final map displayed All green, two of two files done, and next stop None. Each map
+was one page and was rasterized with macOS PDF drawing and inspected. Swapped ranges and a
+premature All green each exited with code 1 and preserved the fixture's file hashes.
+
 ## Migration Map re-review fixes G1–G4 — 2026-11-21
 
 Candidate **0.6.0-dev** on `feat/plan-evidence-and-map`, based on

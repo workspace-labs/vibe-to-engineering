@@ -382,6 +382,13 @@ plan and apply section 4's state-path checks before writing. Use these fields:
   with a nonempty reason. For a file created from scratch, put exactly `none` in the old-lines
   cell, use `exact` for evidence, and leave `from` empty. Every new file with old lines needs
   at least one source link.
+  Use `<source path>: <range>[, <range>][; <source path>: <range>[, <range>]]` in its old-lines
+  cell. Each range is `<from>-<to>` or `part of <from>-<to>`, with a hyphen or en dash between
+  the bounds. Use listed sources and stay within their line counts. With `exact` evidence, use
+  plain ranges that equal the linked parts for each source after merging overlapping or adjacent
+  ranges. With `not yet exact` evidence, each exact link must fit inside a plain range and each
+  inexact link must overlap a `part of` range from the same source. Every named range must overlap
+  a linked part from its source.
 
 Run `python3 <skill>/scripts/render_map.py --project <project>` and show `Migration-Map.pdf`.
 It is separate from the plan PDF and has an HTML copy, `Migration-Map.html`. Then continue only

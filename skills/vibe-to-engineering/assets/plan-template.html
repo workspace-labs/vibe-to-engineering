@@ -312,7 +312,11 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
     <tbody>
       <!-- repeat: one row per new file. Evidence is exactly "exact" or "not yet exact: <reason>" with a nonempty reason.
            Use "none" in Old file and lines for a file created from scratch, with "exact" evidence and no map links.
-           Every other new file needs at least one source link in the map. -->
+           Otherwise use <source path>: <range>[, <range>][; <source path>: <range>[, <range>]].
+           A range is <from>-<to> or part of <from>-<to>, using a hyphen or en dash. Use listed sources and valid bounds.
+           For exact evidence, merge overlapping or adjacent plain ranges and match the linked parts for each source.
+           For not yet exact evidence, each exact link fits inside a plain range and each inexact link overlaps a part of range.
+           Every named range overlaps a linked part from its source. -->
       <tr><td class="path">{{NEW_FILE_PATH}}</td><td class="path">{{NEW_FILE_OLD_LINES}}</td><td>{{NEW_FILE_FINDING}}</td><td>{{NEW_FILE_WHY}}</td><td>{{NEW_FILE_EVIDENCE_STATE}}</td></tr>
       <!-- /repeat -->
     </tbody>
