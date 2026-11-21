@@ -1,5 +1,17 @@
 # Latest update — 2026-11-21
 
+## November 21 Migration Map re-review fixes
+
+Version **0.6.0-dev** on `feat/plan-evidence-and-map` addresses G1–G4 from the review of
+`6f27e0d`. The map uses a write-once copy of each approved version to check which work
+was completed. It enforces the plan's evidence wording and source links and displays the
+recorded outcome when the migration finishes.
+
+Portable validation passed **156** tests and native macOS validation passed **456**, with
+zero failures, errors or skips. A synthetic run kept Phase 1 Done through a valid revision,
+refused a retitled Phase 1 and showed All green with next stop None after the final outcome.
+See [TEST-EVIDENCE.md](TEST-EVIDENCE.md). Claude's re-review follows.
+
 ## November 21 Migration Map review fixes
 
 Version **0.6.0-dev** stays on `feat/plan-evidence-and-map`. This fix round addresses Claude's

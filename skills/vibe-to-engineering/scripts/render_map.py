@@ -19,6 +19,7 @@ import unicodedata
 from html.parser import HTMLParser
 from pathlib import Path
 from textwrap import wrap
+from typing import NamedTuple, Optional
 
 import render_pdf
 from checkpoint import STATE_DIR, check_state_folder, resolve_project
@@ -32,13 +33,14 @@ MAP_HTML = "Migration-Map.html"
 MAP_PDF = "Migration-Map.pdf"
 PHASE_HEADING = re.compile(r"Phase ([1-9]\d*)\s*—\s*(.+)\Z")
 PLAN_VERSION = re.compile(r"Plan version\s+(\S+)\Z")
-NEW_FILE_EVIDENCE = re.compile(r"(exact|not yet exact)\b")
-APPROVAL_EVENT = re.compile(r"PLAN APPROVED v\S+\Z")
-FINAL_OUTCOMES = frozenset({
-    "VIBE-TO-ENGINEERING — ALL GREEN",
-    "VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED BASELINE FAILURES",
-    "VIBE-TO-ENGINEERING — COMPLETE WITH ACCEPTED VERIFICATION GAPS",
-})
+SAFE_VERSION = re.compile(r"[A-Za-z0-9._-]+")
+NEW_FILE_EVIDENCE = re.compile(r"exact|not yet exact: .+")
+APPROVAL_EVENT = re.compile(r"PLAN APPROVED v(\S+)\Z")
+FINAL_OUTCOMES = {
+    "VIBE-TO-ENGINEERING — ALL GREEN": "All green",
+    "VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED BASELINE FAILURES": "Complete with approved failures",
+    "VIBE-TO-ENGINEERING — COMPLETE WITH ACCEPTED VERIFICATION GAPS": "Complete with accepted gaps",
+}
 PHASE_EVENT = re.compile(r"PHASE ([1-9]\d*) (STARTED|COMPLETE|FAILED)\Z")
 PHASE_RESTORE = re.compile(r"(?:r[1-9]\d*-)?\d{2,}-phase-([1-9]\d*)\Z")
 BASELINE_RESTORE = re.compile(r"(?:r[1-9]\d*-)?00-baseline(?:-checked)?\Z")
@@ -114,10 +116,10 @@ class PlanEntries(HTMLParser):
         path = relative_path(row[0])
         if path in self.new_files:
             raise Fail("plan lists the new file more than once: %s" % path)
-        evidence = NEW_FILE_EVIDENCE.match(" ".join(row[-1].split()))
-        if not evidence:
+        evidence = " ".join(row[-1].split())
+        if not NEW_FILE_EVIDENCE.fullmatch(evidence):
             raise Fail("invalid plan evidence for new file: %s" % path)
-        self.new_files[path] = evidence[1]
+        self.new_files[path] = (row[1] == "none", evidence == "exact")
 
 
 def regular_file(path, missing_ok=False):
@@ -134,19 +136,28 @@ def regular_file(path, missing_ok=False):
 
 
 @contextlib.contextmanager
+def project_directory_fd(project, parts):
+    """Hold the checked directory for relative file operations on macOS."""
+    flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    directory = os.open(project.anchor, flags)
+    try:
+        for piece in (*project.parts[1:], *parts):
+            child = os.open(piece, flags, dir_fd=directory)
+            os.close(directory)
+            directory = child
+        yield directory
+    finally:
+        os.close(directory)
+
+
+@contextlib.contextmanager
 def project_file(project, parts):
     """Open a regular, unlinked file under project without following any link on macOS."""
     path = project.joinpath(*parts)
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     with contextlib.ExitStack() as opened:
         if os.open in os.supports_dir_fd:
-            # Open each component against its verified parent, including the resolved project root.
-            directory_flags = flags | os.O_DIRECTORY
-            directory = os.open(project.anchor, directory_flags)
-            opened.callback(os.close, directory)
-            for piece in (*project.parts[1:], *parts[:-1]):
-                directory = os.open(piece, directory_flags, dir_fd=directory)
-                opened.callback(os.close, directory)
+            directory = opened.enter_context(project_directory_fd(project, parts[:-1]))
             fd = os.open(parts[-1], flags, dir_fd=directory)
             opened.callback(os.close, fd)
         else:
@@ -174,6 +185,61 @@ def state_paths(project):
     for name in (PLAN, LEDGER, MAP_DATA, MAP_HTML, MAP_PDF):
         regular_file(state / name, missing_ok=name in (MAP_HTML, MAP_PDF))
     return state
+
+
+def approved_map_name(version):
+    if not isinstance(version, str) or not SAFE_VERSION.fullmatch(version):
+        raise Fail("unsafe or missing approved plan version")
+    return "approved-map-v%s.json" % version
+
+
+def read_approved_map(project, version):
+    """Read the saved approval as data, using the same safe opener as the plan."""
+    name = approved_map_name(version)
+    try:
+        regular_file(project / STATE_DIR / name)
+        with project_file(project, (STATE_DIR, name)) as source:
+            saved = json.load(source)
+    except (OSError, ValueError, Fail) as error:
+        raise Fail("approved map copy %s is missing or unreadable: %s" % (name, error)) from error
+    if not isinstance(saved, dict) or saved.get("plan_version") != version:
+        raise Fail("approved map copy %s has an invalid version" % name)
+    return saved
+
+
+def create_approved_map(project, state, name, body):
+    """Create exclusively and roll back this inode if its write fails."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    with contextlib.ExitStack() as opened:
+        directory = None
+        target = state / name
+        if os.open in os.supports_dir_fd:
+            directory = opened.enter_context(project_directory_fd(project, (STATE_DIR,)))
+            target = name
+        fd = os.open(target, flags, 0o600, dir_fd=directory)
+        identity = os.fstat(fd)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as destination:
+                destination.write(body + "\n")
+                destination.flush()
+                os.fsync(destination.fileno())
+        except (OSError, KeyboardInterrupt):
+            with contextlib.suppress(OSError):
+                current = os.stat(target, dir_fd=directory, follow_symlinks=False)
+                if os.path.samestat(identity, current):
+                    os.unlink(target, dir_fd=directory)
+            raise
+
+
+def record_approved_map(project, data):
+    version = data["plan_version"]
+    name = approved_map_name(version)
+    body = json.dumps(data, sort_keys=True)
+    try:
+        create_approved_map(project, state_paths(project), name, body)
+    except FileExistsError:
+        if json.dumps(read_approved_map(project, version), sort_keys=True) != body:
+            raise Fail("map data differs from its approved copy %s" % name)
 
 
 def relative_path(value):
@@ -210,8 +276,8 @@ def validate_map(data, plan):
         raise Fail("unsupported migration map schema")
     required_text(data["project"], "project name")
     version = required_text(data["plan_version"], "plan version")
-    if re.search(r"\s", version):
-        raise Fail("plan version must be a single value")
+    if not SAFE_VERSION.fullmatch(version):
+        raise Fail("unsafe plan version: use only letters, digits, ., _, and -")
     if plan.versions != {version}:
         raise Fail("visible plan version does not match map plan_version")
     if not plan.has_new_files_table:
@@ -234,9 +300,8 @@ def validate_map(data, plan):
             required_text(part["label"], "part label")
             required_count(part["from"], "range start")
             required_count(part["to"], "range end", minimum=part["from"])
-        parts.sort(key=lambda part: part["from"])
         next_line = 1
-        for part in parts:
+        for part in sorted(parts, key=lambda part: part["from"]):
             if part["from"] != next_line or part["to"] > total:
                 raise Fail("source parts overlap or leave a gap: %s" % path)
             next_line = part["to"] + 1
@@ -259,8 +324,16 @@ def validate_map(data, plan):
             file_paths.add(path)
             low = required_count(file["lines_low"], "estimated lower line count", minimum=0)
             required_count(file["lines_high"], "estimated upper line count", minimum=low)
+            origins = required_rows(file["from"], "file origins")
+            evidence = plan.new_files.get(path)
+            if evidence is not None:
+                no_source, exact = evidence
+                if no_source and (origins or not exact):
+                    raise Fail("new file with old lines marked none must have no source links and exact evidence: %s" % path)
+                if not no_source and not origins:
+                    raise Fail("new file with old lines must have a source link: %s" % path)
             has_inexact = False
-            for origin in required_rows(file["from"], "file origins"):
+            for origin in origins:
                 part = required_text(origin["part"], "file origin part")
                 if part not in known_parts:
                     raise Fail("mapped file names an unknown part: %s" % part)
@@ -268,8 +341,7 @@ def validate_map(data, plan):
                     raise Fail("part exactness must be true or false")
                 has_inexact |= not origin["exact"]
                 used_parts.add(part)
-            evidence = plan.new_files.get(path)
-            if evidence is not None and has_inexact != (evidence == "not yet exact"):
+            if evidence is not None and has_inexact != (not exact):
                 raise Fail("mapped link exactness does not match plan evidence for %s" % path)
     missing_files = plan.new_files.keys() - file_paths
     if missing_files:
@@ -303,6 +375,16 @@ def ledger_headings(lines):
                 yield index, fields[0], ""
 
 
+class LedgerProgress(NamedTuple):
+    states: dict
+    completions: dict
+    stopped: bool
+    plan_only: bool
+    restored: bool
+    started: bool
+    outcome: Optional[str]
+
+
 def phase_states(ledger, version, fingerprint, numbers):
     lines = ledger.splitlines()
     events = list(ledger_headings(lines))
@@ -317,12 +399,16 @@ def phase_states(ledger, version, fingerprint, numbers):
     run_start = next((i + 1 for i in range(last - 1, -1, -1)
                       if events[i][1] == "MIGRATION STOPPED" or events[i][1] in FINAL_OUTCOMES), 0)
     states = dict.fromkeys(numbers, "Waiting")
+    completions, active_version, outcome = {}, None, None
     stopped = restored = started = False
     plan_only = events[last][2] == "PLAN ONLY"
     for index in range(run_start, len(events)):
         _, event, _ = events[index]
         phase = PHASE_EVENT.fullmatch(event)
-        if phase:
+        approved = APPROVAL_EVENT.fullmatch(event)
+        if approved:
+            active_version = approved[1]
+        elif phase:
             number = int(phase[1])
             started |= phase[2] == "STARTED"
             if number not in states:
@@ -330,11 +416,15 @@ def phase_states(ledger, version, fingerprint, numbers):
                     continue
                 raise Fail("ledger event names a phase absent from the plan: %s" % number)
             states[number] = EVENT_STATE[phase[2]]
+            if phase[2] == "COMPLETE":
+                completions[number] = active_version
             restored = False
             if index > last:
                 plan_only = False
         elif event == "MIGRATION STOPPED":
             stopped = True
+        elif event in FINAL_OUTCOMES and index > last:
+            outcome = FINAL_OUTCOMES[event]
         elif event == "RESTORED" or event.startswith("RESTORED "):
             label = event[len("RESTORED "):]
             saved_phase = PHASE_RESTORE.fullmatch(label)
@@ -350,7 +440,30 @@ def phase_states(ledger, version, fingerprint, numbers):
             restored = True
             if index > last:
                 plan_only = False
-    return states, stopped, plan_only, restored, started
+    return LedgerProgress(states, completions, stopped, plan_only, restored, started, outcome)
+
+
+def phase_identity(phase):
+    return phase["title"], {file["path"] for file in phase["files"]}
+
+
+def check_completed_phases(project, phases, progress):
+    """Tie every displayed completion to the phase approved at that event."""
+    archived = {}
+    for phase in phases:
+        number = phase["number"]
+        if progress.states[number] != "Done":
+            continue
+        version = progress.completions[number]
+        try:
+            if version not in archived:
+                archived[version] = read_approved_map(project, version)
+            matches = [item for item in archived[version]["phases"]
+                       if type(item["number"]) is int and item["number"] == number]
+            if len(matches) != 1 or phase_identity(matches[0]) != phase_identity(phase):
+                raise Fail("title or file paths differ from the approved map for v%s" % version)
+        except (Fail, KeyError, TypeError) as error:
+            raise Fail("Phase %s cannot carry completion: %s" % (number, error)) from error
 
 
 def actual_lines(project, relative):
@@ -499,7 +612,7 @@ def source_layout(sources, destinations, phase_height):
         drawings.append(f'<div class="source" style="top:{top}px"><h3 class="source-name">{name}</h3>'
                         f'<p class="source-range">{source["lines"]} lines today</p>')
         label_top = bar_top
-        for index, part in enumerate(source["parts"]):
+        for index, part in enumerate(sorted(source["parts"], key=lambda part: part["from"])):
             part_height = ((part["to"] - part["from"] + 1) / source["lines"]) * bar_height
             part_top = bar_top + ((part["from"] - 1) / source["lines"]) * bar_height
             anchors[part["id"]] = top + part_top + part_height / 2
@@ -552,38 +665,43 @@ def diagrams(data, states, actual):
     return pages
 
 
-def summary(data, states, stopped, plan_only, restored, started):
+def summary(data, progress):
+    states = progress.states
     current = next((n for n, state in states.items() if state in ("Now", "Failed")), None)
     waiting = next((n for n, state in states.items() if state == "Waiting"), None)
-    if stopped:
+    if progress.outcome:
+        status, gate = progress.outcome, "None"
+    elif progress.stopped:
         status, gate = "Stopped", "Migration stopped"
     elif current and states[current] == "Failed":
         status, gate = "Failed", "Owner decision"
     elif current:
         status, gate = "In progress", "Owner approval"
-    elif plan_only:
+    elif progress.plan_only:
         status, gate = "Plan only", "Disposable copy required"
-    elif restored and waiting:
+    elif progress.restored and waiting:
         status, gate = "Restored", "Phase %s retry approval" % waiting
     elif waiting:
         status = "Waiting"
-        gate = "Phase %s approval" % waiting if started or waiting != data["phases"][0]["number"] else "Prepare baseline"
+        gate = ("Phase %s approval" % waiting
+                if progress.started or waiting != data["phases"][0]["number"] else "Prepare baseline")
     else:
         status, gate = "Phases complete", "Final review"
     count = sum(len(phase["files"]) for phase in data["phases"] if states[phase["number"]] == "Done")
     total = sum(len(phase["files"]) for phase in data["phases"])
-    facts = (("Status", status), ("Current phase", "Phase %s" % current if current else "—"),
+    facts = (("Status", status), ("Current phase", "Phase %s" % current if current and not progress.outcome else "—"),
              ("New files done", "%s of %s" % (count, total)), ("Next stop", gate))
     return '<div class="summary">' + "".join(f'<div class="fact"><span>{label}</span><strong>{value}</strong></div>'
                                                 for label, value in facts) + "</div>"
 
 
-def map_html(data, states, stopped, plan_only, restored, started, actual, theme):
-    pages = diagrams(data, states, actual)
+def map_html(data, progress, actual, theme):
+    pages = diagrams(data, progress.states, actual)
     header = ('<header class="sheet-header"><h1>Migration Map</h1><p class="subtitle">'
               f'{escaped(data["project"])} · Plan v{escaped(data["plan_version"])}</p>'
-              + summary(data, states, stopped, plan_only, restored, started)
-              + ('<p class="stopped"><strong>Stopped</strong></p>' if stopped else '') + '</header>')
+              + summary(data, progress)
+              + ('<p class="stopped"><strong>Stopped</strong></p>'
+                 if progress.stopped and not progress.outcome else '') + '</header>')
     names = '<div class="column-labels"><h2>Source files</h2><h2>Migration phases</h2></div>'
     legend = ('<div class="legend"><span><i class="line-key"></i>Exact source range</span>'
               '<span><i class="line-key dashed"></i>Source range not yet exact</span>'
@@ -621,23 +739,25 @@ def render_project(project):
             raise Fail("plan fingerprint does not match the current plan HTML")
     except (KeyError, TypeError) as error:
         raise Fail("invalid migration-map.json structure: %s" % error) from error
-    states, stopped, plan_only, restored, started = phase_states(
+    progress = phase_states(
         inputs[LEDGER].decode("utf-8"), data["plan_version"], fingerprint,
         (phase["number"] for phase in data["phases"]),
     )
-    if not started:
+    if not progress.started:
         for source in data["sources"]:
             path = source["path"]
             measured = actual_lines(project, path)
             if measured != str(source["lines"]):
                 raise Fail("source line count differs from the map for %s (measured: %s)" % (path, measured))
+    check_completed_phases(project, data["phases"], progress)
     theme = theme_css()
     actual = {file["path"]: actual_lines(project, file["path"])
-              for phase in data["phases"] if states[phase["number"]] == "Done" for file in phase["files"]}
-    document = map_html(data, states, stopped, plan_only, restored, started, actual, theme)
+              for phase in data["phases"] if progress.states[phase["number"]] == "Done" for file in phase["files"]}
+    document = map_html(data, progress, actual, theme)
     problems = render_pdf.static_problems(document)
     if render_pdf.PLACEHOLDER.search(document) or problems:
         raise Fail("map is not static and self-contained: %s" % (", ".join(problems) or "unfilled placeholder"))
+    record_approved_map(project, data)
     with tempfile.TemporaryDirectory(prefix=".v2e-map-", dir=state) as scratch:
         draft_html, draft_pdf = Path(scratch) / MAP_HTML, Path(scratch) / MAP_PDF
         draft_html.write_text(document, encoding="utf-8")

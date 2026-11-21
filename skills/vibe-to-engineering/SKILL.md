@@ -343,7 +343,7 @@ Follow the outcome with the before and after trees (every file, as `tree` prints
 
 - **Behavior:** preserve the product's intended behavior. No new features, no bug fixes (write down bugs you notice for the human), no dependency changes (adding, removing or upgrading), no formatting sweeps, no renames for taste.
 - **Scope:** only planned changes. Files git ignores, secrets, databases, user data and nested repositories (folders with their own git, which checkpoints do not save) are never moved, edited or deleted — so move files by name, never with wildcards or whole-folder moves that could carry them along. External contracts keep working.
-- **The skill's own folder:** no phase moves, edits or deletes the plan, ledger, evidence or checkpoints in `.vibe-to-engineering/`. A safety net may add checks in `checks/`. The map protocol may write `migration-map.json`, `Migration-Map.html` and `Migration-Map.pdf`.
+- **The skill's own folder:** no phase moves, edits or deletes the plan, ledger, evidence, approved map copies or checkpoints in `.vibe-to-engineering/`. A safety net may add checks in `checks/`. The map protocol may write `migration-map.json`, `approved-map-v<version>.json`, `Migration-Map.html` and `Migration-Map.pdf`.
 - **Checks stay local:** a check never installs or updates dependencies, deploys, publishes, migrates a database or sends anything anywhere. If running a check changes a dependency manifest or lockfile, stop and ask: that is a dependency change.
 - **Checks use throwaway data:** a check never reads or writes the owner's data. The plan names, for each check, the data it uses and how it is redirected (an environment variable pointing at a temporary file, a temporary copy, a test fixture); a check that cannot be redirected is not run — the human decides. A check that starts a server takes a free port and proves the answers come from the process it started (`references/migration-plan.md`, section 3).
 - **Git:** never push. Never commit, branch, reset, clean, stash or rewrite history in the project's repository unless the human asks; if they ask for commits, commit one completed phase at a time.
@@ -367,6 +367,7 @@ plan and apply section 4's state-path checks before writing. Use these fields:
 
 - `schema` is `1`, `plan_version` is the approved version as a string, `plan_fingerprint` is the
   `git hash-object --no-filters` of the plan HTML, and `project` is the project name.
+  Use only ASCII letters, digits, periods, underscores and hyphens in the plan version.
 - `sources` lists old files with `path`, measured `lines`, and `parts` with a unique `id`, `label`,
   `from` and `to`. Inclusive part ranges cover the entire source in order without overlap or gaps.
   Every part connects to a mapped file. Each source path must appear in a path cell in the plan.
@@ -376,17 +377,23 @@ plan and apply section 4's state-path checks before writing. Use these fields:
   plan's `Phase N — title` headings. Each mapped file has a project-relative `path` matching a path
   cell in the plan, estimated `lines_low` and `lines_high`, and a `from` list of objects with a
   `part` ID and an `exact` boolean. Include every path in the plan's **Why each new file exists**
-  table (`id="new-files"`) exactly once. Begin its evidence cell with `exact` when every link for
-  that file is exact, or with `not yet exact` when any link is inexact. Link flags must match that evidence.
+  table (`id="new-files"`) exactly once. Write exactly `exact` in the evidence cell when all
+  links for the file are exact. When any link is provisional, write `not yet exact: <reason>`
+  with a nonempty reason. For a file created from scratch, put exactly `none` in the old-lines
+  cell, use `exact` for evidence, and leave `from` empty. Every new file with old lines needs
+  at least one source link.
 
 Run `python3 <skill>/scripts/render_map.py --project <project>` and show `Migration-Map.pdf`.
 It is separate from the plan PDF and has an HTML copy, `Migration-Map.html`. Then continue only
 as the disposable-project gate allows. Keep the input tied to this approval until another
-plan version is approved.
+plan version is approved. The renderer saves each approved map once as
+`approved-map-v<version>.json`. A refresh uses the same map data for that version. When a
+revision includes a completed phase, carry forward its number, title and file paths from
+the map version in effect when it completed.
 
 Refresh the map after appending `PHASE n STARTED`, after each `PHASE n COMPLETE` or `PHASE n FAILED`
-report, and after recording `RESTORED <label>` or `MIGRATION STOPPED`. Use those events in the ledger's
-heading format below. The ledger governs every state. The map never counts as approval or adds work.
+report, and after recording `RESTORED <label>`, `MIGRATION STOPPED` or the final outcome. Use those events
+in the ledger's heading format below. The ledger governs every state. The map never counts as approval or adds work.
 If writing or rendering the map fails, report `Map: NOT UPDATED — <reason>` and continue to the
 protocol's own gate. A map failure never changes or blocks the migration.
 
@@ -399,6 +406,7 @@ protocol's own gate. A map failure never changes or blocks the migration.
 ├── Engineering-Migration-Plan.pdf       what the human reads and approves
 ├── ledger.md                            append-only record: approvals (quoted), baseline, phases, failures, restores
 ├── migration-map.json                   sources and phases from the approved plan
+├── approved-map-v<version>.json          write-once map data for the approved version
 ├── Migration-Map.html                    the ledger-backed map
 ├── Migration-Map.pdf                     the map the human reads
 ├── evidence/                            check output (secret values masked), trees and diffs, one folder per step

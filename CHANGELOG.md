@@ -14,6 +14,9 @@
   and the measured source counts before work starts.
 - Restore the plan cover's checkpoint limits and the guarantees about preserving behavior,
   publication, and deletion.
+- Save each approved map once and check completed phases against it before carrying them into
+  a revision. Require explicit source links and exact evidence wording for new files. Show the
+  recorded outcome and no next stop after final review.
 
 ## [0.5.0-dev] - 2026-11-20
 

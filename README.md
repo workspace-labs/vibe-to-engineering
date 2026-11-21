@@ -113,6 +113,7 @@ Nothing during inspection and diagnosis, and nothing at all when no migration is
 ├── Engineering-Migration-Plan.pdf     what the human approves
 ├── ledger.md                          approvals, baseline, phases, failures, restores
 ├── migration-map.json                 sources and phases from the approved plan
+├── approved-map-v<version>.json        write-once map data for the approved version
 ├── Migration-Map.html                  the ledger-backed map
 ├── Migration-Map.pdf                   the map the human reads
 ├── evidence/                          check output (secret values masked), trees and diffs

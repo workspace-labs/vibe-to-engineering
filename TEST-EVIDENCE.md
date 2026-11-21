@@ -1,5 +1,43 @@
 # Skill validation evidence
 
+## Migration Map re-review fixes G1–G4 — 2026-11-21
+
+Candidate **0.6.0-dev** on `feat/plan-evidence-and-map`, based on
+`6f27e0d7f6160c802a2d9ff8d7a528a50afe4f82`. The added tests exercised:
+
+- **G1** Retitled and swapped phases, changed completed-file sets, missing and linked approved
+  copies, changed map data under the same version, unsafe versions and write-once creation.
+  A revision may still omit a completed phase. The original F1 revision test passes.
+- **G2** Exact evidence requires the literal value `exact`. Provisional evidence requires
+  `not yet exact: <reason>` with a nonempty reason.
+- **G3** A file with old lines needs a source link. A new file with `none` in the old-lines
+  cell needs exact evidence and an empty link list.
+- **G4** Each of the three final outcomes has its own status and `None` as the next stop.
+
+The archived base failed 18 subcases across the ten regression methods. All 42 focused
+portable map tests pass on the candidate, including the new positive control for an omitted
+completed phase. An injected disk-full error preserved the existing fixture state and let
+a retry save the approved copy. A restore and retry case checked completion against the
+approval in effect when the phase completed again.
+
+Both scopes used CLT Python 3.9.6 on macOS 27.2.1 arm64 with `node --version` reporting
+`v20.20.2`. The native run used the pinned reader matrix and Chrome Headless Shell.
+
+- `python3 -B tests/run_validation.py --scope portable` ran **156 tests, 0 failures,
+  0 errors, 0 skips**.
+- `python3 -B tests/run_validation.py --scope macos` ran **456 tests, 0 failures,
+  0 errors, 0 skips**.
+
+Each scope gained eleven tests. The governed fingerprints, PDF renderer and bundled
+engineering standard matched the review base.
+
+The synthetic Harbor Notes fixture used the shipped plan template. The v1 map saved its
+approved copy before Phase 1. The valid v2 revision preserved Phase 1 Done and showed
+Phase 2 approval next. The retitled revision exited with a Phase 1 refusal and preserved
+the snapshot and existing outputs. The finished map showed All green, two of two files
+done and next stop None. All three pages were rasterized with macOS PDF drawing and
+inspected. Text and source-link endpoints were legible.
+
 ## Migration Map review fixes F1–F6 — 2026-11-21
 
 Candidate **0.6.0-dev** on `feat/plan-evidence-and-map` after review of
