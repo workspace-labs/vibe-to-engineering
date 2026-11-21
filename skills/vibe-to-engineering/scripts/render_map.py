@@ -31,6 +31,14 @@ MAP_DATA = "migration-map.json"
 MAP_HTML = "Migration-Map.html"
 MAP_PDF = "Migration-Map.pdf"
 PHASE_HEADING = re.compile(r"Phase ([1-9]\d*)\s*—\s*(.+)\Z")
+PLAN_VERSION = re.compile(r"Plan version\s+(\S+)\Z")
+NEW_FILE_EVIDENCE = re.compile(r"(exact|not yet exact)\b")
+APPROVAL_EVENT = re.compile(r"PLAN APPROVED v\S+\Z")
+FINAL_OUTCOMES = frozenset({
+    "VIBE-TO-ENGINEERING — ALL GREEN",
+    "VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED BASELINE FAILURES",
+    "VIBE-TO-ENGINEERING — COMPLETE WITH ACCEPTED VERIFICATION GAPS",
+})
 PHASE_EVENT = re.compile(r"PHASE ([1-9]\d*) (STARTED|COMPLETE|FAILED)\Z")
 PHASE_RESTORE = re.compile(r"(?:r[1-9]\d*-)?\d{2,}-phase-([1-9]\d*)\Z")
 BASELINE_RESTORE = re.compile(r"(?:r[1-9]\d*-)?00-baseline(?:-checked)?\Z")
@@ -38,39 +46,78 @@ EVENT_STATE = {"STARTED": "Now", "COMPLETE": "Done", "FAILED": "Failed"}
 
 
 class PlanEntries(HTMLParser):
-    """Read visible phase headings and whole path cells from the plan form."""
+    """Read version labels, phase headings and evidence from the plan form."""
 
     def __init__(self, plan):
         super().__init__(convert_charrefs=True)
         self.phases, self.paths = [], set()
+        self.versions, self.new_files = set(), {}
         self.kind, self.pieces, self.badge = None, [], False
+        self.path_cell = False
+        self.has_new_files_table = self.in_new_files = False
+        self.new_file_row = None
         self.feed(plan)
         self.close()
 
     def handle_starttag(self, tag, attrs):
-        classes = (dict(attrs).get("class") or "").split()
-        if (tag == "td" and "path" in classes) or tag == "h3":
+        attrs = dict(attrs)
+        classes = (attrs.get("class") or "").split()
+        if tag == "table" and attrs.get("id") == "new-files":
+            if self.has_new_files_table:
+                raise Fail("plan repeats the new-files table")
+            self.has_new_files_table = self.in_new_files = True
+        if tag == "tr" and self.in_new_files:
+            self.new_file_row = []
+        if tag == "td":
+            self.path_cell = "path" in classes
+        if (tag == "h3" or (tag == "td" and (self.path_cell or self.new_file_row is not None))
+                or (tag in ("span", "p") and self.kind is None and "hidden" not in attrs)):
             self.kind, self.pieces = tag, []
         if self.kind == "h3" and tag == "span" and "badge" in classes:
             self.badge = True
 
     def handle_endtag(self, tag):
+        if tag == "tr" and self.in_new_files:
+            self.finish_new_file_row()
+        if tag == "table":
+            self.in_new_files = False
         if tag == "span":
             self.badge = False
         if tag != self.kind:
             return
         entry = "".join(self.pieces).strip()
         if tag == "td":
-            self.paths.add(entry)
-        else:
+            if self.path_cell:
+                self.paths.add(entry)
+            if self.new_file_row is not None:
+                self.new_file_row.append(entry)
+        elif tag == "h3":
             match = PHASE_HEADING.fullmatch(entry)
             if match:
                 self.phases.append((int(match[1]), match[2]))
+        else:
+            match = PLAN_VERSION.fullmatch(entry)
+            if match:
+                self.versions.add(match[1])
         self.kind = None
 
     def handle_data(self, text):
         if self.kind and not self.badge:
             self.pieces.append(text)
+
+    def finish_new_file_row(self):
+        row, self.new_file_row = self.new_file_row, None
+        if not row:
+            return  # The heading row uses th, not td.
+        if len(row) != 5:
+            raise Fail("each plan new-files row must have a path and four evidence cells")
+        path = relative_path(row[0])
+        if path in self.new_files:
+            raise Fail("plan lists the new file more than once: %s" % path)
+        evidence = NEW_FILE_EVIDENCE.match(" ".join(row[-1].split()))
+        if not evidence:
+            raise Fail("invalid plan evidence for new file: %s" % path)
+        self.new_files[path] = evidence[1]
 
 
 def regular_file(path, missing_ok=False):
@@ -165,9 +212,15 @@ def validate_map(data, plan):
     version = required_text(data["plan_version"], "plan version")
     if re.search(r"\s", version):
         raise Fail("plan version must be a single value")
+    if plan.versions != {version}:
+        raise Fail("visible plan version does not match map plan_version")
+    if not plan.has_new_files_table:
+        raise Fail("plan is missing its new-files table")
     known_parts, sources = set(), set()
     for source in required_rows(data["sources"], "sources"):
         path = relative_path(source["path"])
+        if path not in plan.paths:
+            raise Fail("source path is absent from the plan: %s" % path)
         if path in sources:
             raise Fail("source path is listed more than once: %s" % path)
         sources.add(path)
@@ -206,20 +259,28 @@ def validate_map(data, plan):
             file_paths.add(path)
             low = required_count(file["lines_low"], "estimated lower line count", minimum=0)
             required_count(file["lines_high"], "estimated upper line count", minimum=low)
+            has_inexact = False
             for origin in required_rows(file["from"], "file origins"):
                 part = required_text(origin["part"], "file origin part")
                 if part not in known_parts:
                     raise Fail("mapped file names an unknown part: %s" % part)
                 if type(origin["exact"]) is not bool:
                     raise Fail("part exactness must be true or false")
+                has_inexact |= not origin["exact"]
                 used_parts.add(part)
+            evidence = plan.new_files.get(path)
+            if evidence is not None and has_inexact != (evidence == "not yet exact"):
+                raise Fail("mapped link exactness does not match plan evidence for %s" % path)
+    missing_files = plan.new_files.keys() - file_paths
+    if missing_files:
+        raise Fail("planned new file is missing from the map: %s" % sorted(missing_files)[0])
     if used_parts != known_parts:
         raise Fail("source part is unused: %s" % sorted(known_parts - used_parts)[0])
 
 
-def ledger_headings(ledger):
+def ledger_headings(lines):
     fence = None
-    for line in ledger.splitlines():
+    for index, line in enumerate(lines):
         start = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)", line)
         if start:
             mark, rest = start.groups()
@@ -230,31 +291,48 @@ def ledger_headings(ledger):
             continue
         heading = re.match(r"^ {0,3}##[ \t]+(.+?)\s*$", line)
         if not fence and heading:
-            fields = heading[1].split(" — ", 2)
-            if len(fields) == 3:
-                yield fields[1], fields[2]
+            fields = heading[1].split(" — ", 3)
+            # Final outcomes have an em dash inside the event name.
+            outcome_start = 0 if fields[0] == "VIBE-TO-ENGINEERING" else 1
+            outcome = " — ".join(fields[outcome_start:outcome_start + 2])
+            if outcome in FINAL_OUTCOMES:
+                yield index, outcome, " — ".join(fields[outcome_start + 2:])
+            elif len(fields) >= 3:
+                yield index, fields[1], " — ".join(fields[2:])
             elif len(fields) == 1:
-                yield fields[0], ""
+                yield index, fields[0], ""
 
 
-def phase_states(ledger, version, numbers):
-    events = list(ledger_headings(ledger))
+def phase_states(ledger, version, fingerprint, numbers):
+    lines = ledger.splitlines()
+    events = list(ledger_headings(lines))
     approval = "PLAN APPROVED v" + version
-    last = next((i for i in range(len(events) - 1, -1, -1) if events[i][0] == approval), None)
+    last = next((i for i in range(len(events) - 1, -1, -1) if events[i][1] == approval), None)
     if last is None:
         raise Fail("ledger has no %s heading" % approval)
+    previous = next((line + 1 for line, event, _ in reversed(events[:last])
+                     if APPROVAL_EVENT.fullmatch(event)), 0)
+    if not re.search(r"\b%s\b" % re.escape(fingerprint), "\n".join(lines[previous:events[last][0]])):
+        raise Fail("ledger has no approved plan fingerprint before %s" % approval)
+    run_start = next((i + 1 for i in range(last - 1, -1, -1)
+                      if events[i][1] == "MIGRATION STOPPED" or events[i][1] in FINAL_OUTCOMES), 0)
     states = dict.fromkeys(numbers, "Waiting")
-    stopped = restored = False
-    plan_only = events[last][1] == "PLAN ONLY"
-    for event, _ in events[last + 1:]:
+    stopped = restored = started = False
+    plan_only = events[last][2] == "PLAN ONLY"
+    for index in range(run_start, len(events)):
+        _, event, _ = events[index]
         phase = PHASE_EVENT.fullmatch(event)
         if phase:
             number = int(phase[1])
+            started |= phase[2] == "STARTED"
             if number not in states:
+                if index < last:
+                    continue
                 raise Fail("ledger event names a phase absent from the plan: %s" % number)
             states[number] = EVENT_STATE[phase[2]]
-            plan_only = False
             restored = False
+            if index > last:
+                plan_only = False
         elif event == "MIGRATION STOPPED":
             stopped = True
         elif event == "RESTORED" or event.startswith("RESTORED "):
@@ -269,9 +347,10 @@ def phase_states(ledger, version, numbers):
             for number in states:
                 if number > cutoff:
                     states[number] = "Waiting"
-            plan_only = False
             restored = True
-    return states, stopped, plan_only, restored
+            if index > last:
+                plan_only = False
+    return states, stopped, plan_only, restored, started
 
 
 def actual_lines(project, relative):
@@ -473,7 +552,7 @@ def diagrams(data, states, actual):
     return pages
 
 
-def summary(data, states, stopped, plan_only, restored):
+def summary(data, states, stopped, plan_only, restored, started):
     current = next((n for n, state in states.items() if state in ("Now", "Failed")), None)
     waiting = next((n for n, state in states.items() if state == "Waiting"), None)
     if stopped:
@@ -487,7 +566,8 @@ def summary(data, states, stopped, plan_only, restored):
     elif restored and waiting:
         status, gate = "Restored", "Phase %s retry approval" % waiting
     elif waiting:
-        status, gate = "Waiting", "Phase %s approval" % waiting if waiting != data["phases"][0]["number"] else "Prepare baseline"
+        status = "Waiting"
+        gate = "Phase %s approval" % waiting if started or waiting != data["phases"][0]["number"] else "Prepare baseline"
     else:
         status, gate = "Phases complete", "Final review"
     count = sum(len(phase["files"]) for phase in data["phases"] if states[phase["number"]] == "Done")
@@ -498,11 +578,11 @@ def summary(data, states, stopped, plan_only, restored):
                                                 for label, value in facts) + "</div>"
 
 
-def map_html(data, states, stopped, plan_only, restored, actual, theme):
+def map_html(data, states, stopped, plan_only, restored, started, actual, theme):
     pages = diagrams(data, states, actual)
     header = ('<header class="sheet-header"><h1>Migration Map</h1><p class="subtitle">'
               f'{escaped(data["project"])} · Plan v{escaped(data["plan_version"])}</p>'
-              + summary(data, states, stopped, plan_only, restored)
+              + summary(data, states, stopped, plan_only, restored, started)
               + ('<p class="stopped"><strong>Stopped</strong></p>' if stopped else '') + '</header>')
     names = '<div class="column-labels"><h2>Source files</h2><h2>Migration phases</h2></div>'
     legend = ('<div class="legend"><span><i class="line-key"></i>Exact source range</span>'
@@ -541,13 +621,20 @@ def render_project(project):
             raise Fail("plan fingerprint does not match the current plan HTML")
     except (KeyError, TypeError) as error:
         raise Fail("invalid migration-map.json structure: %s" % error) from error
-    states, stopped, plan_only, restored = phase_states(
-        inputs[LEDGER].decode("utf-8"), data["plan_version"], (phase["number"] for phase in data["phases"]),
+    states, stopped, plan_only, restored, started = phase_states(
+        inputs[LEDGER].decode("utf-8"), data["plan_version"], fingerprint,
+        (phase["number"] for phase in data["phases"]),
     )
+    if not started:
+        for source in data["sources"]:
+            path = source["path"]
+            measured = actual_lines(project, path)
+            if measured != str(source["lines"]):
+                raise Fail("source line count differs from the map for %s (measured: %s)" % (path, measured))
     theme = theme_css()
     actual = {file["path"]: actual_lines(project, file["path"])
               for phase in data["phases"] if states[phase["number"]] == "Done" for file in phase["files"]}
-    document = map_html(data, states, stopped, plan_only, restored, actual, theme)
+    document = map_html(data, states, stopped, plan_only, restored, started, actual, theme)
     problems = render_pdf.static_problems(document)
     if render_pdf.PLACEHOLDER.search(document) or problems:
         raise Fail("map is not static and self-contained: %s" % (", ".join(problems) or "unfilled placeholder"))

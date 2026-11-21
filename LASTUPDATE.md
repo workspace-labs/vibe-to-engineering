@@ -1,5 +1,17 @@
 # Latest update — 2026-11-21
 
+## November 21 Migration Map review fixes
+
+Version **0.6.0-dev** stays on `feat/plan-evidence-and-map`. This fix round addresses Claude's
+six findings on `37391a2`. The map preserves completed work across revisions and checks every
+planned new file, evidence flags, the approved plan fingerprint and the source counts before
+work begins. The plan cover again gives the checkpoint limits and work guarantees.
+
+Each regression failed against the review base and passed with the fix. Portable validation
+passed **145** tests and native macOS validation passed **445**, with zero failures, errors or
+skips. The synthetic revision proof showed Phase 1 Done and Phase 2 approval next. See
+[TEST-EVIDENCE.md](TEST-EVIDENCE.md). Claude's re-review follows.
+
 ## November 21 plan evidence and Migration Map
 
 Version **0.6.0-dev** on `feat/plan-evidence-and-map` starts from `main` at `639fc30`.

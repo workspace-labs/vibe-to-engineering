@@ -1,5 +1,46 @@
 # Skill validation evidence
 
+## Migration Map review fixes F1–F6 — 2026-11-21
+
+Candidate **0.6.0-dev** on `feat/plan-evidence-and-map` after review of
+`37391a25293c9f8067795244e54bd79263c4f15e`. Each of the six new tests failed on
+the base renderer or plan template and passed after correction.
+
+- **F1** `test_fix_f1_carries_completed_phases_through_plan_revisions` saw Phase 1
+  lose its Done state on the base. The fix carries it into the revised plan and
+  starts fresh after a completed or stopped run.
+- **F2** `test_fix_f2_refuses_an_omitted_planned_new_file` saw the base accept an
+  incomplete map. The fix refuses when a new-file row is missing from the map.
+- **F3** `test_fix_f3_requires_plan_version_and_fingerprint_from_its_approval` saw
+  the base accept an updated hash without approval. The fix checks the visible
+  version and the recorded fingerprint before its approval and after any previous approval.
+- **F4** `test_fix_f4_requires_map_links_to_match_approved_evidence` saw the base
+  accept mismatched or unknown evidence. The fix enforces the plan's evidence
+  while allowing mixed links for a file marked `not yet exact`.
+- **F5** `test_fix_f5_verifies_listed_source_counts_before_the_first_phase_starts`
+  saw the base accept a false count and an unlisted source. The fix checks
+  source membership and measures the file before work starts in the current run.
+- **F6** `test_approval_explains_checkpoint_limits_and_work_guarantees` saw the
+  missing safety wording on the base. The corrected cover restores the exact
+  statements and removes the overclaim about named files.
+
+Both scopes used CLT Python 3.9.6 on macOS 27.2.1 arm64 with `node --version`
+reporting `v20.20.2`. The isolated native run used the pinned reader matrix and browser.
+
+- `python3 -B tests/run_validation.py --scope portable` ran **145 tests, 0 failures,
+  0 errors, 0 skips**.
+- `python3 -B tests/run_validation.py --scope macos` ran **445 tests, 0 failures,
+  0 errors, 0 skips**.
+
+Each scope gained the six regression methods. All governed fingerprints matched the
+review base. The existing PDF renderer and engineering standard also matched the base.
+
+The one-page synthetic Lighthouse Log map proved the revision case. On the review base,
+the v2 map showed Phase 1 Waiting, zero of two new files done and Prepare baseline.
+The corrected PDF showed Phase 1 Done, one of two files done and Phase 2 approval next.
+It measured the completed file at 12 lines against the planned range of 10–14. The page
+was rasterized with macOS PDF drawing and inspected for legibility and connector placement.
+
 ## Plan evidence and Migration Map — 2026-11-21
 
 Candidate **0.6.0-dev** on `feat/plan-evidence-and-map`, based on

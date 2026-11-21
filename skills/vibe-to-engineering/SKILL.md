@@ -356,6 +356,10 @@ Follow the outcome with the before and after trees (every file, as `tree` prints
 
 ## The migration map
 
+Record the plan version and fingerprint in the ledger after any previous approval heading and
+before this version's approval heading. Match `plan_version` to the visible `Plan version <version>`
+label in the plan. Keep the approved fingerprint as a separate value in the ledger.
+
 On approval of the presented plan version, append `## <UTC time> — PLAN APPROVED v<version> — <state>`
 and quote the human's approval under it. Use `PLAN ONLY` as the state when the disposable-project
 gate is unmet. Record this approval once for the version. Write `migration-map.json` from the approved
@@ -365,11 +369,15 @@ plan and apply section 4's state-path checks before writing. Use these fields:
   `git hash-object --no-filters` of the plan HTML, and `project` is the project name.
 - `sources` lists old files with `path`, measured `lines`, and `parts` with a unique `id`, `label`,
   `from` and `to`. Inclusive part ranges cover the entire source in order without overlap or gaps.
-  Every part connects to a mapped file.
+  Every part connects to a mapped file. Each source path must appear in a path cell in the plan.
+  Before any phase starts in the current run, the renderer checks the stated source counts against
+  the files on disk. Keep those approved counts after work begins.
 - `phases` lists every approved phase in order with its `number`, `title` and `files`. Match the
   plan's `Phase N — title` headings. Each mapped file has a project-relative `path` matching a path
   cell in the plan, estimated `lines_low` and `lines_high`, and a `from` list of objects with a
-  `part` ID and an `exact` boolean. Use the plan's evidence state for each link.
+  `part` ID and an `exact` boolean. Include every path in the plan's **Why each new file exists**
+  table (`id="new-files"`) exactly once. Begin its evidence cell with `exact` when every link for
+  that file is exact, or with `not yet exact` when any link is inexact. Link flags must match that evidence.
 
 Run `python3 <skill>/scripts/render_map.py --project <project>` and show `Migration-Map.pdf`.
 It is separate from the plan PDF and has an HTML copy, `Migration-Map.html`. Then continue only

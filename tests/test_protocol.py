@@ -161,6 +161,22 @@ class Protocol(unittest.TestCase):
         self.assertIn("record the approval, make the map", gate)
         self.assertIn("the human explicitly confirmed this project is disposable", self.text)
 
+    def test_approval_explains_checkpoint_limits_and_work_guarantees(self):
+        cover = self.template.split('class="authorize">', 1)[1].split("</div>", 1)[0]
+        cover = " ".join(cover.split())
+        self.assertIn(
+            "Ignored files and nested repositories are outside checkpoint recovery; "
+            "checkpoints are not a comprehensive backup of secrets or user data. "
+            "These protected files stay untouched.",
+            cover,
+        )
+        self.assertIn(
+            "Every later phase waits for its own approval. The product's behavior stays the same, "
+            "nothing is committed or published, and nothing is deleted without a saved copy.",
+            cover,
+        )
+        self.assertNotIn("Checkpoint recovery covers the files named in the plan.", cover)
+
     def test_owner_sees_measured_totals_and_file_evidence_before_approval(self):
         summary = self.template.split('id="summary">', 1)[1].split("</section>", 1)[0]
         for field in ("TOTAL_FILES", "TOTAL_LINES", "LARGEST_FILE"):

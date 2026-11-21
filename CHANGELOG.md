@@ -9,6 +9,11 @@
   behind new files so the owner can see the size and evidence for the proposed split before approving.
 - Render a separate Migration Map from the approved plan and ledger so the owner can follow the
   source ranges, planned and actual line counts, and phase progress through completion or recovery.
+- Keep completed phases visible when a revised plan is approved in the same run. Check the
+  ledger's approved fingerprint, the visible plan version, every planned new file and its evidence,
+  and the measured source counts before work starts.
+- Restore the plan cover's checkpoint limits and the guarantees about preserving behavior,
+  publication, and deletion.
 
 ## [0.5.0-dev] - 2026-11-20
 

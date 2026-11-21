@@ -193,7 +193,7 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
 
   <div class="authorize">
     <p class="eyebrow">What your approval authorizes</p>
-    <p>Approval records this plan version and generates the Migration Map. Creating and verifying the recovery baseline and starting <b>Phase 1</b> also require your explicit confirmation that this project is disposable and uses synthetic secrets. Checkpoint recovery covers the files named in the plan. Ignored files, nested repositories, secrets and user data stay untouched. Every later phase waits for its own approval.</p>
+    <p>Approval records this plan version and generates the Migration Map. Creating and verifying the recovery baseline and starting <b>Phase 1</b> also require your explicit confirmation that this project is disposable and uses synthetic secrets. Ignored files and nested repositories are outside checkpoint recovery; checkpoints are not a comprehensive backup of secrets or user data. These protected files stay untouched. Every later phase waits for its own approval. The product's behavior stays the same, nothing is committed or published, and nothing is deleted without a saved copy.</p>
   </div>
 </section>
 
@@ -306,7 +306,7 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
     </tbody>
   </table>
   <h3>Why each new file exists</h3>
-  <table>
+  <table id="new-files">
     <colgroup><col style="width:23%"><col style="width:25%"><col style="width:10%"><col style="width:28%"><col style="width:14%"></colgroup>
     <thead><tr><th>New file</th><th>Old file and lines</th><th>Finding</th><th>Reason</th><th>Evidence</th></tr></thead>
     <tbody>

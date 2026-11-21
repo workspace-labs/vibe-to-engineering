@@ -66,10 +66,21 @@ class MapFixture:
         self.write_ledger(APPROVAL)
         self.write_mapping()
 
-    def write_plan(self):
-        paths = ["src/large.py", "src/decoy.py.backup"]
-        paths += [f["path"] for phase in self.specification["phases"] for f in phase["files"]]
-        rows = "".join('<tr><td class="path">%s</td><td>new</td></tr>' % escape(path) for path in paths)
+    def write_plan(self, *, version=None, evidence=None):
+        version = self.specification["plan_version"] if version is None else version
+        evidence = {} if evidence is None else evidence
+        files = [file for phase in self.specification["phases"] for file in phase["files"]]
+        paths = ["src/large.py", "src/decoy.py.backup"] + [file["path"] for file in files]
+        rows = "".join('<tr><td class="path">%s</td></tr>' % escape(path) for path in paths)
+        new_rows = []
+        for file in files:
+            path = file["path"]
+            state = "exact" if all(link["exact"] for link in file["from"]) else "not yet exact"
+            new_rows.append(
+                '<tr><td class="path">%s</td><td>src/large.py</td><td>F1</td>'
+                '<td>Extract a responsibility</td><td>%s</td></tr>' %
+                (escape(path), escape(evidence.get(path, state))),
+            )
         headings = "".join(
             '<article class="phase"><h3><span>Phase %d — %s</span>'
             '<span class="badge low">Low risk</span></h3></article>' % (phase["number"], escape(phase["title"]))
@@ -77,20 +88,29 @@ class MapFixture:
         )
         self.plan.write_text(
             '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sample plan</title></head><body>'
-            '<section class="sheet" id="files"><h2>Every file</h2><table><tbody>' + rows +
-            '</tbody></table><h3>Why each new file exists</h3><table><tbody>' + rows +
+            '<section class="sheet" id="summary"><div class="meta"><span>Plan version ' + escape(version) +
+            '</span></div></section><section class="sheet" id="files"><h2>Every file</h2><table><tbody>' + rows +
+            '</tbody></table><h3>Why each new file exists</h3><table id="new-files"><tbody>' + "".join(new_rows) +
             '</tbody></table></section><section class="sheet" id="phases">' + headings + '</section></body></html>',
             encoding="utf-8",
         )
+        self.fingerprint_plan()
+
+    def fingerprint_plan(self):
         self.specification["plan_fingerprint"] = subprocess.check_output(
             ["git", "hash-object", "--no-filters", str(self.plan)], cwd=self.project, text=True,
         ).strip()
 
-    def write_ledger(self, *events, body=""):
-        self.ledger.write_text("# Ledger\n\n" + "".join(
-            "## 2026-11-21T10:00:%02dZ — %s — synthetic event\n\n" % (index, event)
-            for index, event in enumerate(events)
-        ) + body, encoding="utf-8")
+    def write_ledger(self, *events, body="", fingerprints=None):
+        if fingerprints is None:
+            approval = "PLAN APPROVED v" + self.specification["plan_version"]
+            fingerprints = {approval: self.specification["plan_fingerprint"]}
+        entries = ["# Ledger\n\n"]
+        for index, event in enumerate(events):
+            if event in fingerprints:
+                entries.append("Plan fingerprint: `%s`\n\n" % fingerprints[event])
+            entries.append("## 2026-11-21T10:00:%02dZ — %s — synthetic event\n\n" % (index, event))
+        self.ledger.write_text("".join(entries) + body, encoding="utf-8")
 
     def write_mapping(self):
         self.mapping.write_text(json.dumps(self.specification), encoding="utf-8")
@@ -264,13 +284,138 @@ class MapPortable(MapFixture, unittest.TestCase):
         self.html.mkdir()
         self.assert_refuses("regular", "migration-map.html")
 
-    def test_ledger_uses_only_headings_after_the_last_matching_approval(self):
+    def test_ledger_uses_current_run_headings_only(self):
         self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", "MIGRATION STOPPED", APPROVAL,
                           "PLAN APPROVED v2", "PHASE 1 STARTED",
                           body="PHASE 2 COMPLETE\n\n### PHASE 2 FAILED\n\n```\n## PHASE 2 COMPLETE\n```\n")
         text = self.map_text()
         self.assert_states(text, "Now", "Waiting")
         self.assertNotRegex(text, r">\s*Stopped\s*<")
+
+    def test_fix_f1_carries_completed_phases_through_plan_revisions(self):
+        original_fingerprint = self.specification["plan_fingerprint"]
+        self.specification["plan_version"] = "2"
+        self.write_plan()
+        self.write_mapping()
+        revised = "PLAN APPROVED v2"
+        fingerprints = {APPROVAL: original_fingerprint, revised: self.specification["plan_fingerprint"]}
+        (self.project / "src" / "flow.py").write_text("def flow():\n    return 1\n", encoding="utf-8")
+        completed = (APPROVAL, "PHASE 1 STARTED", "PHASE 1 COMPLETE")
+
+        with self.subTest("previously completed phase"):
+            self.write_ledger(*completed, revised, fingerprints=fingerprints)
+            text = self.map_text()
+            self.assert_states(text, "Done", "Waiting")
+            self.assertIn("Actual: 2", self.phase_card(text, 1))
+            self.assertIn("1 of 2", text)
+            self.assertIn("Phase 2 approval", text)
+
+        with self.subTest("phase removed from the revised plan"):
+            self.write_ledger(*completed, "PHASE 3 STARTED", revised, fingerprints=fingerprints)
+            self.assert_states(self.map_text(), "Done", "Waiting")
+            self.write_ledger(*completed, revised, "PHASE 3 STARTED", fingerprints=fingerprints)
+            self.assert_refuses("phase", "plan")
+
+        for terminal in (
+            "MIGRATION STOPPED",
+            "VIBE-TO-ENGINEERING — ALL GREEN",
+            "VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED BASELINE FAILURES",
+            "VIBE-TO-ENGINEERING — COMPLETE WITH ACCEPTED VERIFICATION GAPS",
+        ):
+            with self.subTest(previous_run_ended=terminal):
+                self.write_ledger(*completed, terminal, revised, fingerprints=fingerprints)
+                text = self.map_text()
+                self.assert_states(text, "Waiting", "Waiting")
+                self.assertNotRegex(text, r">\s*Stopped\s*<")
+                self.assertIn("Prepare baseline", text)
+
+    def test_fix_f2_refuses_an_omitted_planned_new_file(self):
+        phases = self.specification["phases"]
+        omitted = phases[0]["files"].pop()
+        # Keep the old ranges covered so the missing new file is the only mismatch.
+        phases[1]["files"][0]["from"].extend(omitted["from"])
+        self.write_mapping()
+        self.assert_refuses("new file", omitted["path"])
+
+    def test_fix_f3_requires_plan_version_and_fingerprint_from_its_approval(self):
+        with self.plan.open("ab") as plan:
+            plan.write(b"<!-- edited after approval -->")
+        self.fingerprint_plan()
+        self.write_mapping()
+        current = self.specification["plan_fingerprint"]
+        with self.subTest("unapproved edit and new map hash"):
+            self.assert_refuses("fingerprint")
+
+        with self.subTest("hash only before the preceding approval"):
+            self.write_ledger("PLAN APPROVED v0", APPROVAL, fingerprints={"PLAN APPROVED v0": current})
+            self.assert_refuses("fingerprint")
+
+        with self.subTest("hash only after approval"):
+            self.write_ledger(APPROVAL, body="Plan fingerprint: `%s`\n" % current, fingerprints={})
+            self.assert_refuses("fingerprint")
+
+        with self.subTest("hash embedded in a longer word"):
+            self.write_ledger(APPROVAL, fingerprints={APPROVAL: current + "0"})
+            self.assert_refuses("fingerprint")
+
+        with self.subTest("visible plan version differs"):
+            self.write_plan(version="2")
+            self.write_mapping()
+            self.write_ledger(APPROVAL)
+            self.assert_refuses("version")
+
+    def test_fix_f4_requires_map_links_to_match_approved_evidence(self):
+        flow = self.specification["phases"][0]["files"][0]
+        records = self.specification["phases"][1]["files"][0]
+        records["from"].append({"part": "flow", "exact": True})
+        self.write_plan(evidence={flow["path"]: "exact — ranges inspected",
+                                  records["path"]: "not yet exact — one split boundary remains"})
+        self.write_ledger(APPROVAL)
+        self.write_mapping()
+        with self.subTest("mixed links match a not yet exact row"):
+            self.assert_states(self.map_text(), "Waiting", "Waiting")
+
+        for file, invalid in ((flow, False), (records, True)):
+            link = file["from"][0]
+            original = link["exact"]
+            with self.subTest(path=file["path"], exact=invalid):
+                link["exact"] = invalid
+                self.write_mapping()
+                self.assert_refuses("evidence", "exact", file["path"])
+            link["exact"] = original
+
+        with self.subTest("unrecognized evidence"):
+            self.write_plan(evidence={records["path"]: "reviewed"})
+            self.write_mapping()
+            self.write_ledger(APPROVAL)
+            self.assert_refuses("evidence", records["path"])
+
+    def test_fix_f5_verifies_listed_source_counts_before_the_first_phase_starts(self):
+        source = self.specification["sources"][0]
+        last_part = source["parts"][-1]
+        with self.subTest("false source count before starting"):
+            source["lines"] = last_part["to"] = 999
+            self.write_mapping()
+            self.assert_refuses("source", "lines")
+
+        with self.subTest("start in a previous run does not waive verification"):
+            self.write_ledger("PLAN APPROVED v0", "PHASE 1 STARTED", "MIGRATION STOPPED", APPROVAL)
+            self.assert_refuses("source", "lines")
+
+        source["lines"] = last_part["to"] = 20
+        (self.project / "src" / "large.py").write_bytes(b"# after the split\n" * 4)
+        self.write_ledger(APPROVAL, "PHASE 1 STARTED")
+        self.write_mapping()
+        with self.subTest("historic source count after starting"):
+            text = self.map_text()
+            self.assert_states(text, "Now", "Waiting")
+            self.assertIn("20 lines today", text)
+
+        with self.subTest("source missing from the plan after starting"):
+            source["path"] = "src/unplanned.py"
+            (self.project / source["path"]).write_bytes(b"# unplanned\n" * 20)
+            self.write_mapping()
+            self.assert_refuses("source", "plan")
 
     def test_ledger_waiting_now_failed_and_done(self):
         events = [APPROVAL]
@@ -352,6 +497,7 @@ class MapPortable(MapFixture, unittest.TestCase):
         self.specification["sources"][0]["parts"][0]["label"] = hostile
         self.specification["phases"][0]["title"] = hostile
         self.write_plan()
+        self.write_ledger(APPROVAL)
         self.write_mapping()
         text = self.map_text()
         self.assertNotIn(hostile, text)
@@ -392,6 +538,7 @@ class MapPortable(MapFixture, unittest.TestCase):
             phase["files"] = [dict(prototype, path="src/chunk-%d-%02d.py" % (phase["number"], index))
                               for index in range(20)]
         self.write_plan()
+        self.write_ledger(APPROVAL)
         self.write_mapping()
         sheets = self.map_text().split("</section>")
         for index, phase in enumerate(self.specification["phases"], 1):
