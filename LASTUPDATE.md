@@ -1,8 +1,12 @@
 # Latest update — 2026-11-28
 
+## Windows portable checks
+
+Candidate **0.6.5-dev** fixes credential-file timestamp comparison and cleanup of the recovery ZIP after an interrupted map refresh. Claude's review and a Windows CI run on this candidate are pending.
+
 ## Deep review fixes, Round 3
 
-Candidate **0.6.4-dev** addresses the remaining deep-review findings and both Round 2 carryovers. Independent review by Claude is pending. See [validation evidence](TEST-EVIDENCE.md).
+Claude approved **0.6.4-dev**, which addresses the remaining deep-review findings and both Round 2 carryovers. See [validation evidence](TEST-EVIDENCE.md).
 
 ## Deep review fixes, Round 2
 

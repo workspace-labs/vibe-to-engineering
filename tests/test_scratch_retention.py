@@ -14,6 +14,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -23,6 +24,7 @@ import childenv
 import emission
 import evidence
 import gitrun
+import secretsources
 
 
 class ScratchRetention(unittest.TestCase):
@@ -168,6 +170,25 @@ class ScratchRetention(unittest.TestCase):
         self.assertEqual((code, len(self.roots), facts["saved"]), (0, 1, True))
         self.assertIn("checked <masked", printed)
         self.assertEqual(self.outfile.read_text(encoding="utf-8"), printed)
+
+    def test_windows_secret_read_compares_descriptor_change_times(self):
+        source = self.project / "credentials.ini"
+        source.write_bytes(b"label=fixture\n")
+        path_stat = source.stat()
+        # CPython 3.12 on Windows reports creation time by path and change time by handle.
+        def handle_stat(change_time):
+            return SimpleNamespace(st_dev=path_stat.st_dev, st_ino=path_stat.st_ino, st_mode=path_stat.st_mode,
+                                   st_size=path_stat.st_size, st_mtime_ns=path_stat.st_mtime_ns,
+                                   st_ctime_ns=change_time)
+
+        opened = handle_stat(path_stat.st_ctime_ns + 100)
+        with mock.patch.object(os, "name", "nt"):
+            with mock.patch.object(os, "fstat", side_effect=[opened, opened]):
+                self.assertEqual(secretsources.secret_text(source), "label=fixture\n")
+            changed = handle_stat(opened.st_ctime_ns + 100)
+            with mock.patch.object(os, "fstat", side_effect=[opened, changed]):
+                with self.assertRaisesRegex(evidence.Fail, "consistently"):
+                    secretsources.secret_text(source)
 
     def test_parsed_literals_and_long_scalars_reach_governed_output(self):
         raw = '{"token":"SAMPLE_LABEL=","empty":"","port":8080}'

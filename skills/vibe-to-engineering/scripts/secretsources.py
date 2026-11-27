@@ -32,8 +32,11 @@ def secret_text(path):
         if len(data) > LARGEST_SECRET_FILE or opened.st_size > LARGEST_SECRET_FILE:
             raise Fail("%s is larger than a secret file; its values cannot be masked" % path)
         after = os.stat(path)
+        # On Windows, CPython 3.12 can return creation time for path stat and
+        # change time for fstat. Compare the open handle's change time to itself across the read.
+        final_ctime = os.fstat(stream.fileno()).st_ctime_ns if os.name == "nt" else after.st_ctime_ns
         if (not os.path.samestat(opened, after) or len(data) != opened.st_size
-                or (after.st_size, after.st_mtime_ns, after.st_ctime_ns)
+                or (after.st_size, after.st_mtime_ns, final_ctime)
                 != (opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns)):
             raise Fail("%s could not be read completely and consistently; its values cannot be masked" % path)
     encoding = next((encoding for mark, encoding in BOMS if data.startswith(mark)), "utf-8")

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.5-dev] - 2026-11-28
+
+- Compare change times on the same open handle for Windows credential reads so an unchanged file can reach masking.
+- Close the pending Migration Map ZIP after verified PDF recovery and before deleting it so Windows can continue the refresh.
+
 ## [0.6.4-dev] - 2026-11-28
 
 - Distinguish restore exceptions and builder-only final checks in migration reports. Inventory includes saved names at every depth by default. Private state writers check whether Git already tracks the destination.

@@ -65,7 +65,8 @@ def recover_pair(state, directory, open_state, pdf_name, html_name):
                     restore_pdf(archived, stamp[1], state, directory, pdf_name)
         except zipfile.BadZipFile as error:
             raise Fail("pending map data failed its integrity check") from error
-        os.unlink(state / PENDING_PAIR if directory is None else PENDING_PAIR, dir_fd=directory)
+    # Windows requires the journal reader to close before the recovered journal can be removed.
+    os.unlink(state / PENDING_PAIR if directory is None else PENDING_PAIR, dir_fd=directory)
 
 
 def restore_pdf(archived, digest, state, directory, pdf_name):
