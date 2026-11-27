@@ -19,6 +19,8 @@ import unittest
 from unittest import mock
 from xml.etree import ElementTree
 
+from map_update_cases import MapUpdateCases
+
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills" / "vibe-to-engineering" / "scripts"
 SCRIPT = SCRIPTS / "render_map.py"
@@ -68,7 +70,7 @@ class MapFixture:
         self.write_ledger(APPROVAL)
         self.write_mapping()
 
-    def write_plan(self, *, version=None, evidence=None, old_lines=None, without_evidence=()):
+    def write_plan(self, *, version=None, evidence=None, old_lines=None, without_evidence=(), legacy=False):
         version = self.specification["plan_version"] if version is None else version
         evidence = {} if evidence is None else evidence
         old_lines = {} if old_lines is None else old_lines
@@ -78,6 +80,7 @@ class MapFixture:
                  for source in sources for part in source["parts"]}
         paths = [source["path"] for source in sources] + ["src/decoy.py.backup"] + [file["path"] for file in files]
         rows = "".join('<tr><td class="path">%s</td></tr>' % escape(path) for path in paths)
+        owners = {file["path"]: phase["number"] for phase in self.specification["phases"] for file in phase["files"]}
         new_rows = []
         for file in files:
             path = file["path"]
@@ -92,8 +95,10 @@ class MapFixture:
             state = "exact" if all(link["exact"] for link in file["from"]) else "not yet exact: split boundary"
             new_rows.append(
                 '<tr><td class="path">%s</td><td>%s</td><td>F1</td>'
-                '<td>Extract a responsibility</td><td>%s</td></tr>' %
-                (escape(path), escape(old_lines.get(path, cell)), escape(evidence.get(path, state))),
+                '<td>%sExtract a responsibility</td><td>%s</td></tr>' %
+                (escape(path), escape(old_lines.get(path, cell)),
+                 "" if legacy else "<b>Phase %d / %d–%d lines</b><br>" % (owners[path], file["lines_low"], file["lines_high"]),
+                 escape(evidence.get(path, state))),
             )
         headings = "".join(
             '<article class="phase"><h3><span>Phase %d — %s</span>'
@@ -138,7 +143,7 @@ class MapFixture:
             json.dump(self.specification, archive)
 
 
-class MapPortable(MapFixture, unittest.TestCase):
+class MapPortable(MapUpdateCases, MapFixture, unittest.TestCase):
     def setUp(self):
         super().setUp()
         spec = importlib.util.spec_from_file_location("render_map_under_test", str(SCRIPT))
@@ -313,7 +318,10 @@ class MapPortable(MapFixture, unittest.TestCase):
 
     def test_ledger_uses_current_run_headings_only(self):
         self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", "MIGRATION STOPPED", APPROVAL,
-                          "PLAN APPROVED v2", "PHASE 1 STARTED",
+                          "PLAN APPROVED v2", "PHASE 1 STARTED")
+        self.assert_refuses("current approval")
+        self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", "MIGRATION STOPPED", APPROVAL,
+                          "PHASE 1 STARTED",
                           body="PHASE 2 COMPLETE\n\n### PHASE 2 FAILED\n\n```\n## PHASE 2 COMPLETE\n```\n")
         text = self.map_text()
         self.assert_states(text, "Now", "Waiting")
@@ -502,10 +510,9 @@ class MapPortable(MapFixture, unittest.TestCase):
     def submit_moved_file_revision(self):
         original_fingerprint = self.specification["plan_fingerprint"]
         self.seed_approved_copy()
-        self.approve_revision_after_phase_one(original_fingerprint)
         first, second = self.specification["phases"]
         second["files"].append(first["files"].pop())
-        self.write_mapping()
+        self.approve_revision_after_phase_one(original_fingerprint)
 
     def test_fix_j1_refused_revision_does_not_save_v2_copy(self):
         self.submit_moved_file_revision()
@@ -520,7 +527,8 @@ class MapPortable(MapFixture, unittest.TestCase):
 
         first, second = self.specification["phases"]
         first["files"].append(second["files"].pop())
-        self.write_mapping()
+        original = json.loads(self.approved_copy("1").read_bytes())
+        self.approve_revision_after_phase_one(original["plan_fingerprint"])
         self.assert_states(self.map_text(), "Done", "Waiting")
         self.assertEqual(json.loads(self.approved_copy().read_bytes()), self.specification)
 

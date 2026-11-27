@@ -71,6 +71,17 @@ governed path. No automatic deletion occurs, including on refusal or failure. Fi
 the root's identity and private mode without changing it. Listing is allowed; only the human deletes
 retained data. Record the reported path with the check in the migration ledger, preserving any masking.
 
+At enrollment, one open runner supplies both the executable header and the bytes hashed for
+disclosure. Each subsequent hash or private copy verifies the header from that same read. An
+incomplete update refuses before its bytes can be probed or launched.
+
+The registry lives in the current user's real home directory. Its directory chain must use plain
+directories. macOS's native `/tmp` and `/var` aliases are recognized. The home, registry directory
+and existing registry file must belong to the current user and disallow group or other writes.
+The registry directory and file must have no extended ACL, and the file must have one name.
+Enrollment checks these conditions before disclosure,
+rechecks the admitted directory identities when saving, and serializes updates to the same folder.
+
 The registry is UTF-8 JSON with integer `version: 1` (booleans and floating-point values are not schema
 versions) and a `runners` object. Bad encoding, JSON or required entry types refuse with exit 2, a manual
 remedy, no check/evidence and no registry rewrite. Native ACL semantics are documented in Apple's

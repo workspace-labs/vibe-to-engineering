@@ -18,7 +18,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from trusted_tools import external_executable, tool_environment
+from trusted_tools import external_executable, external_temp_root, tool_environment
 
 SYSTEM_GIT = (Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git/cmd/git.exe"
               if os.name == "nt" else Path("/usr/bin/git"))
@@ -148,6 +148,8 @@ def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(
     """Run one git command; raise Fail on an unexpected exit code — and, with quiet=True, on any warning: for a
     listing that means git could not see everything (an unreadable folder, for example). english=True keeps git's
     messages untranslated, for a message the tool has to recognize."""
+    if project is None and store is not None and Path(store).parent.name == ".vibe-to-engineering":
+        project = Path(store).parent.parent
     project = Path(project or work_tree or cwd or store or os.getcwd()).resolve()
     executable = external_executable(SYSTEM_GIT, project)
     if executable is None:
@@ -162,6 +164,11 @@ def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(
     command += args
     env = {key: value for key, value in tool_environment(project).items()
            if key not in GIT_ENV_TO_DROP and not key.startswith(GIT_ENV_PREFIXES_TO_DROP)}
+    scratch = str(external_temp_root(project))
+    env.update(TMPDIR=scratch, TMP=scratch, TEMP=scratch)
+    # Trace2 can enable these three targets in global/system config. An explicit
+    # disabled environment target wins without losing the user's normal ignore rules.
+    env.update(GIT_TRACE2="0", GIT_TRACE2_EVENT="0", GIT_TRACE2_PERF="0")
     env.update(IDENTITY)
     env["GIT_OPTIONAL_LOCKS"] = "0"  # read-only commands never refresh the project's index
     env["GIT_TERMINAL_PROMPT"] = "0"

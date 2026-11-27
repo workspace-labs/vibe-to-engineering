@@ -1,8 +1,17 @@
 # Skill validation evidence
 
+## Deep review fixes, Round 2 — 2026-11-27
+
+Candidate **0.6.3-dev** starts at the independently approved Round 1 commit `ef755b8`. Claude’s review of this candidate is pending.
+
+- On macOS arm64 the portable scope passed **206 tests** with Apple Python 3.9.6 and **206 tests** with Homebrew Python 3.12.14. Each run reported 0 failures, errors or skips. The unmodified base passed 196 on Apple Python.
+- New checks cover confidential names, current approval and allocation, recoverable map publication, watched-file reporting, read-only inspection, protected project writes and runner enrollment. The private-map location guard already worked on the base. Removing it in a disposable copy made its new regression fail.
+- Native macOS discovery on the final candidate ran **522 methods** with Apple Python. **495 passed, 0 failed, 0 errors and 27 named exclusions**. The disposable runner marked these active reproduction fixtures as skipped. Of the 45 previously omitted methods, 18 ran and passed on this revision. All four pinned-reader matrix methods passed. The unfiltered native result for this revision remains open.
+- Positive printing controls ran with installed Google Chrome and Poppler. Both the base and candidate plans filled seven A4 pages with the landscape overview on page 2. A short map filled one portrait page and an extended map filled three.
+
 ## Deep review fixes, Round 1 — 2026-11-27
 
-Candidate **0.6.2-dev**, pending Claude’s independent review.
+Claude independently approved **0.6.2-dev** on 2026-11-27 with two confidential-name findings carried into Round 2.
 
 - Both portable selections ran on macOS arm64. Apple Command Line Tools Python 3.9.6 and Python 3.12.14 each passed **196 tests, 0 failures, 0 errors, 0 skips**. The unchanged Apple baseline passed 183.
 - Native macOS 27.2.1 with Apple Python 3.9.6 passed **454 selected methods, 0 failures, 0 errors, 0 skips**. Discovery contained 499. The 45 other methods use active vulnerability-reproduction fixtures or share those setups and were excluded locally. Only the selection in the disposable runner changed. All four pinned reader-matrix methods ran with Node 20.20.2. The PDF checks used pinned Chrome Headless Shell revision 1248.

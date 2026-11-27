@@ -37,6 +37,7 @@ Every implementation must read and write exactly this, so tools on different pla
 - **Location:** `<project>/.vibe-to-engineering/checkpoints.git` — a bare git repository, separate from the project's own.
 - **Self-exclusion:** `<project>/.vibe-to-engineering/.gitignore` holds the single line `*`, followed by a newline. An existing ignore file with different contents is refused before store writes; it is not silently overwritten.
 - **Store configuration:** `core.autocrlf=false`, `core.safecrlf=false`, `core.longpaths=true`, written with `git config --file <store>/config`. The store is created with `git init --bare --template=`, so no template hooks are copied in.
+- **Inspection scratch** uses a checked external temporary directory. Git children get an external temporary root and disabled Trace2 destinations even when the global Git configuration requests a trace. Normal working-tree and global ignore rules still apply.
 - **Every git command** uses the system Git at `/usr/bin/git` on macOS and gives its helpers a system-only executable search path. It runs with `-c core.hooksPath=<the null device> -c core.fsmonitor=false`, which outrank every configuration file, and without the environment variables that set configuration for one command or redirect git's reads and writes (`GIT_CONFIG`, `GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT` and its keys and values, `GIT_TEMPLATE_DIR`, `GIT_TRACE*`). Commands on the store also run with `-c core.filemode=true -c core.symlinks=true`, except on Windows.
 - **`info/attributes`** holds `* -text -filter -ident -working-tree-encoding`. It outranks the project's own `.gitattributes`, so no line-ending conversion or filter ever changes a file's bytes on the way in or out.
 - **`info/exclude`** holds `/.vibe-to-engineering/` and, for projects without git, the default exclusions: `node_modules/`, `bower_components/`, `.venv/`, `venv/`, `__pycache__/`, `*.pyc`, `.pytest_cache/`, `.mypy_cache/`, `.tox/`, `.gradle/`, `.next/`, `.nuxt/`, `.parcel-cache/`, `.turbo/`, `.DS_Store`, `Thumbs.db`.
@@ -59,24 +60,32 @@ Python 3.8 or newer, standard library only, plus git on the PATH. `checkpoint.py
 | Command | Does | Writes |
 |---|---|---|
 | `create <label>` | snapshot the current files as checkpoint `<label>` | the store |
-| `verify <label>` | write the checkpoint into an empty temporary folder on the project's disk and confirm that exactly its names come back, every file identical | a temporary folder inside `.vibe-to-engineering/`, removed afterwards |
+| `verify <label>` | write the checkpoint into an empty temporary folder on the project's disk and confirm that exactly its names come back, every file identical | a private staging directory on the same volume, removed afterwards |
 | `list` | list the checkpoints with time, file count and commit | nothing |
-| `diff <from> [<to>] [--patch] [--path <p>]…` | changes from `<from>` to `<to>` (default: the current files); moves shown as `R`; ignored files and nested repositories that disappeared listed as `gone`, and watched ignored files whose contents changed as `changed`, or whose change cannot be told (a checkpoint that recorded only a modification time, or nothing — on either side) as `unknown` | the store only (unreferenced objects) |
+| `diff <from> [<to>] [--patch] [--path <p>]…` | changes from `<from>` to `<to>` (default: the current files); moves shown as `R`; ignored files and nested repositories that disappeared listed as `gone`, and watched ignored files whose contents changed as `changed`, or whose change cannot be told (a checkpoint that recorded only a modification time, or nothing — on either side) as `unknown` | the private staging copy (unreferenced objects discarded) |
 | `tree [<label>]`, `tree --current` `[--depth N]` `[--saved-only]` | tree of every file of a checkpoint (from the lists it recorded), or of the current files: ignored files, nested repositories and the tool's own folder marked where they sit, then the count of each kind; `--saved-only` shows only the saved files | nothing |
 | `extract <label> <folder>` | write a checkpoint's files into a new or empty folder outside the project | only that folder |
 | `restore <label> [--apply]` | without `--apply`: what would change, or why it would be refused. With it: save the current state as `pre-restore-<time>`, prove it and `<label>` come back identical, refuse if anything checkpoints do not hold is in the way, then delete the files added since the checkpoint, write the checkpoint's files and confirm the result (G6) | the project — after approval only |
 
-Exit codes: `0` success; `1` error; `2` usage; `3` `diff` found differences.
+Exit codes: `0` success; `1` error; `2` usage; `3` differences found by `diff`, or covered files match on restore but ignored or nested data differs or remains unverified.
 
 One case a restore cannot see in advance: it brings back older ignore rules under which a file that is ignored now would be in scope, and the checkpoint does not hold that file. The restore leaves the file untouched, its own check afterwards reports the difference as "did not complete", and the state from before is in the pre-restore checkpoint.
 
 Before changing project files, restore compares both the saved-file state and the watched ignored-file fingerprints with the state recorded when preparation began. An ignored database change during preparation therefore stops the restore. After writing, it checks the original watched names again and reports changed contents as an incomplete restore. These comparisons cover the defined saved files and watched ignored files; they do not prove absence of reads, remote writes, or temporary changes between observations. Ignored contents are never backed up by a checkpoint.
 
-Comparing with the current files stores their changed contents in the store as unreferenced objects. On a large or binary-heavy project, `git --git-dir=<project>/.vibe-to-engineering/checkpoints.git gc` reclaims that space; every checkpoint is kept, because each is named by a ref.
+Comparing with the current files uses an external staging copy. The live store retains the published checkpoints.
 
 Labels used by the protocol: `00-baseline`, `00-baseline-checked`, `01-phase-1`, `02-phase-2` …, `NN-final`, plus the tool's own `pre-restore-<time>`. Failed-state labels carry the run, phase and attempt, for example `r2-failed-02-phase-2-attempt-1` then `r2-failed-02-phase-2-attempt-2`. A label can never be reused. Subsequent migrations also prefix their baseline, phase and final labels with the new run (for example `r2-00-baseline`).
 
 The tool refuses to treat a home folder or a file-system root as a project, and refuses to extract into the project itself. It also refuses a state folder or store it cannot show to be isolated (G7), a folder it cannot read (G1), a nested repository holding unsaved work (G1) and a repository git refuses to open (G1) — each with a message naming what to look at.
+
+An existing fingerprint key must be a regular file owned by this user, readable only by its owner, with a single name and no extended access list on macOS. The tool checks the opened file and its identity before accepting its bytes. If imported key permissions or identity are ambiguous, stop and resolve the state with the owner.
+
+### Checkpoint publication
+
+On macOS each store operation that can write holds an exclusive lock on the opened state directory. Git writes to a private staging copy on the same volume outside the project. A checkpoint becomes visible when the tool publishes its completed bare repository under `checkpoints.git`. An existing store is first moved to the reserved recovery name `.v2e-previous-checkpoints.git`. Both moves require an empty destination. If another directory appears, the tool refuses and preserves the displaced data. A changed directory or a busy lock is a reason to stop. Staging needs space for the store copies. Choose an external temporary directory on the project's volume when the system temporary directory uses a different volume.
+
+After an interruption, preserve both the recovery directory and any current store and stop for owner-directed recovery before creating another checkpoint. The old store retains its labels. When the public name is empty, the owner can restore the intact prior directory under that name. When both names exist, establish which labels each contains before selecting the version to keep. Unreferenced objects produced solely for a diff are discarded with the staging directory.
 
 ## 4. Platforms
 

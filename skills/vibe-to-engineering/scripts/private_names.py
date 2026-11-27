@@ -30,6 +30,10 @@ class VisibleText(HTMLParser):
         self.pieces.append(data)
 
 
+class IncompleteMapping(ValueError):
+    """An inventory hint composed of public labels and the remaining filename text."""
+
+
 class NameMap:
     def __init__(self, pairs):
         if not isinstance(pairs, dict) or not pairs:
@@ -44,10 +48,8 @@ class NameMap:
                 raise ValueError("each confidential name needs a unique, neutral private- label")
             self.public[folded(name)] = alias
             self.original[alias] = name
-        # A name denotes a complete path component. Preserve ordinary longer names
-        # such as MyNotebook.py when the owner designates Notebook.py.
-        alternatives = "|".join(re.escape(name) for name in self.public)
-        self.terms = re.compile(r"(?<![\w.-])(?:" + alternatives + r")(?![\w.-])")
+        alternatives = sorted(self.public, key=len, reverse=True)
+        self.terms = re.compile("|".join(re.escape(name) for name in alternatives))
         for alias in self.original:
             if alias in self.public:
                 raise ValueError("choose a neutral label distinct from confidential names")
@@ -82,9 +84,37 @@ class NameMap:
             raise ValueError("name map spelling differs from inventory")
         if key in self.original:
             raise ValueError("an ordinary name already uses a confidential label")
-        public = self.public.get(key, name)
-        self.check_text(public)
-        return public
+        if alias:
+            return alias
+        if self.terms.search(key):
+            # Case folding can expand a character. Map the public hint back to
+            # the original spelling without printing any part of a matched term.
+            spelling = unicodedata.normalize("NFC", name)
+            positions = [i for i, char in enumerate(spelling) for _ in char.casefold()]
+            pieces = []
+            variants = []
+            end = 0
+            for match in self.terms.finditer(key):
+                start = positions[match.start()]
+                label = self.public[match.group()]
+                pieces.extend((spelling[end:start], "<" + label + ">"))
+                end = positions[match.end() - 1] + 1
+                actual = spelling[start:end]
+                declared = unicodedata.normalize("NFC", self.original[label])
+                if actual != declared:
+                    if actual == declared.lower():
+                        case = "lowercase"
+                    elif actual == declared.upper():
+                        case = "uppercase"
+                    else:
+                        case = "use the exact spelling on disk (character case: %s)" % "".join(
+                            "U" if char.isupper() else "L" if char.islower() else "-" for char in actual)
+                    variants.append("%s at character %d: %s" % (label, start + 1, case))
+            hint = "".join(pieces) + spelling[end:]
+            raise IncompleteMapping("Add the complete filename %s to your private name map "
+                                    "(labels in angle brackets stand for your declared wording). %s"
+                                    % (ascii(hint), ", ".join(variants)))
+        return name
 
     def disk_path(self, project, relative):
         parts = []

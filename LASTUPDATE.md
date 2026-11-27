@@ -1,8 +1,12 @@
 # Latest update — 2026-11-27
 
+## Deep review fixes, Round 2
+
+Candidate **0.6.3-dev** addresses the two confidential-name carryovers and findings V07–V18. Claude approved the Round 1 base on 2026-11-27. Round 2 awaits independent review. See [test results](TEST-EVIDENCE.md).
+
 ## Deep review fixes, Round 1
 
-Candidate **0.6.2-dev** addresses confidential names, the bundled standard, tool selection, secret handling, map outcomes and historical records. Claude reviews this round next. See [test results](TEST-EVIDENCE.md).
+Candidate **0.6.2-dev** addresses confidential names, the bundled standard, tool selection, secret handling, map outcomes and historical records. Claude approved this round with two findings carried into Round 2. See [test results](TEST-EVIDENCE.md).
 
 ## Migration Map layout on real plans — 2026-11-22
 

@@ -3,7 +3,7 @@ name: vibe-to-engineering
 description: "Decides from evidence whether an existing software project's structure shows vibe-coded or ad-hoc development and, only if restructuring is justified, converts it into a project-specific engineered architecture through a controlled migration the human approves step by step: read-only inspection and diagnosis, current and target trees, a phased plan with Engineering-Migration-Plan.pdf, a verified recovery baseline, one approved phase at a time with tests and a checkpoint after each, failure investigation against the last known-good checkpoint, and a final review that reports ALL GREEN only when every final check passes. Use when the user invokes vibe-to-engineering, asks whether a project is vibe-coded or structurally sound, or asks to restructure a whole existing project into a proper engineering architecture. Not for building features, fixing bugs or small local refactors."
 license: MIT
 metadata:
-  version: "0.6.2-dev"
+  version: "0.6.3-dev"
 ---
 
 # vibe-to-engineering
@@ -22,7 +22,7 @@ Turns a structurally weak, ad-hoc ("vibe-coded") software project into an approp
 
 ```
 INSPECT → DIAGNOSE → DESIGN TARGET ARCHITECTURE → CREATE MIGRATION PLAN → GENERATE PDF
-→ HUMAN APPROVAL → CREATE + VERIFY BACKUP → PHASE 1 → TEST + VERIFY → CHECKPOINT
+→ PLAN APPROVAL + DISPOSABLE FIXTURE CONFIRMATION → CREATE + VERIFY BACKUP → PHASE 1 → TEST + VERIFY → CHECKPOINT
 → HUMAN APPROVAL → NEXT PHASE → … → FINAL REVIEW → ALL GREEN
 ```
 
@@ -43,11 +43,13 @@ defines placement and boundaries; this skill governs migration scope, checks and
 
 Before listing any names, ask the owner whether any project, file or folder names are confidential. Wait for the answer. If there are any, have the owner supply an absolute path to a private JSON file outside the project. It maps each exact name component to a unique neutral label, for example `{"Orchard notes.py":"private-file-1","Orchard drafts":"private-folder-1"}`. Include names that repeat the confidential wording in another filename. Keep this same mapping privately for the whole run, including retries, revisions and later sessions.
 
-Give `tree --current`, `render_pdf.py <html> <pdf>` and `render_map.py --project <project>` the extra arguments `--name-map <absolute-file>` every time. Use only the resulting public names when composing the plan HTML, ledger, Migration Map JSON, headings, old-line ranges and messages, before writing or presenting any of them. Keep source IDs, counts and ranges tied to those names. Use the private mapping only for actual disk access. Never copy it into the project, approval or evidence. If the map is missing, ambiguous, or a name still appears, stop before displaying or recording the inventory. Ordinary projects use the existing commands.
+Give `tree --current`, `render_pdf.py <html> <pdf>` and `render_map.py --project <project>` the extra arguments `--name-map <absolute-file>` every time. Use only the resulting public names when composing the plan HTML, ledger, Migration Map JSON, headings, old-line ranges and messages, before writing or presenting any of them. Keep source IDs, counts and ranges tied to those names. Use the private mapping only for actual disk access. Never copy it into the project, approval or evidence. If the map is missing, ambiguous, or declared wording appears anywhere in another name, stop before displaying or recording the inventory. The refusal shows the complete filename with angle-bracketed public labels in place of private wording. Add that full name to the private mapping before retrying. Ordinary projects use the existing commands.
 
 1. **Find the project.** It is the folder the human names. If none is named, it is the root of the current git repository, or else the current folder. If that is not clearly one software project (a home folder, a folder holding several projects, an empty folder), ask which one. Use the owner’s public project label when naming the project. The project folder itself is never moved or renamed.
 2. **Resume if a migration exists.** If `<project>/.vibe-to-engineering/ledger.md` exists, read it. Its last entry says where the migration stands: tell the human in one line and continue from exactly there. Never redo a completed phase; never skip a gate. A phase recorded as started but not completed is handled as a break (section 8). If the last entry is a completion (ALL GREEN, COMPLETE WITH APPROVED BASELINE FAILURES, or COMPLETE WITH ACCEPTED VERIFICATION GAPS) or MIGRATION STOPPED, that migration is over: say so, and begin again at INSPECT only if the human asks. A new migration keeps the same ledger and store, and gives its checkpoints a run prefix (`r2-00-baseline`), because labels are never reused.
 3. Otherwise begin at INSPECT.
+
+On resume, an approval by itself permits only recording the plan approval and generating the map. Before backup, baseline or Phase 1, apply section 6’s checks again: the current plan must match its approval and the owner must have confirmed a disposable project with synthetic secrets. Runner enrollment always needs the human’s separate decision.
 
 **Conventions.** `<skill>` is this skill's folder and `<project>` the project's folder. `checkpoint.py …` is short for `/usr/bin/python3 -IB <skill>/scripts/checkpoint.py --project <project> …` on macOS. Use the absolute path of an independently installed skill outside the inspected project. Before approval, start tools from a trusted folder outside the project with a clean environment (no shell startup, interpreter, developer-tool or loader overrides). Use the system Python in isolated mode as shown, including for read-only history helpers: explicitly import siblings from the trusted skill's scripts directory. Use absolute paths for any other inspection utility, including optional `pdftotext`; verify the chosen installation and its resolved target are outside the project. If you cannot establish the tool's identity, stop before launch. Other platforms remain unsupported; help is available without execution.
 
@@ -171,7 +173,7 @@ Cut the migration into phases with the rules in `references/migration-plan.md`: 
 
 Define the checks that prove the application still works — build, type check, tests and a smoke run of the real entry point — and what counts as a pass. If the project lacks the checks to prove its behavior is preserved, the first phase adds a safety net of characterization checks; that phase is part of the plan the human approves. When a result you rely on is old, or no check exercises what the plan changes the way it is really used, write a `VERIFICATION WARNING` (`references/migration-plan.md`, section 3) instead of calling it verified. Approving the plan does not accept an open warning unless the human's approval says so — ask. The human answers each open warning in one of two ways, and they are different: **add the check** — a plan revision that puts the covering check into the plan (new version, new fingerprint, approved again), after which the warning stays open until that check runs and passes; or **accept the gap** — recorded in the ledger in their words, and the behavior stays unverified.
 
-Before writing, verify that `<project>/.vibe-to-engineering/` resolves inside the project, that it is a real directory if it exists, and that it and every destination below it have no symlink components. Refuse a linked, escaped or nonregular destination without changing it. Create `<project>/.vibe-to-engineering/` with a `.gitignore` file holding the single line `*`, so the folder never enters the project's git. Write `Engineering-Migration-Plan.html` there from `<skill>/assets/plan-template.html`. This folder is the only thing written before approval.
+Compose the filled plan from `<skill>/assets/plan-template.html` in memory. Supply its complete UTF-8 bytes on standard input to `/usr/bin/python3 -IB <skill>/scripts/planstate.py --project <project> plan`. The state publisher holds the directory lock, checks owner, type, links and identity and creates the self-ignore file before publishing the plan. Use `append-ledger` on that command for every new ledger entry, and `map-data` for the approved map input. Never copy a template onto a project file, edit a record in place, or redirect the shell to a project destination. The state folder is the only place written before approval.
 
 ## 5. GENERATE PDF, then stop
 
@@ -204,7 +206,7 @@ disposable projects with synthetic secrets.
 
 ## 6. CREATE + VERIFY BACKUP
 
-Only after the human approves this plan version. Load `references/recovery.md`.
+Before backup, baseline checks or Phase 1, require the owner’s explicit confirmation of a disposable project with synthetic secrets. Record their words under this version’s approval with state `DISPOSABLE FIXTURE CONFIRMED`, or append a `DISPOSABLE FIXTURE CONFIRMED` event after that approval when confirmation comes later. For older approvals, quote the owner’s existing confirmation if available. Otherwise remain at `PLAN ONLY`. Run `/usr/bin/python3 -IB <skill>/scripts/planstate.py --project <project> check-approval` on entry and resume. A refusal stops execution: the active run, visible version and current plan fingerprint must match. Runner enrollment is a separate decision by the human. Load `references/recovery.md`.
 
 Follow [The migration map](#the-migration-map) at plan approval before proceeding.
 
@@ -220,7 +222,7 @@ Before step 1, the ledger holds an answer for every verification warning the pla
 
 ## 7. PHASE n — one per approval
 
-Before starting, confirm all of these; if one fails, stop and report:
+On entry or resume, run section 6’s `check-approval` before changing files. Before starting, confirm all of these; if one fails, stop and report:
 
 - the human explicitly confirmed this project is disposable and it uses synthetic secrets;
 - the plan's fingerprint equals the approved one (otherwise the plan changed and needs approval again);
@@ -347,7 +349,7 @@ Follow the outcome with the before and after trees (every file, as `tree` prints
 
 - **Behavior:** preserve the product's intended behavior. No new features, no bug fixes (write down bugs you notice for the human), no dependency changes (adding, removing or upgrading), no formatting sweeps, no renames for taste.
 - **Scope:** only planned changes. Files git ignores, secrets, databases, user data and nested repositories (folders with their own git, which checkpoints do not save) are never moved, edited or deleted — so move files by name, never with wildcards or whole-folder moves that could carry them along. External contracts keep working.
-- **The skill's own folder:** no phase moves, edits or deletes the plan, ledger, evidence, approved map copies or checkpoints in `.vibe-to-engineering/`. A safety net may add checks in `checks/`. The map protocol may write `migration-map.json`, `approved-map-v<version>.json`, `Migration-Map.html` and `Migration-Map.pdf`.
+- **The skill's own folder:** no phase moves, edits or deletes the plan, ledger, evidence, approved map copies or checkpoints in `.vibe-to-engineering/`. A safety net may add checks in `checks/`. The map protocol may write its map input, run-specific approved copy, HTML, PDF and pending pair as described below.
 - **Checks stay local:** a check never installs or updates dependencies, deploys, publishes, migrates a database or sends anything anywhere. If running a check changes a dependency manifest or lockfile, stop and ask: that is a dependency change.
 - **Checks use throwaway data:** a check never reads or writes the owner's data. The plan names, for each check, the data it uses and how it is redirected (an environment variable pointing at a temporary file, a temporary copy, a test fixture); a check that cannot be redirected is not run — the human decides. A check that starts a server takes a free port and proves the answers come from the process it started (`references/migration-plan.md`, section 3).
 - **Git:** never push. Never commit, branch, reset, clean, stash or rewrite history in the project's repository unless the human asks; if they ask for commits, commit one completed phase at a time.
@@ -362,7 +364,9 @@ Follow the outcome with the before and after trees (every file, as `tree` prints
 
 Record the plan version and fingerprint in the ledger after any previous approval heading and
 before this version's approval heading. Match `plan_version` to the visible `Plan version <version>`
-label in the plan. Keep the approved fingerprint as a separate value in the ledger.
+label in the plan. Write `Plan fingerprint: <hash>` on its own ledger line. The most recent
+such record in this approval interval identifies the presented plan. An older ledger may
+carry the hash alone on its own line.
 
 On approval of the presented plan version, append `## <UTC time> — PLAN APPROVED v<version> — <state>`
 and quote the human's approval under it. Use `PLAN ONLY` as the state when the disposable-project
@@ -382,7 +386,9 @@ plan and apply section 4's state-path checks before writing. Use these fields:
   cell in the plan, estimated `lines_low` and `lines_high`, and a `from` list of objects with a
   `part` ID and an `exact` boolean. Every mapped file needs a row in the plan's
   **Why each new file exists** table (`id="new-files"`), including a file that keeps its path
-  but receives code. Include every path in that table exactly once on the map. Write exactly
+  but receives code. Include every path in that table exactly once on the map. Begin its visible Reason cell with
+  `Phase <number> / <low>–<high> lines`, then a line break and the reason. The renderer checks
+  both bounds and the owning phase against this approved row. Write exactly
   `exact` in the evidence cell when all
   links for the file are exact. When any link is provisional, write `not yet exact: <reason>`
   with a nonempty reason. For a file created from scratch, put exactly `none` in the old-lines
@@ -400,15 +406,22 @@ Run `/usr/bin/python3 -IB <skill>/scripts/render_map.py --project <project>` and
 It is separate from the plan PDF and has an HTML copy, `Migration-Map.html`. Then continue only
 as the disposable-project gate allows. Keep the input tied to this approval until another
 plan version is approved. The renderer saves each approved map once as
-`approved-map-v<version>.json`. A refresh uses the same map data for that version. When a
+`approved-map-v<version>.json` in the first run, then `approved-map-r<run>-v<version>.json` in
+each subsequent run. A refresh requires the latest approval in the ledger. A legacy plan
+whose rows omit phase allocations can refresh its matching archived map with a visible
+unverified label. If it has no matching archive, present a revised plan for approval.
+During an interrupted refresh, `Migration-Map.pending.zip` contains both formats from one
+complete render. The next refresh repairs the public PDF before printing again, using the
+PDF digest in the published HTML. A mismatched recovery PDF is refused. The digest checks
+that the files belong together; it cannot authenticate state rewritten by someone able to
+replace both the published HTML and the pending archive. When a
 revision includes a completed phase, carry forward its number, title and file paths from
 the map version in effect when it completed.
 
 Refresh the map after appending `PHASE n STARTED`, after each `PHASE n COMPLETE` or `PHASE n FAILED`
 report, and after recording `RESTORED <label>`, `MIGRATION STOPPED` or the final outcome. Use those events
 in the ledger's heading format below. The ledger governs every state. The map never counts as approval or adds work.
-If writing or rendering the map fails, report `Map: NOT UPDATED — <reason>` and continue to the
-protocol's own gate. A map failure never changes or blocks the migration.
+For a display-only failure, report `Map: NOT UPDATED — <reason>` and continue to the protocol's own gate. A disagreement about the active approval, version or fingerprint stops backup, baseline checks and migration until resolved. Use section 6’s independent `check-approval` even when the display is unavailable.
 
 ## Files written in the project
 
@@ -419,7 +432,7 @@ protocol's own gate. A map failure never changes or blocks the migration.
 ├── Engineering-Migration-Plan.pdf       what the human reads and approves
 ├── ledger.md                            append-only record: approvals (quoted), baseline, phases, failures, restores
 ├── migration-map.json                   sources and phases from the approved plan
-├── approved-map-v<version>.json          write-once map data for the approved version
+├── approved-map-v<version>.json          first run’s write-once map data; later runs use approved-map-r<run>-v<version>.json
 ├── Migration-Map.html                    the ledger-backed map
 ├── Migration-Map.pdf                     the map the human reads
 ├── evidence/                            check output (secret values masked), trees and diffs, one folder per step

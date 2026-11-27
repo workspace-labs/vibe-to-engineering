@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.3-dev] - 2026-11-27
+
+- Require the active plan approval and explicit disposable-fixture confirmation before backup or execution. Tie map allocations and refreshes to the approved run and recover interrupted display publication.
+- Refuse partial private-name matches, protect planning records and checkpoint writes, and report restore differences for ignored data. Keep read-only inspection and listing from changing project state.
+- Preserve evidence record identity and validate fingerprint keys, enrollment bytes and registry ownership before reuse or publication.
+
 ## [0.6.2-dev] - 2026-11-27
 
 - Use consistent neutral labels for owner-designated confidential names in inventories, plans and maps.

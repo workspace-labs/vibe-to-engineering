@@ -46,6 +46,10 @@ its word status also cannot expose an adjacent embedded short file value as a wh
 replace-until-clean loop. Ordinary safe attribution remains visible. Symbol selection searches ASCII,
 then Unicode word characters; it is finite and never echoes inputs if no output alphabet is available.
 
+An evidence filename is admitted as submitted. A link to an older record, a linked parent, or
+a path containing `..` refuses before launch. macOS's native `/tmp` and `/var` aliases still work.
+The writer rechecks the admitted parent chain and leaf identity before replacing an existing record.
+
 ## Wrapper status and retained facts
 
 - **0:** the check ran and its evidence was saved. This says nothing about whether the check passed.

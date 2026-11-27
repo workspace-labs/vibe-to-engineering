@@ -99,17 +99,14 @@ the final generated text passes the redaction context once more before it is pri
 """
 
 import argparse
-import ctypes
-import errno
+import ctypes  # kept available to callers checking the native ACL-query failure path
 import fnmatch
 import hashlib
-import json
 import os
 import re
 import stat
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -119,11 +116,13 @@ from checkpoint import STATE_DIR, resolve_project  # noqa: E402
 import childenv  # noqa: E402 — the constructed environment every check runs with (NEW-5 stage 1)
 import emission  # noqa: E402 — the governed emission path and the wrapper status namespace (R2 slice)
 from gitrun import Fail, configure_output  # noqa: E402
-from evidencefile import Destination, write_lf  # noqa: E402
+from evidencefile import Destination, literal_path, write_lf  # noqa: E402
 from platformgate import PlatformRefusal, require_supported_platform  # noqa: E402
 from secretformats import (Unreadable, commented, dotenv_values, ini_values, json_values, key_values,  # noqa: E402
                            properties_values, text_values, toml_values, values_in, yaml_values)
 from secretforms import BARE, LIST, SECRET_NAME, SETTING, parts, worth  # noqa: E402
+from runner_registry import RunnerRegistry  # noqa: E402
+from trusted_tools import no_acl  # noqa: E402
 from secretsources import secret_files, secret_text  # noqa: E402
 
 SHAPES = (  # secret values recognized wherever they appear
@@ -411,7 +410,7 @@ def evidence_path(project, raw):
     if not (project / STATE_DIR).is_dir():
         raise Fail("%s is not there yet: evidence is kept only after the plan exists" % (project / STATE_DIR))
     folder = project / STATE_DIR / "evidence"
-    out = Path(os.path.realpath(os.path.abspath(os.path.expanduser(raw))))
+    out = literal_path(raw)
     if folder not in out.parents:
         raise Fail("the evidence file must be inside %s, not %s" % (folder, out))
     return out
@@ -460,26 +459,6 @@ APPROVAL = "enroll"                        # the exact word that approves an enr
 PINS = ("path", "copy")
 
 
-def no_acl(fd):
-    """Prove absence of a macOS extended ACL on an open object. Darwin's acl_get_fd returns NULL/ENOENT
-    for no ACL (filesec_get_property); with a valid fd this is not a pathname-existence test. Any ACL,
-    other error or unverified platform prevents path pinning. No candidate is executed to inspect metadata."""
-    if sys.platform != "darwin":
-        return False
-    try:
-        libc = ctypes.CDLL(None, use_errno=True)
-        libc.acl_get_fd.argtypes, libc.acl_get_fd.restype = [ctypes.c_int], ctypes.c_void_p
-        libc.acl_free.argtypes, libc.acl_free.restype = [ctypes.c_void_p], ctypes.c_int
-    except (AttributeError, OSError):
-        return False
-    ctypes.set_errno(0)
-    acl = libc.acl_get_fd(fd)
-    if acl:
-        libc.acl_free(acl)
-        return False
-    return ctypes.get_errno() == errno.ENOENT
-
-
 def location_pin(resolved):
     """Prove a root-owned, non-replaceable chain from / to the runner, on every use of pin path. A read-only
     user-owned object is not immutable: its owner can chmod it, and a writable ancestor can replace it.
@@ -516,25 +495,11 @@ def load_registry():
     command), unreadable, not JSON, or not the documented shape. A malformed registry never silently passes:
     every refusal here stops the run before anything executes."""
     path = registry_path()
-    try:
-        raw = Path(path).read_text(encoding="utf-8")
-    except FileNotFoundError:
+    registry = RunnerRegistry(path).read()
+    if registry is None:
         raise Fail("no runners are enrolled for this user (%s does not exist) — enrollment is a deliberate "
                    "human act: python3 evidence.py --enroll-runner <runner>; the check is refused before "
                    "execution" % path)
-    except UnicodeError:
-        raw = ""   # malformed encoding follows the same refusal as malformed JSON; never echo raw bytes
-    except OSError as error:
-        raise Fail("cannot read the runner registry %s (%s) — the check is refused before execution"
-                   % (path, error.strerror or error))
-    try:
-        registry = json.loads(raw)
-    except ValueError:
-        registry = None
-    if not isinstance(registry, dict) or type(registry.get("version")) is not int or registry["version"] != 1 \
-            or not isinstance(registry.get("runners"), dict):
-        raise Fail("the runner registry %s is malformed — repair it or re-enroll the runner manually "
-                   "(python3 evidence.py --enroll-runner <runner>); the check is refused before execution" % path)
     return registry
 
 
@@ -564,22 +529,32 @@ def hashed(resolved, into=None):
     `into` (a fresh path inside the run's private scratch root) the same reading also writes the launch copy,
     so the bytes hashed are the bytes copied."""
     try:
-        fd = os.open(resolved, os.O_RDONLY | os.O_NOFOLLOW)
+        fd = os.open(resolved, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     except OSError as error:
         raise Fail("cannot open the runner %s (%s) — the check is refused before execution"
                    % (resolved, error.strerror or error))
     digest, size = hashlib.sha256(), 0
     try:
+        initial = os.fstat(fd)
+        if not stat.S_ISREG(initial.st_mode):
+            raise Fail("runner is not a regular executable binary; re-enroll manually")
         stream = open(into, "wb") if into is not None else None
         try:
             while True:
                 chunk = os.read(fd, 1 << 20)
+                if size == 0 and (not BINARY_MAGIC or chunk[:4] not in BINARY_MAGIC):
+                    raise Fail("%s: not a real executable binary of this platform; a script is never enrolled "
+                               "or probed; re-enroll manually after installation" % resolved)
                 if not chunk:
                     break
                 digest.update(chunk)
                 size += len(chunk)
                 if stream is not None:
                     stream.write(chunk)
+            final = os.fstat(fd)
+            if (size != initial.st_size or size != final.st_size or final.st_mtime_ns != initial.st_mtime_ns
+                    or final.st_ctime_ns != initial.st_ctime_ns):
+                raise Fail("runner changed while it was being read; re-enroll manually")
         finally:
             if stream is not None:
                 stream.close()
@@ -661,8 +636,7 @@ def enrolled_identity(resolved, kind, scratch):
 def resolve_candidate(program, path):
     """(resolved path, runner kind) for an enrollment candidate: an absolute path when it holds a '/', else
     found on the given PATH — an existing executable file, links resolved, kind by the resolved final name.
-    The binary-magic gate stands at enrollment: a script under a runner's name is refused without ever being
-    executed."""
+    The subsequent hash read checks the executable format before any disclosure or probe."""
     if "/" in program or os.sep in program:
         if not os.path.isabs(program):
             raise Fail("%s: enroll by an absolute path, or by a name found on the PATH" % program)
@@ -679,17 +653,6 @@ def resolve_candidate(program, path):
     if kind is None:
         raise Fail("%s: this runner is not in the supported set (references/supported-checks.md) — an "
                    "unvalidated runner is never enrolled" % resolved)
-    if BINARY_MAGIC is None:
-        raise Fail("%s: this platform's executable format is not one the gate verifies — enrollment is refused"
-                   % resolved)
-    try:
-        with open(resolved, "rb") as stream:
-            magic = stream.read(4)
-    except OSError:
-        magic = b""
-    if magic not in BINARY_MAGIC:
-        raise Fail("%s: not a real executable binary of this platform — a script under a runner's name is "
-                   "never enrolled and never even probed" % resolved)
     return resolved, kind
 
 
@@ -714,10 +677,14 @@ def enroll_runner(program, with_path=(), ask=None, out=None):
     resolved, kind = resolve_candidate(program, ":".join([childenv.PATH_FOLDERS] + extras))
     digest, size = hashed(resolved)
     pin = location_pin(resolved)
-    try:
-        existing = registry_entry(load_registry(), kind)
-    except Fail:
-        existing = None
+    location = RunnerRegistry(registry_path())
+    registry = location.read()
+    existing = None
+    if registry is not None and kind in registry["runners"]:
+        try:
+            existing = registry_entry(registry, kind)
+        except Fail:
+            pass  # a manual enrollment can replace a malformed entry in a valid registry
     args, _ = PROBES[kind]
     print("vibe-to-engineering runner enrollment — the identity disclosed before anything runs:", file=out)
     print("  runner:  %s" % kind, file=out)
@@ -772,26 +739,7 @@ def enroll_runner(program, with_path=(), ask=None, out=None):
     record = {"path": resolved, "sha256": digest, "size": size, "pin": pin,
               "probe": "%s %s" % (resolved, " ".join(args)),
               "enrolled": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-    path = registry_path()
-    folder = os.path.dirname(path)
-    os.makedirs(folder, exist_ok=True)
-    os.chmod(folder, 0o700)
-    registry = {"version": 1, "runners": {}}
-    if os.path.exists(path):
-        registry = load_registry()   # a malformed registry is never silently replaced: it fails here instead
-    registry["runners"][kind] = record
-    fd, temp = tempfile.mkstemp(prefix="runners-", suffix=".tmp", dir=folder)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            stream.write(json.dumps(registry, indent=2, sort_keys=True) + "\n")
-        os.chmod(temp, 0o600)
-        os.replace(temp, path)
-    except BaseException:
-        try:
-            os.unlink(temp)
-        except OSError:
-            pass
-        raise
+    location.save(kind, record)
     print("enrolled %s: %s (sha256 %s, pin %s)" % (kind, resolved, digest, pin), file=out)
 
 

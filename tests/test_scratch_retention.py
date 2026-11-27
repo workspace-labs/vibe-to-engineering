@@ -35,7 +35,7 @@ class ScratchRetention(unittest.TestCase):
         self.project = self.tmp / "project"
         (self.project / ".vibe-to-engineering/evidence").mkdir(parents=True)
         self.outfile = self.project / ".vibe-to-engineering/evidence/check.txt"
-        self.registry = self.tmp / "unused-registry.json"
+        self.registry = self.tmp / ".vibe-to-engineering" / "runners.json"
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         for patch in (
@@ -304,6 +304,12 @@ class ScratchRetention(unittest.TestCase):
                         mock.patch.object(evidence, "load_registry", return_value={"version": 1, "runners": {}},
                                           side_effect=None)):
                     stack.enter_context(patch)
+
+                if sys.platform != "darwin":
+                    # This portable case simulates a probe to inspect scratch retention.
+                    # Registry ownership and ACL checks are native macOS operations.
+                    registry = stack.enter_context(mock.patch.object(evidence, "RunnerRegistry")).return_value
+                    registry.read.return_value = None
 
                 def probe(_runner, _kind, _env, scratch):
                     (scratch / "tmp/probe.txt").write_text("synthetic-probe-data")

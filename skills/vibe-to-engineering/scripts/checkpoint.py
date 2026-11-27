@@ -34,10 +34,12 @@ from gitrun import (EXECUTABLE, Fail, GITLINK, SYMLINK, blob_id, configure_outpu
     executable_bit, file_id, git, is_link, local_path, promisor_configured, refuse_sparse_index,
     remove_file, remove_temp, show, warn, write_lf)
 from nested import check_nested, repositories
-from watched import (CONTENTS_MARK, DEFAULT_EXCLUDES, KEY_NAME, changed_since, report_changed, watched_contents,
+from watched import (CONTENTS_MARK, DEFAULT_EXCLUDES, KEY_NAME, changed_since, fingerprint_key, report_changed, watched_contents,
     watched_names)
+from trusted_tools import external_temp_root
+from store_transaction import ACTIVE, RETIRED, transaction
 from treeview import print_tree
-from private_names import load_name_map
+from private_names import IncompleteMapping, load_name_map
 from platformgate import PlatformRefusal, require_supported_platform
 
 STATE_DIR = ".vibe-to-engineering"
@@ -68,10 +70,14 @@ def resolve_project(raw):
 
 
 def store_path(project):
-    return project / STATE_DIR / STORE_NAME
+    tx = ACTIVE.get()
+    return (tx.work if tx else project / STATE_DIR) / STORE_NAME
 
 
 def key_path(project):
+    tx = ACTIVE.get()
+    if tx and tx.sidecars[KEY_NAME] is None and not tx.published:
+        return tx.work / KEY_NAME
     return project / STATE_DIR / KEY_NAME
 
 
@@ -111,11 +117,18 @@ def check_state_folder(project):
     junction on the way, a special file, or a store that git would redirect to another repository."""
     state = project / STATE_DIR
     store = state / STORE_NAME
-    for path, folder in ((state, True), (state / ".gitignore", False), (store, True), (key_path(project), False)):
+    if os.path.lexists(state / RETIRED):
+        raise Fail("an interrupted checkpoint publication needs recovery: preserve " + RETIRED)
+    for path, folder in ((state, True), (state / ".gitignore", False), (store, True), (state / KEY_NAME, False)):
         if os.path.lexists(str(path)) and (is_link(str(path)) or not (path.is_dir() if folder else path.is_file())):
             raise Fail("%s is a link or not a plain %s — checkpoints are written only inside the project's own %s "
                        "folder. Nothing was changed" % (path, "folder" if folder else "file", STATE_DIR))
+    key = state / KEY_NAME
+    if key.exists():
+        fingerprint_key(key, create=False)
     ignore = state / ".gitignore"
+    if ignore.exists() and ignore.stat().st_nlink != 1:
+        raise Fail("the state ignore file must have a single name")
     if ignore.exists() and ignore.read_bytes() != b"*\n":
         raise Fail("the state ignore file %s must contain exactly '*' followed by a newline, so the checkpoint "
                    "store and fingerprint key stay excluded from the project's git. Nothing was changed" % ignore)
@@ -143,13 +156,21 @@ def prepare_store(project, git_project):
     that every write stays inside the state folder (G7)."""
     check_state_folder(project)
     state = project / STATE_DIR
-    if not state.exists():
+    tx = ACTIVE.get()
+    if tx:
+        tx.assert_owned()
+    elif not state.exists():
         os.mkdir(str(state))
     ignore = state / ".gitignore"
     if not os.path.lexists(str(ignore)):
-        with open(str(ignore), "x", encoding="utf-8", newline="\n") as handle:  # "x" never follows a link
-            handle.write("*\n")
-    store = state / STORE_NAME
+        tx = ACTIVE.get()
+        if tx:
+            tx.assert_owned()
+            (tx.work / ".gitignore").write_bytes(b"*\n")
+        else:
+            with open(str(ignore), "x", encoding="utf-8", newline="\n") as handle:
+                handle.write("*\n")
+    store = store_path(project)
     if not (store / "HEAD").exists():
         git(["init", "--bare", "--quiet", "--template=", str(store)], project=project)  # no template: no hooks copied in
     if promisor_configured(config=store / "config", project=project):
@@ -160,6 +181,30 @@ def prepare_store(project, git_project):
     write_lf(store / "info" / "attributes", ATTRIBUTES)
     excludes = ["/" + STATE_DIR + "/"] + ([] if git_project else list(DEFAULT_EXCLUDES))
     write_lf(store / "info" / "exclude", "\n".join(excludes) + "\n")
+    return store
+
+
+def read_store(project, allow_absent=False):
+    """Open a complete store for display without creating or synchronizing metadata."""
+    check_state_folder(project)
+    store = store_path(project)
+    if allow_absent and not store.exists() and store.parent.is_dir():
+        return None  # a refused first save published no store
+    if not (store / "HEAD").is_file():
+        raise Fail("no checkpoints yet in %s — create one first" % project)
+    if not (store / "config").is_file() or not (project / STATE_DIR / ".gitignore").is_file():
+        raise Fail("incomplete checkpoint store or state ignore file")
+    if promisor_configured(config=store / "config", project=project):
+        raise Fail("the store is configured as a partial clone")
+    is_git_project(project)  # retain the ownership and supported-project checks
+    state_rule = "/" + STATE_DIR + "/\n"
+    exclude_forms = (state_rule, state_rule + "\n".join(DEFAULT_EXCLUDES) + "\n")
+    for name, expected in (("attributes", (ATTRIBUTES,)), ("exclude", exclude_forms)):
+        source = store / "info" / name
+        if not source.is_file() or source.read_bytes() not in [form.encode("utf-8") for form in expected]:
+            raise Fail("invalid checkpoint store info/%s; display cannot repair it" % name)
+    if git(["rev-parse", "--is-bare-repository"], store=store).stdout.strip() != b"true":
+        raise Fail("invalid checkpoint store: expected a bare repository")
     return store
 
 
@@ -389,7 +434,8 @@ def verify_commit(project, store, commit, label):
     same names (two names this disk treats as one collide here, and one goes missing) and, for each, the same
     bytes, link and executable bit (G4). Raises Fail naming what did not come back; returns the file count."""
     files = tree_files(store, commit)
-    temp = tempfile.mkdtemp(prefix="verify-", dir=str(project / STATE_DIR))
+    tx = ACTIVE.get()
+    temp = tempfile.mkdtemp(prefix="verify-", dir=str(tx.work if tx else project / STATE_DIR))
     try:
         try:
             write_files(store, commit, temp)
@@ -461,6 +507,9 @@ def save_checkpoint(store, tree, label, found, contents):
     commit = git(["commit-tree", "--no-gpg-sign", "-F", "-", tree], store=store,
                  stdin=message.encode("utf-8")).stdout.strip().decode()
     git(["update-ref", REF_PREFIX + label, commit, ""], store=store)  # "": only if the ref does not exist
+    tx = ACTIVE.get()
+    if tx:
+        tx.publish()
     return commit
 
 
@@ -542,8 +591,8 @@ def cmd_verify(project, args):
 
 
 def cmd_list(project, args):
-    store = open_store(project)
-    rows = checkpoints(store)
+    store = read_store(project, allow_absent=True)
+    rows = checkpoints(store) if store is not None else []
     if not rows:
         print("no checkpoints yet")
     for label, created, commit in rows:
@@ -611,7 +660,7 @@ def current_survey_read_only(project):
     out — found without writing anything in the project (G9)."""
     if is_git_project(project):
         return survey(project, None, True)
-    temp = tempfile.mkdtemp(prefix="v2e-tree-")
+    temp = tempfile.mkdtemp(prefix="v2e-tree-", dir=str(external_temp_root(project)))
     try:
         store = os.path.join(temp, "store.git")
         git(["init", "--bare", "--quiet", "--template=", store], project=project)
@@ -630,7 +679,7 @@ def cmd_tree(project, args):
     if args.depth < 1:
         raise Fail("--depth must be 1 or more")
     if args.label:
-        store = open_store(project)
+        store = read_store(project)
         commit = resolve(store, args.label)
         saved, state = list(tree_files(store, commit)), True
         ignored, nested = recorded(store, commit, IGNORED_MARK), recorded(store, commit, NESTED_MARK)
@@ -732,6 +781,10 @@ def cmd_restore(project, args):
         print("warning: a restore cannot bring back what these ignored files held at %s either." % args.label)
         report_changed(changed, args.label)
     if not to_delete and not to_write:
+        if gone or changed:
+            print("covered files match %s; ignored or nested data differs or is unverified. No files restored."
+                  % args.label)
+            return 3
         print("the project already matches %s — nothing to restore" % args.label)
         return 0
     print("restoring %s rewrites %d file(s) and deletes %d file(s) added since then:"
@@ -785,7 +838,8 @@ def cmd_restore(project, args):
     # 7. verify the result, and that everything the checkpoints do not hold is still there
     different, changed_ignored = [], []
     try:
-        after = tree_files(store, snapshot(project, store, git_project, allow_empty=True)[0])
+        after_tree, final = snapshot(project, store, git_project, allow_empty=True)
+        after = tree_files(store, after_tree)
         different = sorted(rel for rel in set(after) | set(wanted) if after.get(rel) != wanted.get(rel))
         # Keep watching the original names even when restored ignore rules put one back in scope.
         changed_ignored = changed_since(contents, watched_contents(project, found.ignored, key_path(project)))
@@ -799,6 +853,10 @@ def cmd_restore(project, args):
                    + ["changed ignored file: " + name for name, _, _ in changed_ignored[:20]])
         raise Fail("the restore did not complete — %s. The covered files from before the restore are saved as "
                    "checkpoint %s." % ("; ".join(details), saved))
+    if (gone_since(store, commit, final.ignored, final.nested)
+            or changed_since(content_record(store, commit), watched_contents(project, final.ignored, key_path(project)))):
+        print("restored the covered files of %s; ignored or nested data differs or is unverified." % args.label)
+        return 3
     print("restored %s: the project matches it again (verified)" % args.label)
     return 0
 
@@ -852,9 +910,15 @@ def main(argv=None):
     try:
         require_supported_platform()
         project = resolve_project(getattr(args, "project", "."))
+        if os.name == "posix" and args.command not in ("list", "tree"):
+            if args.command == "create":
+                check_label(args.label)
+                is_git_project(project)  # refuse an unreadable repository before creating state
+            with transaction(project, STATE_DIR, STORE_NAME, args.command == "create", check_state_folder):
+                return COMMANDS[args.command](project, args)
         return COMMANDS[args.command](project, args)
     except (Fail, PlatformRefusal, OSError, RuntimeError, ValueError) as error:
-        if getattr(args, "name_map", None):
+        if getattr(args, "name_map", None) and not isinstance(error, IncompleteMapping):
             error = "confidential inventory refused; check the name map, labels and project"
         print("checkpoint.py: error: %s" % error, file=sys.stderr)
     return 1

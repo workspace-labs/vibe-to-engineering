@@ -4,7 +4,7 @@ An Agent Skill that inspects an existing software project, decides from evidence
 
 ```
 INSPECT → DIAGNOSE → DESIGN TARGET ARCHITECTURE → CREATE MIGRATION PLAN → GENERATE PDF
-→ HUMAN APPROVAL → CREATE + VERIFY BACKUP → PHASE 1 → TEST + VERIFY → CHECKPOINT
+→ PLAN APPROVAL + DISPOSABLE FIXTURE CONFIRMATION → CREATE + VERIFY BACKUP → PHASE 1 → TEST + VERIFY → CHECKPOINT
 → HUMAN APPROVAL → NEXT PHASE → … → FINAL REVIEW → ALL GREEN
 ```
 
@@ -14,9 +14,9 @@ is justified, the agent shows its exact proposed work and target tree in a PDF. 
 `approve plan v1` (or explicitly approving the presented version in your own words) records
 the approval and generates the Migration Map. For a project you explicitly confirm is disposable
 and uses synthetic secrets, the approval also covers the verified recovery baseline and Phase 1.
-Every later phase has its own approval.
+On entry and resume, `check-approval` verifies the current plan against the active approval before backup or execution. Runner enrollment requires a separate human decision. Every later phase has its own approval.
 
-The 0.6.2-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
+The 0.6.3-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
 **1.18.0**, including its layout map and ten project-type trees. File-size alarms live only in §7 of
 that standard; this skill keeps no number of its own. The versioned references are
 bundled for offline use; plans record the source commit and the selected project tree.
@@ -39,7 +39,7 @@ a disposable project with synthetic secrets. See the [validation results](TEST-E
 - **Maps the approved plan.** The separate Migration Map shows which old ranges feed each planned file, the line estimates and the phase states recorded in the ledger. It refreshes as a phase starts, completes or fails, and after a restore or stop.
 - **Verifies a recovery baseline.** After approval and explicit confirmation that the project is disposable with synthetic secrets, it saves the recovery contract's covered files, including uncommitted work in that set, and proves those files restore byte for byte. Ignored files and nested repositories are outside that saved set; checkpoints do not comprehensively back up local data or secrets. It refuses when it cannot account for the covered files or a nested repository has uncommitted work.
 - **One phase per approval.** After each phase: checks compared with the baseline, the change compared with the plan, a new verified checkpoint, a report, and a stop.
-- **Investigates failures instead of guessing.** A break stops the work, saves the broken state, compares it with the last known-good checkpoint and reports the root cause and the options. Stopping never rolls anything back; a restore needs the human's own approval and refuses, changing nothing, when it cannot be done safely.
+- **Investigates failures instead of guessing.** A break stops the work, saves the broken state, compares it with the last known-good checkpoint and reports the root cause and the options. A restore needs the human's approval. A refusal before rewriting leaves the covered files as they were. If verification fails after rewriting, the tool reports an incomplete restore and names the checkpoint holding their previous state. A saved-file match with missing, changed or unverified ignored data returns status 3.
 - **Finishes with an independent review.** The approved target tree is compared with the actual final tree, and `VIBE-TO-ENGINEERING — ALL GREEN` is reported only when nothing blocking remains and every final check passes. Checks that were already failing when the human approved going ahead anyway are named in a separate completion status instead.
 
 It never adds features, fixes bugs or changes dependencies, commits nothing unless asked, never pushes, and never touches files git ignores, secrets, data or nested repositories.
@@ -142,7 +142,7 @@ precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|
-| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.6.2-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
+| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.6.3-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
 | Linux | Unsupported execution target. Portable package/unit and refusal checks do not establish Linux support. |
 | Windows | Unsupported execution target. Portable package/unit and refusal checks do not establish Windows support. |
 

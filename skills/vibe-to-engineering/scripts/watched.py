@@ -12,7 +12,9 @@ import hmac
 import os
 import secrets
 import stat
-from gitrun import Fail, is_link, local_path, show
+import sys
+from gitrun import Fail, local_path, show
+from trusted_tools import no_acl
 
 DEFAULT_EXCLUDES = (
     "node_modules/", "bower_components/", ".venv/", "venv/", "__pycache__/", "*.pyc",
@@ -31,26 +33,68 @@ SECRET_FILES = (".env", ".env.*", "*.env", "*.pem", "*.key", "*.p12", "*.pfx", "
                 "id_ecdsa*", "id_ed25519*", "*credential*", "*secret*")
 
 
-def fingerprint_key(key_path):
+def private_key_info(handle):
+    info = os.fstat(handle)
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1
+            or info.st_mode & 0o077):
+        raise Fail("fingerprint key must be a private, owner-only regular file with one name")
+    if sys.platform == "darwin" and not no_acl(handle):
+        raise Fail("fingerprint key has an extended access list or its exclusive access cannot be verified")
+    return info
+
+
+def fingerprint_key(key_path, create=True):
     """The key that fingerprints files holding secrets (G10): 32 random bytes made on first use, kept in the state
     folder next to the store and readable by the owner only. A keyed fingerprint in a checkpoint's message tells
     nothing about the file to anyone who has the message but not this key — a plain hash would let a short secret be
     guessed offline. Never copied into a checkpoint: the state folder is excluded from every one."""
     path = key_path
-    if is_link(str(path)) or (os.path.lexists(str(path)) and not path.is_file()):
-        raise Fail("%s is a link or not a plain file. Nothing was changed" % path)
-    if not path.exists():
-        try:
-            handle = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)  # O_EXCL: never through a link
-        except FileExistsError:
-            pass  # another command made it first
-        else:
-            with os.fdopen(handle, "w") as out:
-                out.write(secrets.token_hex(32) + "\n")
+    from store_transaction import ACTIVE
+    tx = ACTIVE.get()
+    if tx:
+        tx.assert_owned()
+    if tx and path.parent == tx.live:
+        # A live key may only be reused. New keys reach the state directory through publication.
+        create = False
+        parent = os.dup(tx.state_fd)
+    else:
+        parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
-        key = bytes.fromhex(path.read_text(encoding="ascii").strip())
+        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+        try:
+            handle = os.open(path.name, flags, dir_fd=parent)
+        except FileNotFoundError:
+            if not create:
+                raise Fail("fingerprint key disappeared while checking existing state")
+            try:
+                handle = os.open(path.name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                                 0o600, dir_fd=parent)
+            except FileExistsError:
+                handle = os.open(path.name, flags, dir_fd=parent)
+            else:
+                try:
+                    private_key_info(handle)
+                    with os.fdopen(handle, "w+b", closefd=False) as stream:
+                        stream.write((secrets.token_hex(32) + "\n").encode("ascii"))
+                    os.lseek(handle, 0, os.SEEK_SET)
+                except BaseException:
+                    os.close(handle)
+                    raise
+        with os.fdopen(handle, "rb") as stream:
+            info = private_key_info(handle)
+            data = stream.read(130)
+            after = os.fstat(handle)
+            current = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+            if (info.st_ctime_ns != after.st_ctime_ns or not os.path.samestat(after, current)
+                    or not os.path.samestat(os.fstat(parent), os.stat(path.parent, follow_symlinks=False))):
+                raise Fail("fingerprint key identity changed while reading it")
+        if len(data) > 129:
+            raise Fail("invalid fingerprint key length")
+        key = bytes.fromhex(data.decode("ascii").strip())
     except (OSError, ValueError) as error:
-        raise Fail("cannot read the fingerprint key %s (%s)" % (path, error))
+        raise Fail("cannot read the fingerprint key %s" % path) from error
+    finally:
+        os.close(parent)
     if len(key) < 16:
         raise Fail("the fingerprint key %s is too short to trust" % path)
     return key

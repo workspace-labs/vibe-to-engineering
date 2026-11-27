@@ -73,7 +73,7 @@ class Watched(Fixture):
                 os.rename(p / ignored, p / "config" / ignored)   # a careless phase moved an ignored file
                 out, _ = self.tool(p, "diff", "00-baseline", expect=3)
                 self.assertRegex(out, r"gone\s+%s" % re.escape(ignored))
-                out, _ = self.tool(p, "restore", "00-baseline")
+                out, _ = self.tool(p, "restore", "00-baseline", expect=3)
                 self.assertIn("cannot bring them back", out)
                 os.rename(p / "config" / ignored, p / ignored)
                 (p / "config").rmdir()
@@ -104,7 +104,7 @@ class Watched(Fixture):
                 out, _ = self.tool(p, "diff", "00-baseline", expect=3)
                 self.assertRegex(out, r"gone\s+data/main\.db")
                 self.assertNotIn("keep.txt", out)
-                out, _ = self.tool(p, "restore", "00-baseline")
+                out, _ = self.tool(p, "restore", "00-baseline", expect=3)
                 self.assertIn("cannot bring them back", out)
                 self.assertIn("data/main.db", out)
 
@@ -154,7 +154,7 @@ class Watched(Fixture):
                     write(p / "data.db", data)
                     out, _ = self.tool(p, "diff", "00-baseline", expect=3)
                     self.assertRegex(out, report)
-                    out, _ = self.tool(p, "restore", "00-baseline")    # reported before a restore changes anything
+                    out, _ = self.tool(p, "restore", "00-baseline", expect=3)    # reported before a restore changes anything
                     self.assertRegex(out, report)
                     self.assertEqual((p / "data.db").read_bytes(), data)
                 write(p / "data.db", b"ROWS: 5\n")                     # the same bytes again: nothing to report
@@ -181,7 +181,7 @@ class Watched(Fixture):
         os.utime(p / ".env", ns=(info.st_atime_ns, info.st_mtime_ns))   # ...and the same modification time
         out, _ = self.tool(p, "diff", "00-baseline", expect=3)
         self.assertRegex(out, r"changed\s+\.env\s+\(the same size\)")
-        out, _ = self.tool(p, "restore", "00-baseline")
+        out, _ = self.tool(p, "restore", "00-baseline", expect=3)
         self.assertRegex(out, r"changed\s+\.env")
         write(p / ".env", b"SECRET_KEY=fixture-first-value\n")
         os.utime(p / ".env", ns=(info.st_atime_ns, info.st_mtime_ns))
@@ -228,7 +228,7 @@ class Watched(Fixture):
                     self.assertNotIn("node_modules", out)            # an unwatched file is not in question
                     outputs.append(out)
                     for route in ((), ("--apply",)):
-                        out, _ = self.tool(p, "restore", label, *route)
+                        out, _ = self.tool(p, "restore", label, *route, expect=3)
                         self.assertRegex(out, r"cannot bring back.*\n.*\n\s+unknown\s+\.env")
                         outputs.append(out)
                     self.assertEqual((p / ".env").read_bytes(), data)
@@ -273,14 +273,15 @@ class Watched(Fixture):
                 self.assertNotIn("no changes", out)
                 outputs.append(out)
         for route in ((), ("--apply",)):                         # the source already matches pre-a
-            out, _ = self.tool(p, "restore", "pre-a", *route)
+            out, _ = self.tool(p, "restore", "pre-a", *route, expect=3)
             self.assertRegex(out, r"cannot bring back.*\n.*\n\s+unknown\s+\.env\s+\(pre-a recorded nothing")
-            self.assertIn("already matches pre-a", out)
+            self.assertIn("covered files match pre-a", out)
+            self.assertIn("unverified", out)
             outputs.append(out)
         write(p / "main.txt", b"source changed since\n")
-        out, _ = self.tool(p, "restore", "pre-a", "--apply")    # a source change the restore brings back
+        out, _ = self.tool(p, "restore", "pre-a", "--apply", expect=3)    # a source change the restore brings back
         self.assertRegex(out, r"cannot bring back.*\n.*\n\s+unknown\s+\.env\s+\(pre-a recorded nothing")
-        self.assertIn("restored pre-a", out)
+        self.assertIn("restored the covered files of pre-a", out)
         outputs.append(out)
         self.assertEqual((p / "main.txt").read_bytes(), b"source stays the same\n")
         self.assertEqual((p / ".env").read_bytes(), b"SECRET_KEY=fixture-other-value\n")   # the current secret kept
@@ -327,10 +328,11 @@ class Watched(Fixture):
                 self.assertNotRegex(out, r"x/\s")                # which is not watched (G10), so never listed
         for label in ("n-a", "m-a"):                             # the source already matches the checkpoint
             with self.subTest(restore=label):
-                out, _ = self.tool(p, "restore", label)
+                out, _ = self.tool(p, "restore", label, expect=3)
                 self.assertRegex(out, r"cannot bring back.*\n.*\n\s+unknown\s+x/inner\.txt\s+\(%s recorded nothing"
                                  % label)
-                self.assertIn("already matches " + label, out)
+                self.assertIn("covered files match " + label, out)
+                self.assertIn("unverified", out)
         out, _ = self.tool(p, "diff", "00-baseline", expect=3)  # a current record still tells the change itself
         self.assertRegex(out, r"changed\s+x/inner\.txt\s+\(32 bytes, was 29\)")
         for label, genuine, data in GENUINE_FOLDER_CHECKPOINTS:  # no historical record rewritten

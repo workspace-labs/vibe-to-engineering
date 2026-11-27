@@ -75,8 +75,7 @@ The plan states what the agent will do: exact files and boundaries, intended tar
 checks and pass criteria, protected files and recovery limits, risks and the documentation left
 behind. Show the current tree and target tree in the PDF and explain the practical benefit.
 
-After presenting the plan, end with `AWAITING HUMAN APPROVAL` and wait. Only explicit approval
-of that presented version authorizes creating/verifying the recovery baseline and Phase 1.
+After presenting the plan, end with `AWAITING HUMAN APPROVAL` and wait. Approval alone records the presented version and generates its map. Before backup, baseline checks or Phase 1, the owner must separately confirm a disposable project with synthetic secrets. On entry and resume, run section 6’s `check-approval` against the current plan and active ledger. Runner enrollment requires the human’s own separate decision.
 Approving an inspection, asking for a plan, or saying "go" before the plan exists is not that
 approval. A requested revision gets a new plan version and fingerprint and comes back for approval.
 Each later phase and final review keeps its existing approval gate. Record approval in the ledger;

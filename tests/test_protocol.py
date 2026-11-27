@@ -20,6 +20,26 @@ class Protocol(unittest.TestCase):
         self.plan = (SKILL_DIR / "references" / "migration-plan.md").read_text(encoding="utf-8")
         self.template = (SKILL_DIR / "assets" / "plan-template.html").read_text(encoding="utf-8")
 
+    def test_plan_only_confirmation_and_enrollment_at_every_entry_point(self):
+        resume = self.text.split("2. **Resume", 1)[1].split("**Conventions.", 1)[0]
+        backup = self.text.split("## 6. CREATE + VERIFY BACKUP", 1)[1].split("Before step 1", 1)[0]
+        approval = self.text.split("Give the owner a concrete next reply", 1)[1].split("## 6.", 1)[0]
+        reference = (SKILL_DIR / "references" / "standard-alignment.md").read_text()
+        for name, instructions in (("README", (ROOT / "README.md").read_text()),
+                                   ("standard router", reference), ("plan guide", self.plan),
+                                   ("resume", resume), ("baseline", backup)):
+            with self.subTest(entry=name):
+                for word in ("disposable", "synthetic", "approval", "runner enrollment", "separate"):
+                    self.assertIn(word, instructions.lower())
+        for section in (approval, self.template.split("What your approval authorizes", 1)[1].split("</p>", 2)[1],
+                        self.template.split('id="approval"', 1)[1]):
+            self.assertIn("synthetic", section)
+            self.assertIn("disposable", section)
+        self.assertIn("check-approval", backup)
+        self.assertIn("check-approval", self.text.split("## 7. PHASE n", 1)[1].split("Add `PHASE", 1)[0])
+        self.assertIn("display-only failure", self.text)
+        self.assertIn("fingerprint stops backup", self.text)
+
     def test_stop_restore_correct_and_retry_are_separate_transitions(self):
         for transition in ("STOP", "RESTORE `<label>`", "CORRECT", "RETRY MIGRATION"):
             self.assertIn("| **%s** |" % transition, self.text)

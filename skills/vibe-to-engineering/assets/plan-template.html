@@ -193,7 +193,7 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
 
   <div class="authorize">
     <p class="eyebrow">What your approval authorizes</p>
-    <p>Approval records this plan version and generates the Migration Map. Creating and verifying the recovery baseline and starting <b>Phase 1</b> also require your explicit confirmation that this project is disposable and uses synthetic secrets. Ignored files and nested repositories are outside checkpoint recovery; checkpoints are not a comprehensive backup of secrets or user data. These protected files stay untouched. Every later phase waits for its own approval. The product's behavior stays the same, nothing is committed or published, and nothing is deleted without a saved copy.</p>
+    <p>Approval records this plan version and generates the Migration Map. Creating and verifying the recovery baseline and starting <b>Phase 1</b> also require your explicit confirmation that this project is disposable and uses synthetic secrets. The current plan must still match the approved copy. You decide separately whether to enroll a runner for checks. Ignored files and nested repositories are outside checkpoint recovery; checkpoints are not a comprehensive backup of secrets or user data. These protected files stay untouched. Every later phase waits for its own approval. The product's behavior stays the same, nothing is committed or published, and nothing is deleted without a saved copy.</p>
   </div>
 </section>
 
@@ -311,6 +311,7 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
     <thead><tr><th>New file</th><th>Old file and lines</th><th>Finding</th><th>Reason</th><th>Evidence</th></tr></thead>
     <tbody>
       <!-- repeat: one row per new file, plus one per kept file that receives code. Every mapped file needs a row here.
+           Begin Reason with the phase number and approximate line bounds for this file as shown below.
            Evidence is exactly "exact" or "not yet exact: <reason>" with a nonempty reason.
            Use "none" in Old file and lines for a file created from scratch, with "exact" evidence and no map links.
            Otherwise use <source path>: <range>[, <range>][; <source path>: <range>[, <range>]].
@@ -318,7 +319,7 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
            For exact evidence, merge overlapping or adjacent plain ranges and match the linked parts for each source.
            For not yet exact evidence, each exact link fits inside a plain range and each inexact link overlaps a part of range.
            Every named range overlaps a linked part from its source. -->
-      <tr><td class="path">{{NEW_FILE_PATH}}</td><td class="path">{{NEW_FILE_OLD_LINES}}</td><td>{{NEW_FILE_FINDING}}</td><td>{{NEW_FILE_WHY}}</td><td>{{NEW_FILE_EVIDENCE_STATE}}</td></tr>
+      <tr><td class="path">{{NEW_FILE_PATH}}</td><td class="path">{{NEW_FILE_OLD_LINES}}</td><td>{{NEW_FILE_FINDING}}</td><td><b>Phase {{NEW_FILE_PHASE}} / {{NEW_FILE_LINES_LOW}}–{{NEW_FILE_LINES_HIGH}} lines</b><br>{{NEW_FILE_WHY}}</td><td>{{NEW_FILE_EVIDENCE_STATE}}</td></tr>
       <!-- /repeat -->
     </tbody>
   </table>
@@ -452,7 +453,7 @@ pre.record { font-family: var(--mono); font-size: 7.8pt; line-height: 1.4; white
       <p class="eyebrow">Status: AWAITING HUMAN APPROVAL</p>
       <p>To approve this plan, reply:</p>
       <p class="reply">approve plan v{{PLAN_VERSION}}</p>
-      <p>Approval records this plan version and generates the Migration Map. The recovery baseline and Phase 1 also require your explicit confirmation that this project is disposable and uses synthetic secrets. To revise the plan, say what should change and review the new version.</p>
+      <p>Approval records this plan version and generates the Migration Map. The recovery baseline and Phase 1 also require your explicit confirmation that this project is disposable and uses synthetic secrets. The same checks apply when you resume. You decide separately whether to enroll a runner. To revise the plan, say what should change and review the new version.</p>
       <p class="lead">Plan file: <span class="path">.vibe-to-engineering/Engineering-Migration-Plan.html</span> · its fingerprint and your approval are recorded in <span class="path">.vibe-to-engineering/ledger.md</span></p>
     </div>
   </div>

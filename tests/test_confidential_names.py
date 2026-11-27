@@ -22,7 +22,8 @@ class NameMapPortable(unittest.TestCase):
             self.assertEqual(public, "private-folder/private-source")
             self.assertEqual(names.disk_path(project, public), original)
             self.assertEqual(names.display("ordinary.py"), "ordinary.py")
-            self.assertEqual(names.display("MyNotebook.py"), "MyNotebook.py")
+            with self.assertRaisesRegex(ValueError, "My<private-source>"):
+                names.display("MyNotebook.py")
             with self.assertRaises(ValueError):
                 NameMap({'Notes "A".py': 'private-file'}).check_values({"title": ['Notes "A".py']})
             for markup in ("<p>Orchard&#32;drafts</p>", "<p>Note<b>book</b>.py</p>"):
@@ -30,6 +31,53 @@ class NameMapPortable(unittest.TestCase):
                     names.check_html(markup)
             with self.assertRaises(ValueError):
                 names.display("private-folder")
+
+    def test_embedded_declared_word_requires_a_complete_private_mapping(self):
+        with mock.patch.object(sys, "path", [str(SCRIPTS)] + sys.path):
+            from private_names import NameMap
+        entries = {"Orion": "private-one"}
+        names = NameMap(entries)
+        for component, hint in (("OrionClient.js", "<private-one>Client.js"),
+                                ("orion_api", "<private-one>_api"),
+                                ("orion-web", "<private-one>-web"),
+                                ("Orion.md", "<private-one>.md")):
+            with self.subTest(component=component):
+                with self.assertRaises(ValueError) as caught:
+                    names.display(component)
+                self.assertIn(hint, str(caught.exception))
+                if component.startswith("orion"):
+                    self.assertIn("private-one at character 1: lowercase", str(caught.exception))
+                self.assertNotIn("orion", str(caught.exception).lower())
+                with self.assertRaises(ValueError):
+                    names.check_values({"phase": [component]})
+                self.assertEqual(NameMap(dict(entries, **{component: "private-two"})).display(component),
+                                 "private-two")
+        self.assertEqual(names.display("ordinary.js"), "ordinary.js")
+
+    def test_private_map_must_be_outside_the_project_even_through_a_link(self):
+        with mock.patch.object(sys, "path", [str(SCRIPTS)] + sys.path):
+            from private_names import load_name_map
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            project = root / "project"
+            project.mkdir()
+            internal = project / "names.json"
+            outside = root / "owner"
+            outside.mkdir()
+            external = outside / "names.json"
+            for path in (internal, external):
+                path.write_text(json.dumps({"Example": "private-one"}))
+            self.assertEqual(load_name_map(external, project).display("Example"), "private-one")
+            for link, folder in ((root / "shortcut", project), (project / "shortcut", outside)):
+                if os.name == "nt":
+                    # Directory junctions work without Windows symbolic-link privileges.
+                    subprocess.run(["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(folder)],
+                                   check=True, stdout=subprocess.PIPE)
+                else:
+                    link.symlink_to(folder, target_is_directory=True)
+            for location in (internal, root / "shortcut" / "names.json", project / "shortcut" / "names.json"):
+                with self.subTest(location=location), self.assertRaisesRegex(ValueError, "outside"):
+                    load_name_map(location, project)
 
 
 @unittest.skipUnless(sys.platform == "darwin", "the inventory and PDF tools require macOS")
@@ -67,6 +115,14 @@ class ConfidentialNames(MapFixture, unittest.TestCase):
         result = self.inventory()
         self.assertNotEqual(result.returncode, 0)
         self.assert_public(result.stdout)
+        self.assertNotIn("visible.py", result.stdout)
+
+    def test_inventory_refusal_identifies_the_complete_name_using_its_public_label(self):
+        (self.project / ("My" + self.private)).touch()
+        result = self.inventory()
+        self.assertNotEqual(result.returncode, 0)
+        self.assert_public(result.stdout)
+        self.assertIn("My<private-source>", result.stdout)
         self.assertNotIn("visible.py", result.stdout)
 
     def test_both_printed_documents_use_inventory_labels_for_measured_source(self):

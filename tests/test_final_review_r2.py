@@ -151,6 +151,88 @@ class RunnerIdentity(unittest.TestCase):
             code = tool.main(argv)
         return code, out.getvalue(), err.getvalue()
 
+    def test_runner_format_is_checked_on_the_hash_read_after_an_update(self):
+        runner = self.tmp / "node"
+        original = b"\xcf\xfa\xed\xfe" + b"ordinary fixture"
+        runner.write_bytes(original)
+        runner.chmod(0o700)
+        resolved, _ = evidence.resolve_candidate(str(runner), "")
+        self.assertEqual(evidence.hashed(resolved), (hashlib.sha256(original).hexdigest(), len(original)))
+        runner.write_bytes(b"installation update incomplete")
+        with self.assertRaisesRegex(evidence.Fail, "binary"):
+            evidence.hashed(resolved)
+
+    def test_registry_folder_with_unconfirmed_owner_is_refused_without_writes(self):
+        home = self.fresh_home("ownership")
+        folder = home / ".vibe-to-engineering"
+        folder.mkdir(mode=0o700)
+        native_fstat, reference = os.fstat, folder.stat()
+        def restored_ownership(fd):
+            info = native_fstat(fd)
+            if os.path.samestat(info, reference):
+                fields = list(info)
+                fields[4] = os.geteuid() + 1   # synthetic metadata of a restored directory
+                return os.stat_result(fields)
+            return info
+        with mock.patch.dict(os.environ, {"HOME": str(home)}), \
+                mock.patch.object(os, "fstat", side_effect=restored_ownership), \
+                mock.patch.object(evidence, "probe") as probe:
+            with self.assertRaises(evidence.Fail):
+                evidence.enroll_runner("/bin/sh", ask=lambda _: "enroll", out=io.StringIO())
+            probe.assert_not_called()
+        self.assertEqual(list(folder.iterdir()), [])
+        self.assertEqual(reference.st_mode, folder.stat().st_mode)
+        changed = False
+        def finish_probe(*_):
+            nonlocal changed
+            changed = True
+        def changed_identity(fd):
+            info = native_fstat(fd)
+            if changed and os.path.samestat(info, reference):
+                fields = list(info)
+                fields[1] += 1   # the admitted directory identity is no longer available
+                return os.stat_result(fields)
+            return info
+        with mock.patch.dict(os.environ, {"HOME": str(home)}), \
+                mock.patch.object(os, "fstat", side_effect=changed_identity), \
+                mock.patch.object(evidence, "probe", side_effect=finish_probe):
+            with self.assertRaises(evidence.Fail):
+                evidence.enroll_runner("/bin/sh", ask=lambda _: "enroll", out=io.StringIO())
+        self.assertTrue(changed)
+        self.assertEqual(list(folder.iterdir()), [])
+        self.assertEqual(reference.st_mode, folder.stat().st_mode)
+
+        # Model an ambiguous native ACL on either descriptor. An enrollment must stop
+        # before probing and preserve both modes and the existing registration bytes.
+        acl_home = self.fresh_home("acl")
+        acl_folder = acl_home / ".vibe-to-engineering"
+        acl_folder.mkdir(mode=0o700)
+        acl_file = acl_folder / "runners.json"
+        previous = b'{"version":1,"runners":{}}'
+        acl_file.write_bytes(previous)
+        acl_file.chmod(0o600)
+        for subject in (acl_folder, acl_file):
+            reference_acl = subject.stat()
+            with self.subTest(acl_on=subject.name), mock.patch.dict(os.environ, {"HOME": str(acl_home)}), \
+                    mock.patch("runner_registry.no_acl",
+                               side_effect=lambda fd: not os.path.samestat(os.fstat(fd), reference_acl)), \
+                    mock.patch.object(evidence, "probe") as probe:
+                with self.assertRaisesRegex(evidence.Fail, "ACL"):
+                    evidence.enroll_runner("/bin/sh", ask=lambda _: "enroll", out=io.StringIO())
+                probe.assert_not_called()
+                self.assertEqual(acl_file.read_bytes(), previous)
+                self.assertEqual(acl_folder.stat().st_mode & 0o777, 0o700)
+                self.assertEqual(acl_file.stat().st_mode & 0o777, 0o600)
+
+        # A linked registry is refused at read-only admission, before disclosure.
+        external = self.tmp / "separate-folder"
+        folder.rename(external)
+        folder.symlink_to(external, target_is_directory=True)
+        with mock.patch.dict(os.environ, {"HOME": str(home)}), self.assertRaises(evidence.Fail):
+            evidence.load_registry()
+        self.assertEqual(list(external.iterdir()), [])
+        self.assertEqual(reference.st_mode, external.stat().st_mode)
+
     # ---------------------------------------------------- routine validation never executes an untrusted candidate
 
     def test_an_unenrolled_candidate_is_not_executed_by_routine_validation(self):

@@ -4,19 +4,28 @@ from typing import NamedTuple, Optional
 
 from gitrun import Fail
 
+SAFE_VERSION = re.compile(r"[A-Za-z0-9._-]+")
 APPROVAL_EVENT = re.compile(r"PLAN APPROVED v(\S+)\Z")
 FINAL_OUTCOMES = {
     "VIBE-TO-ENGINEERING — ALL GREEN": "All green",
     "VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED BASELINE FAILURES": "Complete with approved failures",
     "VIBE-TO-ENGINEERING — COMPLETE WITH ACCEPTED VERIFICATION GAPS": "Complete with accepted gaps",
 }
+PLAN_FINGERPRINT = re.compile(r" {0,3}(?:Plan fingerprint:\s*)?`?([0-9a-f]{40}|[0-9a-f]{64})`?", re.I)
 PHASE_EVENT = re.compile(r"PHASE ([1-9]\d*) (STARTED|COMPLETE|FAILED)\Z")
 PHASE_RESTORE = re.compile(r"(?:r[1-9]\d*-)?\d{2,}-phase-([1-9]\d*)\Z")
 BASELINE_RESTORE = re.compile(r"(?:r[1-9]\d*-)?00-baseline(?:-checked)?\Z")
 EVENT_STATE = {"STARTED": "Now", "COMPLETE": "Done", "FAILED": "Failed"}
 
 
-def ledger_headings(lines):
+def approved_map_name(version, run=1):
+    if not isinstance(version, str) or not SAFE_VERSION.fullmatch(version):
+        raise Fail("unsafe or missing approved plan version")
+    prefix = "" if run == 1 else "r%d-" % run
+    return "approved-map-%sv%s.json" % (prefix, version)
+
+
+def unfenced_lines(lines):
     fence = None
     for index, line in enumerate(lines):
         start = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)", line)
@@ -27,8 +36,14 @@ def ledger_headings(lines):
             elif mark.startswith(fence) and not rest.strip():
                 fence = None
             continue
+        if not fence:
+            yield index, line
+
+
+def ledger_headings(lines):
+    for index, line in unfenced_lines(lines):
         heading = re.match(r"^ {0,3}##[ \t]+(.+?)\s*$", line)
-        if not fence and heading:
+        if heading:
             fields = heading[1].split(" — ", 3)
             # Final outcomes have an em dash inside the event name.
             outcome_start = 0 if fields[0] == "VIBE-TO-ENGINEERING" else 1
@@ -49,6 +64,8 @@ class LedgerProgress(NamedTuple):
     restored: bool
     started: bool
     outcome: Optional[str]
+    run: int
+    fingerprints: dict
 
 
 def update_warnings(lines, warnings, *, finalized=False):
@@ -97,19 +114,43 @@ def advance_phase(states, number, action):
     states[number] = EVENT_STATE[action]
 
 
-def phase_states(ledger, version, fingerprint, numbers):
+def current_approval(ledger, version, fingerprint, *, require_open=False):
+    """Match the latest approval to these plan bytes, independently of map output."""
     lines = ledger.splitlines()
     events = list(ledger_headings(lines))
-    approval = "PLAN APPROVED v" + version
-    last = next((i for i in range(len(events) - 1, -1, -1) if events[i][1] == approval), None)
-    if last is None:
-        raise Fail("ledger has no %s heading" % approval)
-    previous = next((line + 1 for line, event, _ in reversed(events[:last])
-                     if APPROVAL_EVENT.fullmatch(event)), 0)
-    if not re.search(r"\b%s\b" % re.escape(fingerprint), "\n".join(lines[previous:events[last][0]])):
-        raise Fail("ledger has no approved plan fingerprint before %s" % approval)
-    run_start = next((i + 1 for i in range(last - 1, -1, -1)
-                      if events[i][1] == "MIGRATION STOPPED" or events[i][1] in FINAL_OUTCOMES), 0)
+    run, run_start, next_start, last, boundary = 0, 0, 0, None, 0
+    fingerprints = {}
+    new_run = True
+    for index, (line, event, _) in enumerate(events):
+        if event == "MIGRATION STOPPED" or event in FINAL_OUTCOMES:
+            new_run, next_start, boundary = True, index + 1, line + 1
+            continue
+        approval = APPROVAL_EVENT.fullmatch(event)
+        if not approval:
+            continue
+        if new_run:
+            run += 1
+            run_start = next_start
+            fingerprints = {}
+            new_run = False
+        if approval[1] in fingerprints:
+            raise Fail("ledger repeats a plan version in the same run")
+        # Only the last presented plan fingerprint in this approval interval applies.
+        recorded = [m[1] for _, row in unfenced_lines(lines[boundary:line])
+                    if (m := PLAN_FINGERPRINT.fullmatch(row.rstrip()))]
+        fingerprints[approval[1]] = recorded[-1] if recorded else None
+        last, boundary = index, line + 1
+    if last is None or events[last][1] != "PLAN APPROVED v" + version:
+        raise Fail("map version does not match the current approval")
+    if fingerprints[version] != fingerprint:
+        raise Fail("ledger has no matching approved plan fingerprint before the current approval")
+    if require_open and new_run:
+        raise Fail("the approved migration has ended; a new run requires its own approval")
+    return lines, events, run, run_start, last, fingerprints
+
+
+def phase_states(ledger, version, fingerprint, numbers):
+    lines, events, run, run_start, last, fingerprints = current_approval(ledger, version, fingerprint)
     states = dict.fromkeys(numbers, "Waiting")
     if list(states) != sorted(states):
         raise Fail("phase order: plan phase numbers must be ascending")
@@ -174,4 +215,4 @@ def phase_states(ledger, version, fingerprint, numbers):
             restored = True
             if index > last:
                 plan_only = False
-    return LedgerProgress(states, completions, stopped, plan_only, restored, started, outcome)
+    return LedgerProgress(states, completions, stopped, plan_only, restored, started, outcome, run, fingerprints)

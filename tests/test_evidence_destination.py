@@ -77,6 +77,29 @@ class EvidenceDestination(unittest.TestCase):
         self.assertEqual(record, dict(v=1, wrapper=3, launched=True, saved=False, child={"exit": child}))
         self.assertEqual(printed, "")
 
+    def test_requested_evidence_name_is_preserved_at_admission(self):
+        earlier = self.folder / "earlier.txt"
+        earlier.write_bytes(b"earlier proof")
+        self.output.symlink_to(earlier)
+        with self.assertRaises(evidence.Fail):
+            evidence.Destination(self.project, evidence.evidence_path(self.project, str(self.output)))
+        self.assertEqual(earlier.read_bytes(), b"earlier proof")
+        self.output.unlink()
+        project = self.project
+        if sys.platform == "darwin" and self.project.is_relative_to("/private/var"):
+            project = Path("/var") / self.project.relative_to("/private/var")
+        requested = project / self.output.relative_to(self.project)
+        destination = evidence.Destination(self.project, evidence.evidence_path(self.project, str(requested)))
+        evidence.write_lf(destination, "current proof")
+        self.assertEqual(self.output.read_text(), "current proof")
+        self.assertEqual(earlier.read_bytes(), b"earlier proof")
+        destination = evidence.Destination(self.project, self.output)
+        self.output.rename(self.folder / "archived.txt")
+        self.output.write_text("later proof")
+        with self.assertRaises(evidence.Fail):
+            evidence.write_lf(destination, "obsolete write")
+        self.assertEqual(self.output.read_text(), "later proof")
+
     def test_preexisting_nonregular_output_is_refused_before_the_check(self):
         for kind in ("directory", "fifo"):
             with self.subTest(kind=kind):

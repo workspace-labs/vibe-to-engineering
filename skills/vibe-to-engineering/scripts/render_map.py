@@ -27,8 +27,9 @@ if os.name == "posix":
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # support isolated Python (-I)
 import render_pdf
+from mappair import MAP_HTML, MAP_PDF, PENDING_PAIR, check_pending, publish_pair, recover_pair
 from private_names import load_name_map
-from mapledger import phase_states
+from mapledger import SAFE_VERSION, approved_map_name, phase_states
 from checkpoint import STATE_DIR, check_state_folder, resolve_project
 from gitrun import Fail, git, is_link
 from platformgate import PlatformRefusal, require_supported_platform
@@ -36,12 +37,9 @@ from platformgate import PlatformRefusal, require_supported_platform
 PLAN = "Engineering-Migration-Plan.html"
 LEDGER = "ledger.md"
 MAP_DATA = "migration-map.json"
-MAP_HTML = "Migration-Map.html"
-MAP_PDF = "Migration-Map.pdf"
 PHASE_HEADING = re.compile(r"Phase ([1-9]\d*)\s*—\s*(.+)\Z")
 PLAN_VERSION = re.compile(r"Plan version\s+(\S+)\Z")
-SAFE_VERSION = re.compile(r"[A-Za-z0-9._-]+")
-APPROVED_MAP_TEMP = re.compile(r"\.v2e-approved-[0-9a-f]{32}\.tmp")
+MAP_TEMP = re.compile(r"\.v2e-(?:approved|map-recovery)-[0-9a-f]{32}\.tmp")
 NEW_FILE_EVIDENCE = re.compile(r"exact|not yet exact: .+")
 OLD_RANGE = re.compile(r"(part of )?([0-9]+)[-–]([0-9]+)")
 OLD_LINE_GROUP = re.compile(
@@ -56,6 +54,7 @@ class PlanEntries(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.phases, self.paths = [], set()
         self.versions, self.new_files = set(), {}
+        self.allocations = {}
         self.kind, self.pieces, self.badge = None, [], False
         self.path_cell = False
         self.has_new_files_table = self.in_new_files = False
@@ -64,6 +63,8 @@ class PlanEntries(HTMLParser):
         self.close()
 
     def handle_starttag(self, tag, attrs):
+        if tag == "br" and self.kind == "td":
+            self.pieces.append("\n")
         attrs = dict(attrs)
         classes = (attrs.get("class") or "").split()
         if tag == "table" and attrs.get("id") == "new-files":
@@ -121,6 +122,10 @@ class PlanEntries(HTMLParser):
         evidence = " ".join(row[-1].split())
         if not NEW_FILE_EVIDENCE.fullmatch(evidence):
             raise Fail("invalid plan evidence for new file: %s" % path)
+        first_line = row[3].split("\n", 1)[0].strip()
+        allocation = re.fullmatch(r"Phase ([1-9][0-9]*) / ([0-9]+)[–-]([0-9]+) lines", first_line)
+        if allocation:
+            self.allocations[path] = tuple(int(value) for value in allocation.groups())
         self.new_files[path] = (row[1], evidence == "exact")
 
 
@@ -186,13 +191,10 @@ def state_paths(project):
     state = project / STATE_DIR
     for name in (PLAN, LEDGER, MAP_DATA, MAP_HTML, MAP_PDF):
         regular_file(state / name, missing_ok=name in (MAP_HTML, MAP_PDF))
+    if regular_file(state / PENDING_PAIR, missing_ok=True) is not None:
+        with project_file(project, (STATE_DIR, PENDING_PAIR)) as pending:
+            check_pending(pending, [MAP_PDF, MAP_HTML])
     return state
-
-
-def approved_map_name(version):
-    if not isinstance(version, str) or not SAFE_VERSION.fullmatch(version):
-        raise Fail("unsafe or missing approved plan version")
-    return "approved-map-v%s.json" % version
 
 
 @contextlib.contextmanager
@@ -204,19 +206,25 @@ def approved_map_state(project, state):
         if directory is not None:
             fcntl.flock(directory, fcntl.LOCK_EX)
         for name in os.listdir(state if directory is None else directory):
-            if not APPROVED_MAP_TEMP.fullmatch(name):
+            if not MAP_TEMP.fullmatch(name):
                 continue
             entry = state / name if directory is None else name
             with contextlib.suppress(FileNotFoundError):
                 info = os.lstat(entry, dir_fd=directory)
                 if stat.S_ISREG(info.st_mode) and (directory is not None or not is_link(str(entry))):
                     os.unlink(entry, dir_fd=directory)
-        yield
+        yield directory
 
 
-def read_approved_map(project, version):
+def read_approved_map(project, version, run=1, fingerprint=None):
     """Read the saved approval as data, using the same safe opener as the plan."""
-    name = approved_map_name(version)
+    name = approved_map_name(version, run)
+    if run > 1 and regular_file(project / STATE_DIR / name, missing_ok=True) is None:
+        # Older renderers used one global version namespace. Reuse a legacy copy
+        # only when the fingerprint independently recorded for this run agrees.
+        name = approved_map_name(version)
+        if fingerprint is None:
+            raise Fail("cannot bind legacy approved copy to this run")
     try:
         regular_file(project / STATE_DIR / name)
         with project_file(project, (STATE_DIR, name)) as source:
@@ -225,6 +233,8 @@ def read_approved_map(project, version):
         raise Fail("approved map copy %s is missing or unreadable: %s" % (name, error)) from error
     if not isinstance(saved, dict) or saved.get("plan_version") != version:
         raise Fail("approved map copy %s has an invalid version" % name)
+    if fingerprint is not None and saved.get("plan_fingerprint") != fingerprint:
+        raise Fail("approved map copy %s has a different plan fingerprint" % name)
     return saved
 
 
@@ -252,14 +262,14 @@ def create_approved_map(project, state, name, body):
             os.unlink(temporary, dir_fd=directory)
 
 
-def record_approved_map(project, data):
+def record_approved_map(project, data, run):
     version = data["plan_version"]
-    name = approved_map_name(version)
+    name = approved_map_name(version, run)
     body = json.dumps(data, sort_keys=True)
     try:
         create_approved_map(project, state_paths(project), name, body)
     except FileExistsError:
-        if json.dumps(read_approved_map(project, version), sort_keys=True) != body:
+        if json.dumps(read_approved_map(project, version, run), sort_keys=True) != body:
             raise Fail("map data differs from its approved copy %s" % name)
 
 
@@ -407,7 +417,9 @@ def validate_map(data, plan):
                 raise Fail("mapped file path is listed more than once: %s" % path)
             file_paths.add(path)
             low = required_count(file["lines_low"], "estimated lower line count", minimum=0)
-            required_count(file["lines_high"], "estimated upper line count", minimum=low)
+            high = required_count(file["lines_high"], "estimated upper line count", minimum=low)
+            if plan.allocations and plan.allocations.get(path) != (phase["number"], low, high):
+                raise Fail("mapped allocation differs from the approved phase or estimate for %s" % path)
             origins = required_rows(file["from"], "file origins")
             old_lines, exact = plan.new_files[path]
             no_source = old_lines == "none"
@@ -452,7 +464,10 @@ def check_completed_phases(project, phases, progress, current_version, *, earlie
             continue
         try:
             if version not in archived:
-                archived[version] = read_approved_map(project, version)
+                fingerprint = progress.fingerprints.get(version)
+                if not fingerprint:
+                    raise Fail("no recorded plan fingerprint for v%s" % version)
+                archived[version] = read_approved_map(project, version, progress.run, fingerprint)
             matches = [item for item in archived[version]["phases"]
                        if type(item["number"]) is int and item["number"] == number]
             if len(matches) != 1 or phase_identity(matches[0]) != phase_identity(phase):
@@ -852,7 +867,7 @@ def summary(data, progress):
                                                 for label, value in facts) + "</div>"
 
 
-def map_html(data, progress, actual, theme):
+def map_html(data, progress, actual, theme, *, verified_allocation=True):
     stopped = progress.stopped and not progress.outcome
     budget = DIAGRAM_BUDGET - (STOP_NOTICE_HEIGHT if stopped else 0)
     pages = diagrams(data, progress.states, actual, budget)
@@ -862,9 +877,12 @@ def map_html(data, progress, actual, theme):
               + ('<p class="stopped"><strong>Stopped</strong></p>'
                  if stopped else '') + '</header>')
     names = '<div class="column-labels"><h2>Source files</h2><h2>Migration phases</h2></div>'
+    allocation_note = ("Planned lines are estimates" if verified_allocation else
+                       "Phase allocations and estimates unverified in this legacy plan")
     legend = ('<div class="legend"><span><i class="line-key"></i>Exact source range</span>'
               '<span><i class="line-key dashed"></i>Source range not yet exact</span>'
-              '<span>Planned lines are estimates</span></div>')
+              f'<span>{allocation_note}. Project and part labels come from map data.</span>'
+              + ('<span>Source totals are from map data after migration starts.</span>' if progress.started else "") + "</div>")
     sheets = []
     for index, content in enumerate(pages, 1):
         sheets.append(f'<section class="sheet"><main class="frame">'
@@ -876,12 +894,26 @@ def map_html(data, progress, actual, theme):
             + "\n".join(sheets) + "\n</body></html>\n")
 
 
-def render_project(project, names=None):
-    state = state_paths(project)
+def read_map_inputs(project):
     inputs = {}
     for name in (PLAN, LEDGER, MAP_DATA):
         with project_file(project, (STATE_DIR, name)) as source:
             inputs[name] = source.read()
+    return inputs
+
+
+def render_project(project, names=None):
+    check_state_folder(project)
+    state = project / STATE_DIR
+    with approved_map_state(project, state) as directory:
+        for name in (MAP_HTML, MAP_PDF):
+            regular_file(state / name, missing_ok=True)
+        recover_pair(state, directory, lambda name: project_file(project, (STATE_DIR, name)), MAP_PDF, MAP_HTML)
+        return render_locked(project, state_paths(project), directory, names)
+
+
+def render_locked(project, state, directory, names):
+    inputs = read_map_inputs(project)
     try:
         data = json.loads(inputs[MAP_DATA].decode("utf-8"))
         if names:
@@ -907,14 +939,20 @@ def render_project(project, names=None):
             if measured != str(source["lines"]):
                 raise Fail("source line count differs from the map for %s (measured: %s)" % (path, measured))
     phases, version = data["phases"], data["plan_version"]
-    with approved_map_state(project, state):
-        check_completed_phases(project, phases, progress, version, earlier=True)
-        record_approved_map(project, data)
-        check_completed_phases(project, phases, progress, version, earlier=False)
+    check_completed_phases(project, phases, progress, version, earlier=True)
+    if not plan.allocations and plan.new_files:
+        try:
+            archived = read_approved_map(project, version, progress.run, fingerprint)
+        except Fail as error:
+            raise Fail("legacy plan lacks approved allocations; revise the plan before the first map") from error
+        if archived != data:
+            raise Fail("legacy map differs from its write-once approved copy")
+    record_approved_map(project, data, progress.run)
+    check_completed_phases(project, phases, progress, version, earlier=False)
     theme = theme_css()
     actual = {file["path"]: actual_lines(project, names.disk_path(project, file["path"]) if names else file["path"])
               for phase in data["phases"] if progress.states[phase["number"]] == "Done" for file in phase["files"]}
-    document = map_html(data, progress, actual, theme)
+    document = map_html(data, progress, actual, theme, verified_allocation=bool(plan.allocations))
     if names:
         names.check_html(document)
     problems = render_pdf.static_problems(document)
@@ -927,8 +965,9 @@ def render_project(project, names=None):
         if code:
             return code
         state_paths(project)
-        os.replace(draft_pdf, state / MAP_PDF)
-        os.replace(draft_html, state / MAP_HTML)
+        if read_map_inputs(project) != inputs:
+            raise Fail("plan, ledger or map changed during printing; refresh again")
+        publish_pair(draft_pdf, draft_html, state, directory)
     print("wrote %s and %s" % (state / MAP_HTML, state / MAP_PDF))
     return 0
 
