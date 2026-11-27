@@ -8,7 +8,7 @@ downloads during a test run.
 For every artifact in tests/reader_matrix_provenance.json (npm dotenv 0.4.0–18.0.4, Node v20.7.0, v22.0.0,
 v22.16.0, v24.21.0, v26.10.0, the python-dotenv 1.2.3 wheel):
 
-1. REUSE the 2026-09-27 experiment's working copy (/tmp/v2e-reader-compat.zVqLvR/artifacts) when the file there
+1. REUSE a separately retained archive directory named by V2E_READER_ARCHIVES when the file there
    hashes to the recorded sha256 — the saved evidence, not a new download; otherwise
 2. FETCH the exact artifact from the recorded URL (network, this step only) and verify the same sha256.
 
@@ -39,7 +39,7 @@ from reader_platform import reader_prerequisites
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROVENANCE = json.load(open(os.path.join(ROOT, "tests", "reader_matrix_provenance.json")))
-COMPAT = "/tmp/v2e-reader-compat.zVqLvR/artifacts"   # the experiment's working copy, reused when it verifies
+COMPAT = os.environ.get("V2E_READER_ARCHIVES")  # optional previously downloaded archives
 TARGET = sys.argv[1] if len(sys.argv) > 1 else "/tmp/v2e-reader-matrix"
 
 
@@ -58,8 +58,8 @@ def artifact(name, meta, target):
     if os.path.exists(dest) and sha256(dest) == meta["sha256"]:
         return "kept"
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    reuse = os.path.join(COMPAT, meta["file"])
-    if os.path.exists(reuse) and sha256(reuse) == meta["sha256"]:
+    reuse = os.path.join(COMPAT, meta["file"]) if COMPAT else None
+    if reuse and os.path.exists(reuse) and sha256(reuse) == meta["sha256"]:
         shutil.copyfile(reuse, dest)
         return "reused (the experiment's verified copy)"
     with urllib.request.urlopen(meta["url"]) as response:   # nosec — the recorded URL, verified below

@@ -136,7 +136,9 @@ class CliBoundaries(Fixture):
         self.assert_renderer_same_file_refused(html, pdf)
 
     def test_renderer_browser_launch_failure_is_plain_and_leaves_no_pdf_or_profile(self):
-        html, pdf = self.tmp / "plan.html", self.tmp / "plan.pdf"
+        project = self.tmp / "plan"
+        project.mkdir()
+        html, pdf = project / "plan.html", project / "plan.pdf"
         html.write_text("<!DOCTYPE html>\n<html><head><title>Fixture</title></head>"
                         "<body>Fixture</body></html>\n")
         browser = self.tmp / "unlaunchable-browser"
@@ -146,4 +148,4 @@ class CliBoundaries(Fixture):
         self.assert_plain_error(done, "render_pdf.py")
         self.assertFalse(pdf.exists())
         self.assertEqual(list((self.tmp / "temp").glob("v2e-browser-*")), [])
-        self.assertEqual(list(self.tmp.glob(".v2e-pdf-*")), [])
+        self.assertEqual(list(project.glob(".v2e-pdf-*")), [])

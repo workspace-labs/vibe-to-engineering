@@ -184,14 +184,14 @@ refused outright now, and the live cross-reader proof for the claimed set is the
   `test_stage1_acceptance.py`).
 - **Node's own `.env` loader and npm dotenv v0.1.1–v18.0.4 keys** — live: the local Node v20.20.2
   (`test_evidence_readings.py`, round 9), within the version-bounded profiles.
-- **npm dotenv v0.4–1.2 `$NAME` interpolation** — live (2026-09-27, throwaway: `/tmp/v2e-f8-oldnpm`): each
+- **npm dotenv v0.4–1.2 `$NAME` interpolation** — live (2026-09-27, disposable directory): each
   release's own `lib/main.js` (0.4.0, 0.5.0, 0.5.1, 1.0.0, 1.1.0, 1.2.0, fetched from unpkg) run in Node
   v20.20.2 over eight interpolation cases (file-key resolution, environment fallback, chained keys, quoted
   values, empty-falls-through, unknown-is-empty, `\$` escape, whole-rest-is-the-name). 1.0.0–1.2.0
   interpolate inside `parse()`; 0.4.0–0.5.1 in `_processForPotentialEnvVariable` on the `load()` path —
   both driven exactly as the release's own code does. All six matched the model (`old_npm_interpolated`) on
   every case. Nothing vendored; the model and its tests carry the repeatable proof.
-- **python-dotenv 1.2.3** — live (2026-09-27, throwaway: `/tmp/v2e-f8-pydotenv`, owner-authorized one-off
+- **python-dotenv 1.2.3** — live (2026-09-27, disposable directory, owner-authorized one-off
   fetch): the official 1.2.3 wheel run with the system Python over 21 checks — the per-value reading (quote
   forms, escape sets, `\x`/`\u`/octal-looking left as written, inline comments, right-stripping),
   interpolation from earlier lines then the environment (including inside single quotes, defaults,

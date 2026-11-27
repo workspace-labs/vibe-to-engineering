@@ -40,8 +40,8 @@ Shared product logic must not depend on the shell (§14): nothing in `renderer/`
     domain/               earned by: the first product rule — independent of the shell (§8)
     infrastructure/       earned by: the first file written or stored row
     platform/             earned by: the first thing only this operating system does (§14)
-  data/backups/           earned by: the first real user data — and .gitignore carries it
-                          from the same day; a backup never enters version control (§27)
+  runtime backup location earned by: the first real user data — use app-writable storage
+                          that meets the recovery promise (§89). Keep backups out of version control (§27)
   docs/security.md        earned by: the first stored data, sign-in, network call or secret —
                           no project secret goes inside the shipped app (§69). Private APIs
                           are called through the project's backend; a user's own token goes
@@ -59,5 +59,6 @@ Shared product logic must not depend on the shell (§14): nothing in `renderer/`
                           compatibility commitment (§44), so it goes through the Human Gate
 ```
 
-If the product later grows a mobile twin, the shared rules move to `packages/domain/` — on the
-day the second app needs them, not before.
+If the product later grows a mobile twin, move shared rules on the day the second app
+needs them. Use the recorded home, either a shared package such as `packages/domain/`
+or the shared feature at the root.

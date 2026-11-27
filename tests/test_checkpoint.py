@@ -666,14 +666,13 @@ class Contract(Fixture):
         p = self.plain_project()
         stand_in = self.tmp / "bin" / "git"          # answers the one question itself, hands the rest to real git
         stand_in.parent.mkdir()
-        env = {"PATH": str(stand_in.parent) + os.pathsep + self.env["PATH"]}
         for words, expect in (("fatal: unable to read current working directory: Operation not permitted", 1),
                               ("fatal: not a git repository (or any parent up to mount point /)", 0)):
             with self.subTest(words):
                 stand_in.write_text('#!/bin/sh\ncase "$*" in *--is-inside-work-tree*) echo "%s" >&2; exit 128;; esac\n'
                                     'exec "%s" "$@"\n' % (words, shutil.which("git")))
                 os.chmod(stand_in, 0o755)
-                _, err = self.tool(p, "create", "00-baseline", expect=expect, env=env)
+                _, err = self.tool(p, "create", "00-baseline", expect=expect, fixture_git=stand_in)
                 if expect:
                     self.assertIn("cannot open the repository this folder belongs to", err)
                     self.assertFalse((p / STATE).exists())

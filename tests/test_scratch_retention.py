@@ -5,8 +5,10 @@ the permission-success cases supply a POSIX mode in lstat; native mode enforceme
 The tests themselves remove only their TemporaryDirectory after retention assertions have completed.
 """
 
+import configparser
 import contextlib
 import io
+import json
 import os
 import stat
 import subprocess
@@ -106,7 +108,7 @@ class ScratchRetention(unittest.TestCase):
             childenv.cleanup(root)
         self.assertEqual((moved / "home/data.txt").read_text(), "scratch-synthetic-data")
 
-    def invoke(self, exitcode=0, failure=None, secret=None, alter=None):
+    def invoke(self, exitcode=0, failure=None, secret=None, alter=None, output=b"checked synthetic fixture\n"):
         self.roots = []
 
         def check(command, **kwargs):
@@ -117,7 +119,7 @@ class ScratchRetention(unittest.TestCase):
                 raise OSError(13, "synthetic spawn failure")
             if alter:
                 alter(root)
-            return subprocess.CompletedProcess(command, exitcode, b"checked synthetic fixture\n")
+            return subprocess.CompletedProcess(command, exitcode, output)
 
         out, err = io.StringIO(), io.StringIO()
         self.captured_stdout, self.captured_stderr = out, err
@@ -132,7 +134,6 @@ class ScratchRetention(unittest.TestCase):
                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(err),
                     mock.patch.object(evidence, "supported_runner", return_value=("unused", "python")),
                     mock.patch.object(evidence, "enrolled_identity", return_value=identity),
-                    mock.patch.object(evidence, "secret_values", return_value=[]),
                     mock.patch.object(evidence.subprocess, "run", side_effect=check)):
                 stack.enter_context(patch)
             if failure == "refusal":
@@ -142,6 +143,75 @@ class ScratchRetention(unittest.TestCase):
             code = evidence.main(argv)
         report = err.getvalue()
         return code, out.getvalue(), report, emission.read_result(report)
+
+    def test_recognized_nonregular_sources_refuse_before_launch(self):
+        source = self.project / ".env"
+        sentinel = b"prior evidence"
+        self.outfile.write_bytes(sentinel)
+        cases = [("directory", lambda: source.mkdir(), source.rmdir)]
+        if hasattr(os, "mkfifo"):
+            cases.extend([("pipe", lambda: os.mkfifo(source), source.unlink),
+                          ("dangling link", lambda: source.symlink_to(self.tmp / "absent"), source.unlink)])
+        for name, create, remove in cases:
+            with self.subTest(name=name):
+                create()
+                try:
+                    code, printed, _, facts = self.invoke()
+                    self.assertEqual((code, printed, self.roots), (2, "", []))
+                    self.assertFalse(facts["launched"])
+                    self.assertFalse(facts["saved"])
+                    self.assertEqual(self.outfile.read_bytes(), sentinel)
+                finally:
+                    remove()
+        source.write_text("LABEL=fixture-text\n", encoding="utf-8")
+        code, printed, _, facts = self.invoke(output=b"checked fixture-text\n")
+        self.assertEqual((code, len(self.roots), facts["saved"]), (0, 1, True))
+        self.assertIn("checked <masked", printed)
+        self.assertEqual(self.outfile.read_text(encoding="utf-8"), printed)
+
+    def test_parsed_literals_and_long_scalars_reach_governed_output(self):
+        raw = '{"token":"SAMPLE_LABEL=","empty":"","port":8080}'
+        ini = "[Settings]\npassword = OTHER_LABEL:\n"
+        digits = "ab" * 40
+        (self.project / "secrets.json").write_text(raw, encoding="utf-8")
+        (self.project / "secrets.yaml").write_text("empty: |\nnext: >-\n", encoding="utf-8")
+        (self.project / "credentials.ini").write_text(ini, encoding="utf-8")
+        (self.project / "secrets.toml").write_text("pin = 0x" + digits, encoding="utf-8")
+        config = configparser.ConfigParser()
+        config.read_string(ini)
+        decoded_number = int(digits, 16)
+        if sys.version_info >= (3, 11):
+            import tomllib
+            with (self.project / "secrets.toml").open("rb") as stream:
+                self.assertEqual(tomllib.load(stream)["pin"], decoded_number)
+        expected = [json.loads(raw)["token"], config["Settings"]["password"], str(decoded_number)]
+        values, _ = evidence.classify(evidence.secret_values(self.project, {}))
+        self.assertTrue(set(expected).issubset(dict(values)))
+        printed = "empty= port 8080\n" + "\n".join(expected) + "\n"
+        code, stdout, stderr, facts = self.invoke(output=printed.encode())
+        self.assertEqual((code, len(self.roots), facts["saved"]), (0, 1, True))
+        self.assertIn("empty= port 8080", stdout)
+        self.assertEqual(self.outfile.read_text(encoding="utf-8"), stdout)
+        for value in expected:
+            self.assertNotIn(value, stdout + stderr)
+        self.assertIn("<masked", stdout)
+
+    def test_unmaskable_nonempty_scalars_refuse_before_launch(self):
+        source = self.project / "credentials.json"
+        self.outfile.write_bytes(b"previous evidence")
+        for value in ("==", "  ", " " + "="):
+            with self.subTest(value=value):
+                source.write_text(json.dumps({"pin": value}), encoding="utf-8")
+                code, _, _, facts = self.invoke()
+                self.assertEqual((code, self.roots, facts["launched"], facts["saved"]), (2, [], False, False))
+                self.assertEqual(self.outfile.read_bytes(), b"previous evidence")
+
+    def test_over_limit_numeric_spelling_refuses_before_launch(self):
+        (self.project / "secrets.yaml").write_text("pin: 0x" + "a" * 513, encoding="utf-8")
+        self.outfile.write_bytes(b"previous evidence")
+        code, _, _, facts = self.invoke()
+        self.assertEqual((code, self.roots, facts["launched"], facts["saved"]), (2, [], False, False))
+        self.assertEqual(self.outfile.read_bytes(), b"previous evidence")
 
     def test_success_and_child_failure_keep_scratch_and_record_the_path(self):
         for exitcode in (0, 2):

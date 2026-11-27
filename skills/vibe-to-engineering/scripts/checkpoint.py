@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3 -I
 """Recovery checkpoints for the vibe-to-engineering skill.
 
 Implements the recovery contract and store format in references/recovery.md.
@@ -37,6 +37,7 @@ from nested import check_nested, repositories
 from watched import (CONTENTS_MARK, DEFAULT_EXCLUDES, KEY_NAME, changed_since, report_changed, watched_contents,
     watched_names)
 from treeview import print_tree
+from private_names import load_name_map
 from platformgate import PlatformRefusal, require_supported_platform
 
 STATE_DIR = ".vibe-to-engineering"
@@ -150,12 +151,12 @@ def prepare_store(project, git_project):
             handle.write("*\n")
     store = state / STORE_NAME
     if not (store / "HEAD").exists():
-        git(["init", "--bare", "--quiet", "--template=", str(store)])  # no template: no hooks copied in
-    if promisor_configured(config=store / "config"):
+        git(["init", "--bare", "--quiet", "--template=", str(store)], project=project)  # no template: no hooks copied in
+    if promisor_configured(config=store / "config", project=project):
         raise Fail("the store %s is configured as a partial clone, which makes git fetch missing objects from a "
                    "remote — a store has no remote. Nothing was changed" % store)
     for key, value in (("core.autocrlf", "false"), ("core.safecrlf", "false"), ("core.longpaths", "true")):
-        git(["config", "--file", str(store / "config"), key, value])
+        git(["config", "--file", str(store / "config"), key, value], project=project)
     write_lf(store / "info" / "attributes", ATTRIBUTES)
     excludes = ["/" + STATE_DIR + "/"] + ([] if git_project else list(DEFAULT_EXCLUDES))
     write_lf(store / "info" / "exclude", "\n".join(excludes) + "\n")
@@ -613,7 +614,7 @@ def current_survey_read_only(project):
     temp = tempfile.mkdtemp(prefix="v2e-tree-")
     try:
         store = os.path.join(temp, "store.git")
-        git(["init", "--bare", "--quiet", "--template=", store])
+        git(["init", "--bare", "--quiet", "--template=", store], project=project)
         write_lf(os.path.join(store, "info", "exclude"),
                  "\n".join(["/" + STATE_DIR + "/"] + list(DEFAULT_EXCLUDES)) + "\n")
         return survey(project, store, False)
@@ -622,6 +623,8 @@ def current_survey_read_only(project):
 
 
 def cmd_tree(project, args):
+    names = load_name_map(args.name_map, project)
+    title_name = names.display(project.name) if names else project.name
     if args.label and args.current:
         raise Fail("give a label or --current, not both")
     if args.depth < 1:
@@ -631,13 +634,15 @@ def cmd_tree(project, args):
         commit = resolve(store, args.label)
         saved, state = list(tree_files(store, commit)), True
         ignored, nested = recorded(store, commit, IGNORED_MARK), recorded(store, commit, NESTED_MARK)
-        title = "%s @ %s" % (project.name, args.label)
+        title = "%s @ %s" % (title_name, args.label)
     else:
         found = current_survey_read_only(project)
         saved, ignored, nested = found.files, found.ignored, found.nested
         state = os.path.lexists(str(project / STATE_DIR))
-        title = "%s (current files)" % project.name
-    print_tree(title, saved, args.depth, not args.saved_only, ignored, nested, STATE_DIR.encode() if state else None)
+        title = "%s (current files)" % title_name
+    if names:
+        names.check_text(title)
+    print_tree(title, saved, args.depth, not args.saved_only, ignored, nested, STATE_DIR.encode() if state else None, names)
     return 0
 
 
@@ -827,6 +832,7 @@ def build_parser():
     diff.add_argument("--path", action="append", default=[], help="limit to this path (repeatable)")
     tree = add("tree", "tree view of a checkpoint, or of the current files, with every file git ignores and every "
                        "nested repository marked where it sits (writes nothing)")
+    tree.add_argument("--name-map", help="absolute path to the owner-held confidential name map")
     tree.add_argument("label", nargs="?")
     tree.add_argument("--current", action="store_true", help="the current files (the default)")
     tree.add_argument("--depth", type=int, default=3, help="folder levels to open (default 3)")
@@ -847,9 +853,9 @@ def main(argv=None):
         require_supported_platform()
         project = resolve_project(getattr(args, "project", "."))
         return COMMANDS[args.command](project, args)
-    except (Fail, PlatformRefusal) as error:
-        print("checkpoint.py: error: %s" % error, file=sys.stderr)
-    except (OSError, RuntimeError) as error:
+    except (Fail, PlatformRefusal, OSError, RuntimeError, ValueError) as error:
+        if getattr(args, "name_map", None):
+            error = "confidential inventory refused; check the name map, labels and project"
         print("checkpoint.py: error: %s" % error, file=sys.stderr)
     return 1
 

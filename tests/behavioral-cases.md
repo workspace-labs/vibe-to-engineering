@@ -41,7 +41,7 @@ Observe:
 - Findings cite actual files and explain present structural cost; a justified no-migration
   verdict is allowed if the fixture does not establish Material harm.
 - If justified, the plan accounts for every file and responsibility, maps actual changes
-  to findings, and records standard 1.11.0, its pinned commit, selected guide and overrides.
+  to findings, and records standard 1.18.0, its pinned commit, selected guide and overrides.
 - The target is proportional: public commands survive, and no missing product service is added.
 - A thin test safety net is planned before code movement; bugs are reported separately.
 - The agent writes only the documented migration-plan artifacts, presents the PDF (or its
@@ -68,7 +68,7 @@ Observe:
   `tests/performance/` due-at rule of the pinned layout map.
 - The plan preserves the agreed target and its check without loosening them.
 - Before approval, there is no code change, baseline check, checkpoint or enrollment.
-- The plan names standard 1.11.0 and its commit, and the run stops at
+- The plan names standard 1.18.0 and its commit, and the run stops at
   `AWAITING HUMAN APPROVAL`.
 
 ## Evidence boundaries

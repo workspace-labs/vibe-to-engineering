@@ -29,7 +29,7 @@ NUMBERS = ((r"0[0-7]+", lambda body: int(body, 8)),
            (r"[0-9]+(?::[0-5]?[0-9])+", lambda body: sexagesimal(body, int)),
            (r"[0-9]+(?::[0-5]?[0-9])+\.[0-9]*", lambda body: sexagesimal(body, float)),
            (r"0[xX][0-9a-fA-F]+|0[oO][0-7]+|0[bB][01]+|0|[1-9][0-9]*", lambda body: int(body, 0)),
-           (r"(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", float))
+           (r"(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", float))
 # A date and time as PyYAML and tomllib read it into a Python value, and a TOML local time
 TIMESTAMP = re.compile(r"([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})(?:(?:[Tt]|[ \t]+)([0-9]{1,2}):([0-9]{2}):([0-9]{2})"
                        r"(?:\.([0-9]*))?(?:[ \t]*([Zz])|[ \t]*([-+])([0-9]{1,2})(?::([0-9]{2}))?)?)?")
@@ -274,12 +274,20 @@ def forms(*texts):
     or the date and time a reader makes of it (NUMBERS, moment)."""
     found = []
     for text in (text for text in texts if text is not None):
-        body = text.strip().replace("_", "").lstrip("+-") if len(text) <= 64 else ""   # no number is longer
-        found += [text, json.dumps(text)[1:-1], json.dumps(text, ensure_ascii=False)[1:-1], repr(text)[1:-1],
-                  text.replace("'", "''")] + [
-            ("-" if text.strip().startswith("-") else "") + str(read(body)) for pattern, read in NUMBERS
-            if re.fullmatch(pattern, body)][:1] + (moment(text.strip()) if len(text) <= 64 else []) + (
-            [line.strip() for line in text.split("\n")] if "\n" in text else [])
+        stripped = text.strip()
+        body = stripped.replace("_", "").lstrip("+-")
+        found += [text, json.dumps(text)[1:-1], json.dumps(text, ensure_ascii=False)[1:-1],
+                  repr(text)[1:-1], text.replace("'", "''")]
+        for pattern, read in NUMBERS:
+            if re.fullmatch(pattern, body):
+                if len(body) > 512:
+                    raise OverflowError("numeric spelling exceeds the bounded conversion size")
+                number = read(body)
+                found.append(str(-number if stripped.startswith("-") else number))
+                break
+        found.extend(moment(stripped))
+        if "\n" in text:
+            found.extend(line.strip() for line in text.split("\n"))
     return list(dict.fromkeys(found))
 
 

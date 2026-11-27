@@ -2,6 +2,8 @@
 
 How to design the target architecture, cut the phases, prove behavior is preserved, and write the plan the human approves.
 
+For confidential paths, follow the owner-held name map in SKILL.md under “Start here, every time”. Fill the plan, source ranges and map using the inventory’s public labels from the start. Supply the same name map to both print commands.
+
 ## Contents
 
 1. Designing the target architecture
@@ -98,6 +100,8 @@ Every phase report, a failed one and a `RESTORED` report included, carries one `
 
 **Thin safety net?** If the tests do not cover the behavior the migration touches, the plan starts with a safety-net phase: characterization checks that record today's behavior (outputs for sample inputs, responses of key routes, rendered text) and compare against it after every phase. Keep them in `.vibe-to-engineering/checks/` unless the human wants them added to the project's own tests.
 
+Use one stable behavior label for each warning. Record its decision on a line of its own in the ledger, as `Verification Warning: OPEN — <behavior>` or `Verification Warning: ACCEPTED BY OWNER — <behavior>`. When a fresh covering check passes, record `Verification Warning: CLOSED — <same behavior>` beside its evidence. The map carries each decision forward until another decision for that label or a new migration.
+
 ## 4. The plan document
 
 The plan is written for the project's owner, who may not be a developer: plain language first, technical detail after. Its sections, in this order (the template has them all):
@@ -133,7 +137,7 @@ Trees are plain text in the checkpoint tool's tree format, without its title lin
 1. Before any plan or ledger write, apply the state-path checks in SKILL.md section 4: the migration directory must resolve inside the project and neither it nor a destination below it may contain a symlink component; existing directories and files must have the expected type. Refuse without changing an unsafe path. Then copy `<skill>/assets/plan-template.html` to `<project>/.vibe-to-engineering/Engineering-Migration-Plan.html`.
 2. Replace every `{{PLACEHOLDER}}`. Repeat the rows and blocks marked "repeat" as often as needed and delete unused ones. Escape `&`, `<` and `>` in inserted text. Text that really contains two braces is written `&#123;&#123;`.
 3. Keep the file static and self-contained: no scripts or event handlers, and no external stylesheets, fonts or images. The file begins with the template's `<!DOCTYPE html>` line, with nothing but ordinary spaces before it. The renderer refuses leftover placeholders, scripts, external resources and anything before the doctype, blocks every network lookup while it prints, and prints nothing when the browser reports the plan against its content security policy.
-4. Render: `python3 <skill>/scripts/render_pdf.py <html> <pdf>`. It looks for Chrome, Chromium, Edge or Brave, including browsers downloaded by Playwright; set `V2E_BROWSER` to a browser's path to choose one. It prints under a content security policy — the browser runs no script and loads nothing but images written into the plan — and refuses any `<meta>` line besides the template's two.
+4. Render: `/usr/bin/python3 -IB <skill>/scripts/render_pdf.py <html> <pdf>`. It looks for Chrome, Chromium, Edge or Brave, in their installation folders, including Playwright's browser cache. To select a different trusted browser, set `V2E_BROWSER` to its absolute installation path outside the project. Put the plan under the project's `.vibe-to-engineering/` folder; a standalone HTML file uses its own containing directory as the project. It prints under a content security policy — the browser runs no script and loads nothing but images written into the plan — and refuses any `<meta>` line besides the template's two.
 5. The renderer rejects an input/output collision and unsafe destination links. It renders beside the destination and replaces an existing PDF only after a successful browser exit and validation; a failure leaves the previous PDF intact. Look at the PDF before reporting it.
 
 ## 6. Revising an approved plan

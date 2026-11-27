@@ -31,7 +31,7 @@ exams remain roadmap work. Help is read-only and remains available on every plat
 Enrollment is the only way a runner enters the registry, and it is a deliberate human act — there is no
 automatic enrollment and no automatic re-enrollment:
 
-1. `python3 <skill>/scripts/evidence.py --enroll-runner <runner> [--with-path /abs/dir]…` resolves the candidate the
+1. `/usr/bin/python3 -IB <skill>/scripts/evidence.py --enroll-runner <runner> [--with-path /abs/dir]…` resolves the candidate the
    same way the gate does (an absolute path, or a name on the system folders plus the given `--with-path`
    folders, links resolved, kind judged by the resolved final name), and refuses anything that is not a real
    executable **binary** of the supported platform (Mach-O on macOS — a script under a runner's name is

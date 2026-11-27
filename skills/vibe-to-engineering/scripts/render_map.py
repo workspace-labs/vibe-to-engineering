@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3 -I
 """Render the approved migration plan's line map using the append-only ledger."""
 
 import sys
@@ -20,12 +20,15 @@ import uuid
 from html.parser import HTMLParser
 from pathlib import Path
 from textwrap import wrap
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 if os.name == "posix":
     import fcntl
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # support isolated Python (-I)
 import render_pdf
+from private_names import load_name_map
+from mapledger import phase_states
 from checkpoint import STATE_DIR, check_state_folder, resolve_project
 from gitrun import Fail, git, is_link
 from platformgate import PlatformRefusal, require_supported_platform
@@ -44,16 +47,6 @@ OLD_RANGE = re.compile(r"(part of )?([0-9]+)[-–]([0-9]+)")
 OLD_LINE_GROUP = re.compile(
     rf"(?P<source>.+?): (?P<ranges>{OLD_RANGE.pattern}(?:, {OLD_RANGE.pattern})*)(?:; |\Z)"
 )
-APPROVAL_EVENT = re.compile(r"PLAN APPROVED v(\S+)\Z")
-FINAL_OUTCOMES = {
-    "VIBE-TO-ENGINEERING — ALL GREEN": "All green",
-    "VIBE-TO-ENGINEERING — COMPLETE WITH APPROVED BASELINE FAILURES": "Complete with approved failures",
-    "VIBE-TO-ENGINEERING — COMPLETE WITH ACCEPTED VERIFICATION GAPS": "Complete with accepted gaps",
-}
-PHASE_EVENT = re.compile(r"PHASE ([1-9]\d*) (STARTED|COMPLETE|FAILED)\Z")
-PHASE_RESTORE = re.compile(r"(?:r[1-9]\d*-)?\d{2,}-phase-([1-9]\d*)\Z")
-BASELINE_RESTORE = re.compile(r"(?:r[1-9]\d*-)?00-baseline(?:-checked)?\Z")
-EVENT_STATE = {"STARTED": "Now", "COMPLETE": "Done", "FAILED": "Failed"}
 
 
 class PlanEntries(HTMLParser):
@@ -440,105 +433,6 @@ def validate_map(data, plan):
         raise Fail("planned new file is missing from the map: %s" % sorted(missing_files)[0])
     if used_parts != known_parts.keys():
         raise Fail("source part is unused: %s" % sorted(known_parts.keys() - used_parts)[0])
-
-
-def ledger_headings(lines):
-    fence = None
-    for index, line in enumerate(lines):
-        start = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)", line)
-        if start:
-            mark, rest = start.groups()
-            if fence is None:
-                fence = mark
-            elif mark.startswith(fence) and not rest.strip():
-                fence = None
-            continue
-        heading = re.match(r"^ {0,3}##[ \t]+(.+?)\s*$", line)
-        if not fence and heading:
-            fields = heading[1].split(" — ", 3)
-            # Final outcomes have an em dash inside the event name.
-            outcome_start = 0 if fields[0] == "VIBE-TO-ENGINEERING" else 1
-            outcome = " — ".join(fields[outcome_start:outcome_start + 2])
-            if outcome in FINAL_OUTCOMES:
-                yield index, outcome, " — ".join(fields[outcome_start + 2:])
-            elif len(fields) >= 3:
-                yield index, fields[1], " — ".join(fields[2:])
-            elif len(fields) == 1:
-                yield index, fields[0], ""
-
-
-class LedgerProgress(NamedTuple):
-    states: dict
-    completions: dict
-    stopped: bool
-    plan_only: bool
-    restored: bool
-    started: bool
-    outcome: Optional[str]
-
-
-def phase_states(ledger, version, fingerprint, numbers):
-    lines = ledger.splitlines()
-    events = list(ledger_headings(lines))
-    approval = "PLAN APPROVED v" + version
-    last = next((i for i in range(len(events) - 1, -1, -1) if events[i][1] == approval), None)
-    if last is None:
-        raise Fail("ledger has no %s heading" % approval)
-    previous = next((line + 1 for line, event, _ in reversed(events[:last])
-                     if APPROVAL_EVENT.fullmatch(event)), 0)
-    if not re.search(r"\b%s\b" % re.escape(fingerprint), "\n".join(lines[previous:events[last][0]])):
-        raise Fail("ledger has no approved plan fingerprint before %s" % approval)
-    run_start = next((i + 1 for i in range(last - 1, -1, -1)
-                      if events[i][1] == "MIGRATION STOPPED" or events[i][1] in FINAL_OUTCOMES), 0)
-    states = dict.fromkeys(numbers, "Waiting")
-    completions, active_version, outcome = {}, None, None
-    stopped = restored = started = False
-    plan_only = events[last][2] == "PLAN ONLY"
-    for index in range(run_start, len(events)):
-        _, event, _ = events[index]
-        phase = PHASE_EVENT.fullmatch(event)
-        approved = APPROVAL_EVENT.fullmatch(event)
-        restore = event == "RESTORED" or event.startswith("RESTORED ")
-        if outcome is not None and (phase or restore or event == "MIGRATION STOPPED"):
-            raise Fail("ledger event %s follows the final outcome" % event)
-        if approved:
-            active_version = approved[1]
-        elif phase:
-            number = int(phase[1])
-            started |= phase[2] == "STARTED"
-            if number not in states:
-                if index < last:
-                    continue
-                raise Fail("ledger event names a phase absent from the plan: %s" % number)
-            states[number] = EVENT_STATE[phase[2]]
-            if phase[2] == "COMPLETE":
-                completions[number] = active_version
-            restored = False
-            if index > last:
-                plan_only = False
-        elif event == "MIGRATION STOPPED":
-            stopped = True
-        elif event in FINAL_OUTCOMES and index > last:
-            unfinished = ["Phase %d is %s" % (number, state) for number, state in states.items() if state != "Done"]
-            if unfinished:
-                raise Fail("final outcome requires every phase to be Done (%s)" % ", ".join(unfinished))
-            outcome = FINAL_OUTCOMES[event]
-        elif restore:
-            label = event[len("RESTORED "):]
-            saved_phase = PHASE_RESTORE.fullmatch(label)
-            if BASELINE_RESTORE.fullmatch(label):
-                cutoff = 0
-            elif saved_phase:
-                cutoff = int(saved_phase[1])
-            else:
-                raise Fail("unknown restore label: %s" % label)
-            for number in states:
-                if number > cutoff:
-                    states[number] = "Waiting"
-            restored = True
-            if index > last:
-                plan_only = False
-    return LedgerProgress(states, completions, stopped, plan_only, restored, started, outcome)
 
 
 def phase_identity(phase):
@@ -982,7 +876,7 @@ def map_html(data, progress, actual, theme):
             + "\n".join(sheets) + "\n</body></html>\n")
 
 
-def render_project(project):
+def render_project(project, names=None):
     state = state_paths(project)
     inputs = {}
     for name in (PLAN, LEDGER, MAP_DATA):
@@ -990,6 +884,10 @@ def render_project(project):
             inputs[name] = source.read()
     try:
         data = json.loads(inputs[MAP_DATA].decode("utf-8"))
+        if names:
+            names.check_html(inputs[PLAN].decode("utf-8"))
+            names.check_values(data)
+            names.check_text(inputs[LEDGER].decode("utf-8"))
         plan = PlanEntries(inputs[PLAN].decode("utf-8"))
         validate_map(data, plan)
         fingerprint = git(["hash-object", "--no-filters", "--stdin"], cwd=project,
@@ -1005,7 +903,7 @@ def render_project(project):
     if not progress.started:
         for source in data["sources"]:
             path = source["path"]
-            measured = actual_lines(project, path)
+            measured = actual_lines(project, names.disk_path(project, path) if names else path)
             if measured != str(source["lines"]):
                 raise Fail("source line count differs from the map for %s (measured: %s)" % (path, measured))
     phases, version = data["phases"], data["plan_version"]
@@ -1014,9 +912,11 @@ def render_project(project):
         record_approved_map(project, data)
         check_completed_phases(project, phases, progress, version, earlier=False)
     theme = theme_css()
-    actual = {file["path"]: actual_lines(project, file["path"])
+    actual = {file["path"]: actual_lines(project, names.disk_path(project, file["path"]) if names else file["path"])
               for phase in data["phases"] if progress.states[phase["number"]] == "Done" for file in phase["files"]}
     document = map_html(data, progress, actual, theme)
+    if names:
+        names.check_html(document)
     problems = render_pdf.static_problems(document)
     if render_pdf.PLACEHOLDER.search(document) or problems:
         raise Fail("map is not static and self-contained: %s" % (", ".join(problems) or "unfilled placeholder"))
@@ -1034,13 +934,25 @@ def render_project(project):
 
 
 def main(argv):
+    confidential = False
     try:
         require_supported_platform()
         parser = argparse.ArgumentParser(description=__doc__)
         parser.add_argument("--project", required=True)
+        parser.add_argument("--name-map", help="absolute path to the owner-held confidential name map")
         options = parser.parse_args(argv[1:])
-        return render_project(resolve_project(options.project))
+        confidential = options.name_map is not None
+        project = resolve_project(options.project)
+        names = load_name_map(options.name_map, project)
+        if names:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                code = render_project(project, names)
+            print("Confidential map written." if code == 0 else "Confidential map printing failed.")
+            return code
+        return render_project(project)
     except (Fail, PlatformRefusal, OSError, UnicodeError, ValueError, OverflowError) as error:
+        if confidential:
+            error = "confidential map refused; check the name map, plan and ledger"
         print("render_map.py: error: %s" % error, file=sys.stderr)
         return 1
 

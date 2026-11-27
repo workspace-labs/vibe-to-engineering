@@ -6,9 +6,9 @@ evidence, migration plan, human approvals, recovery checkpoints and behavior-pre
 
 ## Pinned source, available offline
 
-This package carries engineering standard **1.11.0**, from
+This package carries engineering standard **1.18.0**, from
 `workspace-labs/software-engineering-build-standard` commit
-`15d76887f5b06ac1e22a8b452fe17d425ec196b3`.
+`cc4e4f1259a439cb94faff651a26454e4ad5f9f9`.
 
 - [Standard entrypoint](build-standard/standard.md) — the upstream instructions, preserved byte for byte
   under a different filename so this resource cannot be discovered as a second skill. One
@@ -50,7 +50,7 @@ Do not guess from memory or silently fall back to the old criteria alone.
    authorize new features, new services, changed dependencies, changed data, bug fixes or altered
    product behavior inside a structural migration. Keep structural corrections and the approved
    characterization safety net in the plan; let the owner decide other work separately.
-5. **Use the same basis throughout.** The plan and ledger name version 1.11.0, the source commit,
+5. **Use the same basis throughout.** For a new plan, the plan and ledger name version 1.18.0, the source commit,
    selected tree guides and project overrides. The final reviewer uses that approved basis,
    checks every changed responsibility against it and verifies the actual target tree.
 
@@ -58,6 +58,7 @@ Read the platform-services guide when existing jobs, realtime, storage, notifica
 webhooks, search or other services need a structural home. Their existence earns the relevant
 rules; an example folder is never a reason to add the capability. The data, frontend, backend,
 lifecycle and coverage guides apply by the same due-at rule, within the migration boundary above.
+For an existing mail flow, follow §96 in the platform-services guide. Check normal logs, error logs and retained evidence for usable sign-in and reset links. Record only the exposure and its location.
 This skill's stricter read-only planning, data protection and approval rules still govern execution.
 
 ## File size has one home

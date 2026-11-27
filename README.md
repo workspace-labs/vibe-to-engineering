@@ -16,8 +16,8 @@ the approval and generates the Migration Map. For a project you explicitly confi
 and uses synthetic secrets, the approval also covers the verified recovery baseline and Phase 1.
 Every later phase has its own approval.
 
-The 0.6.1-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
-**1.11.0**, including its layout map and ten project-type trees. File-size alarms live only in §7 of
+The 0.6.2-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
+**1.18.0**, including its layout map and ten project-type trees. File-size alarms live only in §7 of
 that standard; this skill keeps no number of its own. The versioned references are
 bundled for offline use; plans record the source commit and the selected project tree.
 See [standard alignment](skills/vibe-to-engineering/references/standard-alignment.md).
@@ -32,6 +32,7 @@ a disposable project with synthetic secrets. See the [validation results](TEST-E
 
 - **Reads before it judges.** Inspection and diagnosis are read-only: no builds, tests or scripts run, and nothing in the project is written.
 - **Can say no.** Every finding cites evidence someone else can re-check. A project whose structure already fits gets `NO MIGRATION REQUIRED`, and nothing is written. It never imposes one folder tree on every project, and it treats more folders or more abstraction as a cost, not as engineering.
+- **Keeps confidential names out of the inventory and PDFs.** Before inspection, the owner can designate names in a private map kept outside the project. The plan and Migration Map reuse the inventory’s neutral labels and keep their links to measured source lines.
 - **Plans before it touches anything.** A justified migration gets current and target trees, a before → after file inventory, phased steps and an `Engineering-Migration-Plan.pdf`. The PDF shows CURRENT → MIGRATION → TARGET on one page, measured and estimated file and line totals, per-file line counts and source evidence for every new file. Then it stops at `AWAITING HUMAN APPROVAL`.
 - **Flags long files without judging them.** In the before → after table, every proposed file estimated at over 400 lines is marked a review candidate with its jobs listed. The number is the standard's review alarm. File size alone is not a finding, and a file with one job stays whole.
 - **Warns when the proof is thin.** A check result that is old, or that never exercises what the plan changes the way it is really used (storage checked with a page reload but never with a full restart), gets a `VERIFICATION WARNING`. It is never reported as a pass, and the human decides whether to add the check or accept the gap. An accepted gap stays in every report and the migration ends as `COMPLETE WITH ACCEPTED VERIFICATION GAPS`, never as ALL GREEN.
@@ -141,7 +142,7 @@ precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|
-| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.6.1-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
+| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.6.2-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
 | Linux | Unsupported execution target. Portable package/unit and refusal checks do not establish Linux support. |
 | Windows | Unsupported execution target. Portable package/unit and refusal checks do not establish Windows support. |
 

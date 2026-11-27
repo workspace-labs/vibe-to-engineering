@@ -27,7 +27,12 @@ the context for subsequent output, including summary paths and write errors. Dec
 protected everywhere. Short (fewer than four characters) or all-numeric file values retain the existing
 whole-word policy (`[\w-]` is a word character); other file values are protected everywhere. Ordinary
 numeric/boolean settings classified as readable stay readable. Before file analysis, only the declared
-values are known. Unreadable files still cause pre-launch refusal; this correction adds no reader.
+values are known. A recognized source must resolve to a regular file that can be read completely within
+the 1 MiB limit. Directories, dangling links, special files and reads that change size or identity
+refuse before launch. A nonempty parsed value such as `SAMPLE_LABEL=` is protected literally. An empty
+assignment holds no value. Nonempty values made solely of whitespace or equals signs refuse before
+launch because the output formats cannot reliably mask them. Numeric normalization is bounded at
+512 characters after removing separators and the sign. Longer numeric forms refuse before launch.
 
 Named and generic masking happens first. The complete evidence text, including its final newline, then
 passes `emission.Context.scrub` before the same bytes are saved and echoed. All terminal stderr messages

@@ -62,12 +62,13 @@ single child.
 
 ## Stage 4 — the contract between the two
 
+This example records packages as the home for code the two apps share.
+
 Each entry is earned by its own trigger, even if that happens before the other entries here.
 
 ```
-  apps/backend/Dockerfile   earned by: the first time the server must run somewhere other
-                          than the developer's machine, or needs a local service
-                          (database, cache, queue) to run at all (§70)
+  apps/backend/Dockerfile   earned by: the chosen way to run or deliver the server uses
+                          a container image (§70)
   apps/backend/.dockerignore   earned by: the first Dockerfile (§70)
   compose.yaml           earned by: the first local multi-service setup (§70)
   packages/contracts/     earned by: the first type the app and the server both import

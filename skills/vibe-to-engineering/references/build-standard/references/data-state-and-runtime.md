@@ -149,3 +149,11 @@ Meeting the target removes the performance reason for a rewrite. Correctness and
 ## §46 Concurrency and async boundaries
 
 When introducing asynchronous or concurrent behavior, reason explicitly about ordering, cancellation, stale results, retries, idempotence, race conditions, ownership and partial failure. Do not convert synchronous APIs to asynchronous ones across an entire codebase without understanding the propagation cost.
+
+**Offline edits with later sync.** An edit is saved locally when both the edit and its
+pending sync survive closing the app. It is synced when the remote system confirms the
+write. Make that distinction clear to the user. Agree with the owner how to resolve competing edits.
+On a disposable copy, save offline, close the app, reopen offline and check the edit
+is still pending. Change the same record remotely, reconnect and verify the agreed
+outcome on both sides. Retry delivery and repeat the acknowledgement. The edit must
+produce just one logical write. A local-only app needs no sync work.

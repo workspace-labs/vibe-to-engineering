@@ -22,10 +22,12 @@ choices and requirement IDs such as M1. Follow their approval, TBD and progress 
 a draft or unresolved decision is not approval; historical text is not a second current
 choice. Reuse prior approval of the same concrete decision (§30).
 
-project-docs owns that planning information; this skill owns implementation and engineering
-verification. Both work independently: without project-docs, use the project's accepted
-requirements and plan. Do not start a new document interview, impose its filenames or
-require its installation for a code task.
+For a whole project, follow the [three-step order](../standard.md#the-three-step-chain).
+Start from approved project-docs requirements and a plan, or their approved equivalents.
+If those are missing, ask the owner before building unless an explicit owner-approved
+exception already covers the work. For an ordinary feature in an existing project,
+use its accepted plan without starting a new planning round.
+These rules work with or without project-docs. Do not impose its filenames or require its installation for a code task.
 
 Before substantial building, account for these areas against the actual product:
 
@@ -100,6 +102,11 @@ what the backup includes, how it gets a consistent copy and which companion stat
 restored. A casual copy of live database files may be unusable. Do not generalize one
 engine's commands to every store. Keep private backups outside version control.
 
+Match the backup and restore test to the agreed recovery promise. For local rollback, a
+copy beside the data can be enough. If the promise covers loss of the device, disk or host,
+keep a copy somewhere that survives that loss. Test with synthetic data and the original
+location unavailable. Restore from the surviving copy using the usual runtime permissions.
+
 Restore into a disposable destination. Inspect errors and exit status, then read meaningful
 restored data or perform an application operation. A wrapper returning zero after an
 inner failure, partial restore or the existence of a dump is insufficient. Try a failure
@@ -133,6 +140,8 @@ Consult current authoritative guidance for that choice. Keep generic trees propo
   protections enabled. A test requirement authorizes no real submission or permission change.
 - **Install/offline web promises:** exercise installation and offline lifecycle behavior
   in target browsers. A manifest alone does not prove offline operation.
+- **Offline edits with later sync:** on each supported target that promises this flow,
+  run the [restart and reconnect check (§46)](data-state-and-runtime.md#46-concurrency-and-async-boundaries).
 - **Stronger assurance:** identify scope/version for an adopted security/accessibility
   standard, required component inventory (SBOM), build provenance or field-speed target.
   Verify its actual criteria. Scanner scores, lockfiles and lab metrics cannot prove a
@@ -147,6 +156,28 @@ Make release and workflow claims checkable (§26, §75, §78):
   latter only for declared conditions and selected artifacts with matching hashes.
 - Tie published releases to source/artifact identities and preserve immutable published
   bytes. Unpublished repair candidates do not replace already published versions silently.
+  For each intended target, record its delivery channel, tested identity and successful
+  test in existing release notes, test evidence or CI. Include the test date or run ID
+  and a stable path or link to its result. Choose the identity by what the user receives:
+  - **One file:** SHA-256 of the final file, after packaging and signing where applicable.
+  - **Source checkout:** full commit ID resolved from the clean copy fetched through the
+    user's delivery channel. A tag or branch can locate it.
+  - **Copied folder:** keep the complete, stably ordered list of relative paths and
+    SHA-256 values, its digest and the recipe. Hash the bytes as delivered. Apply the
+    same documented exclusions to both lists. A line-ending change counts as a difference
+    unless both lists use the same text rule documented before delivery.
+  - **Other delivery:** version and full source commit read from the fetched, installed
+    or running copy. When distinct builds share that pair, include an existing build
+    or deployment ID observable on both copies.
+
+  Link the record from the delivery steps. Flag missing or ambiguous identity in the
+  handoff. If the candidate changes, obtain passing evidence for the new copy before
+  offering it for delivery. First hand over the candidate and evidence for checking.
+  After the check passes (Clean in Checkflow) and before publication or installation for
+  users, the owner selects the checked round or run for each target. Record the target,
+  selected round or run, date, time when needed to establish order, and who chose it in
+  the existing release or handover note. The builder may record the owner's choice at
+  that release step.
 - Check required third-party notices/licenses in the actual distribution.
 - Verify claimed branch/check/owner-review enforcement in actual settings or disclose
   unavailable access. Written policy does not enable a control; access changes still

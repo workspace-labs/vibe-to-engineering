@@ -1,6 +1,19 @@
 # Skill validation evidence
 
-## Migration Map layout on real plans — 2026-11-30
+## Deep review fixes, Round 1 — 2026-11-27
+
+Candidate **0.6.2-dev**, pending Claude’s independent review.
+
+- Both portable selections ran on macOS arm64. Apple Command Line Tools Python 3.9.6 and Python 3.12.14 each passed **196 tests, 0 failures, 0 errors, 0 skips**. The unchanged Apple baseline passed 183.
+- Native macOS 27.2.1 with Apple Python 3.9.6 passed **454 selected methods, 0 failures, 0 errors, 0 skips**. Discovery contained 499. The 45 other methods use active vulnerability-reproduction fixtures or share those setups and were excluded locally. Only the selection in the disposable runner changed. All four pinned reader-matrix methods ran with Node 20.20.2. The PDF checks used pinned Chrome Headless Shell revision 1248.
+- Against the archived base, both confidential-name CLI tests failed, and the new helper was absent. All three candidate tests passed. The synthetic inventory and both PDFs shared neutral source labels. The printed files were read back with Poppler, and source counts and ordinary names were preserved.
+- All three new tool-selection methods, all four secret-source and protected-reading methods, and all five ledger methods failed on the archived base and passed on this candidate. The 74-method portable map group passed. The 14-method native evidence group passed.
+- All 23 engineering-standard payloads were compared with upstream commit `cc4e4f1259a439cb94faff651a26454e4ad5f9f9`. The only transformed files were the two guides with offline entrypoint backlinks.
+- Selected mutations M08, M09 and M10 were detected. M15 still survived all 196 portable tests. The full native discovery run, hosted candidate validation and whole-skill release exam remain open.
+
+## Migration Map layout on real plans — 2026-11-22
+
+Claude accepted the layout change on 2026-11-22.
 
 Candidate **0.6.1-dev** on `fix/map-real-plan-layout` is based on
 `6ffdc45e11ff03164667bc00cc01d74731acf469`. Eight new layout regressions produced
@@ -27,7 +40,7 @@ validation used the pinned reader matrix and Chrome Headless Shell revision 1248
 The package validator passed. The read-only skill audit found zero structural errors
 and the same 31 review notices as the base.
 
-A disposable SmartRoute rehearsal reused the supplied map JSON and a synthetic approval.
+The layout check was a disposable rehearsal on a real-shaped synthetic map with a synthetic approval.
 The rendered **one-page A4** PDF contains every one of the **15 whole filenames** and
 **34 linked ranges**. The render was inspected as a page image, and both endpoints of
 all **34 connectors** were matched against their source parts and destination rows.
@@ -498,8 +511,7 @@ given the actual candidate skill and disposable projects, without the expected a
 The full native runtime/reader-matrix suite, approved phase execution, interrupted migration,
 restore and fresh-user enrollment were not run for this instruction-only update. Earlier
 whole-workflow and owner release gates remain open; these results are not whole-skill approval.
-Raw local logs, backups and exercise artifacts are retained outside the candidate repository
-in the sibling `vibe-to-engineering-update-evidence/` directory. Installed skills and the older
+Raw local logs, backups and exercise artifacts are retained outside the candidate repository. Installed skills and the older
 review checkout are unchanged.
 
 ## Repair validation — 2026-10-19

@@ -5,7 +5,7 @@ description: "Use when writing or changing code in a software project: adding or
 
 # Software Engineering Build Standard
 
-Standard version: 1.11.0
+Standard version: 1.18.0
 
 Never build software first and organize it later. Architecture, repository structure, module ownership, dependency direction, testing, documentation, Git hygiene, maintainability and extensibility are part of implementation from the beginning. Working code with poor engineering structure is not complete.
 
@@ -32,21 +32,19 @@ Narrower technique skills and guides (testing, incremental delivery, interface d
 
 ## Size the work before acting (§33–§35, §62–§63)
 
-<!-- defines §33, §34, §35, §62, §63 -->
-
 | Work | Examples | Required depth |
 |---|---|---|
-| Tiny | typo, small UI adjustment, small isolated bug, simple configuration change | Inspect enough to avoid damage, make the smallest coherent change, run the relevant verification. No audit, no architecture report, no new structure. |
-| Substantial | new feature, extension of an existing subsystem | The matching workflow below at a depth that fits; design questions answered before building. |
-| Architectural | new application or project, major subsystem, architecture change, database or persistence change, data-model or state-model change, large refactor, repository restructuring, platform expansion, high-frequency or historical data feature | The full workflow; no implementation until the design questions are answered and any Human Gate is passed. |
+| Tiny | typo, small UI adjustment, small isolated bug, simple configuration change | Inspect enough to avoid damage, make the smallest coherent change, run the relevant verification. No audit, no architecture report, no new structure. (§33) <!-- defines §33 --> |
+| Substantial | new feature, extension of an existing subsystem | Answer the design questions before building and use the workflow that fits. (§34) <!-- defines §34 --> |
+| Architectural | new application or project, major subsystem, architecture change, change to the storage contract, meaning of stored data, compatibility or state model, large refactor, repository restructuring, platform expansion, high-frequency or historical data feature | Use the full workflow. Answer the design questions and pass any required Human Gate before implementation. (§35) <!-- defines §35 --> |
 
-Project scale sets how much structure is right:
+**Project scale (§63).** Match the structure to the size and lifetime of the product. <!-- defines §63 -->
 
 - **Small:** simple repository, few clear modules, lightweight tests, concise README, minimal tooling. Never manufacture enterprise architecture.
 - **Medium:** clearer feature boundaries, domain or shared logic, a persistence boundary, organized tests and tools, documentation, platform separation where relevant.
 - **Large or long-lived:** architecture documentation, explicit subsystem ownership, dependency direction, data contracts, migration strategy, test architecture, operational tooling, ADRs, release and recovery procedures.
 
-Complexity follows product needs. A declared throwaway prototype or spike is a scope decision: keep it minimal and add no foundation work, but the secret and private-data rules still apply (§27). If a prototype starts becoming the product, say so and treat it as an existing project from then on.
+**Throwaway prototypes (§62).** Keep a declared spike or prototype minimal and skip foundation work. The secret and private-data rules still apply (§27). If a prototype starts becoming the product, say so and treat it as an existing project from then on. <!-- defines §62 -->
 
 Do not produce a ceremonial architecture report for a small, obvious task, and do not use planning to avoid implementation once the required decisions are resolved.
 
@@ -70,7 +68,11 @@ In an existing Git project, record the starting point before changing any file: 
 
 <!-- defines §2 -->
 
-Never assume its architecture, and do not start changing files until you understand enough of the real project: repository root, Git state, source layout, entry points, application composition, major features, domain rules, state ownership, persistence, platform-specific code, tests, tooling, documentation, dependencies, build and release path, and its own instructions and ADRs.
+For a tiny fix, read the applicable project instructions, trace the affected behavior and run its relevant check. An isolated correction to a lookup of an existing storage key can follow this path if the storage contract and existing data stay intact.
+
+For substantial work, trace the parts the change reaches before editing. Inspect their entry points, responsibilities, dependencies, data, checks and applicable decisions. Include the build and release path when the change affects it.
+
+For architectural work, understand the whole project before editing. Never assume its architecture. Check the repository root, Git state, source layout, entry points, application composition, major features, domain rules, state ownership, persistence, platform-specific code, tests, tooling, documentation, dependencies, build and release path, and its own instructions and ADRs.
 
 INSPECT → AUDIT IF NECESSARY → PLAN → HUMAN GATE IF ARCHITECTURAL → IMPLEMENT IN COHERENT SLICES → TEST → VERIFY → REVIEW
 
@@ -127,7 +129,7 @@ For architectural work, also establish: what exists now; what problem is being s
 ## Always-on rules
 
 - **Structure reflects responsibility (§5, §6).** Folders show real responsibility, never a popular template. A composition root wires systems together; it does not implement them.
-- **No God files (§7).** Central files such as App, main, index, server, controller or manager must not become the default home of new behavior. Judge by responsibilities and change coupling, not size alone, and never split a cohesive file just to meet a line count. §7's file-size alarms (review at 400 to 500 lines; a written reason over 1,000) only start that review.
+- **No God files (§7).** Central files such as App, main, index, server, controller or manager must not become the default home of new behavior. Judge by responsibilities and change coupling, not size alone, and never split a cohesive file just to meet a line count. For material growth or a change in responsibility, §7's file-size alarms (review at 400 to 500 lines; a written reason over 1,000) only start that review.
 - **Domain logic has a home (§8, §9, §10).** Product rules stay independent of UI, storage, platform wrappers and global clock access where practical; dependencies point toward stable product logic; each substantial feature has an obvious home; shared rules are not duplicated.
 - **Boundaries are explicit (§11–§14, §39–§42, §49).** Persistence, platforms and configuration sit behind intentional boundaries; canonical data contracts, units and time models are defined; every important piece of state has an owner; failures are owned, not scattered as UI messages.
 - **Backend and frontend behaviour (§66–§72, §106).** For server work use [the backend guide](references/backend.md), including what the server does [when too many requests arrive](references/backend.md#106-overload-and-traffic-spikes); for screens use [the frontend guide](references/frontend.md). Apply each rule only when its due-at trigger is met.
@@ -177,7 +179,12 @@ Stop and report instead of improvising when:
 - tests reveal an unexplained regression;
 - the architecture requires an unapproved major decision;
 - a supposedly structural change requires a behavior change;
-- evidence contradicts the task's assumptions.
+- evidence contradicts the task's assumptions;
+- a new request falls outside the approved scope and the person who approves the scope has not decided it.
+  Where approved project documents govern the work, a change agreed only in a meeting
+  still needs an approved requirement and acceptance check, even if the scope approver
+  made the decision. Stop the affected work and name the missing requirement, check or
+  approval. Proceed once the revised documents covering that work have the required approval.
 
 Never "make it work" by destroying data or bypassing safeguards.
 
@@ -213,6 +220,12 @@ When work that began from an engineering audit (§28), or any substantial or arc
 - A count of findings names its set: "no open findings in the approved slices" is not "no open findings in the audit".
 - Rejected means the finding itself was wrong or does not apply, with the reason. A real problem the owner accepts permanently is accepted as debt: it stays in the remaining debt and is never presented as solved (§57), and declining a proposed fix never rejects the problem it was meant to fix. Every later copy of the closure — handoff, plan, README, changelog or notes — carries the same status.
 
+## The three-step chain
+
+1. **Plan.** For a whole project, start with the approved requirements and plan from project-docs or equivalent approved documents. An explicit owner-approved exception also lets work proceed within its stated scope. If the planning step is missing and neither approved equivalents nor an exception cover the work, ask the owner and wait.
+2. **Build.** Use this standard for the approved work. An ordinary feature in an existing project uses its accepted plan without repeating the whole-project planning step.
+3. **Check.** When the whole build is finished, use checkflow before deployment or handover. Wait for a clean check. If checkflow is unavailable, ask the owner how to continue.
+
 ## References — load only what the task needs
 
 | File | Load when the work involves |
@@ -223,7 +236,7 @@ When work that began from an engineering audit (§28), or any substantial or arc
 | [references/architecture-and-boundaries.md](references/architecture-and-boundaries.md) | where code lives, feature or module boundaries, God-file risk, dependency direction, platform wrappers, change coupling, configuration, naming, comments, business rules and edge cases |
 | [references/data-state-and-runtime.md](references/data-state-and-runtime.md) | persistence or databases, data contracts, units, time, state ownership, migrations, compatibility, error handling, async or concurrency, performance |
 | [references/backend.md](references/backend.md) | API contracts and errors, reliability and operations, backend security, secrets and API keys, containers, overload and traffic spikes — each at its due-at trigger |
-| [references/frontend.md](references/frontend.md) | server data and screen state, remote-data views, forms, accessibility, frontend security, performance and languages — each at its due-at trigger |
+| [references/frontend.md](references/frontend.md) | server data and screen state, remote-data views, forms, accessibility, frontend security, performance, languages and screen sizes — each at its due-at trigger |
 | [references/platform-services.md](references/platform-services.md) | HTTPS and domains, sessions and tenants, central sign-in and directory integration (Keycloak/LDAP), background jobs and schedules, realtime, uploads and files, email, payments, webhooks, search, audit logs, caching and scaling, infrastructure as code, public pages and SEO, analytics and error tracking — each at its due-at trigger |
 | [references/team-and-lifecycle.md](references/team-and-lifecycle.md) | test levels and CI gates, branches and review, ADR lifecycle, releases, environments and flags, privacy, dependency health, incidents, code ownership, teaching, handover documentation, adding or changing configuration settings, or taking over an unfamiliar project — each at its due-at trigger |
 | [references/repository-and-delivery.md](references/repository-and-delivery.md) | tests, tooling, evidence and artifacts, Git and commits, documentation, ADRs, dependencies, generated files, build and release, secrets and private data, dead code |

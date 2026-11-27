@@ -195,7 +195,7 @@ without seeming to know the risk; or the owner or project asks for explanations.
 
 ## §86 Taking over a project
 
-**Due at:** working on a project the agent did not build and that lacks a map or settings list.
+**Due at:** taking over feature development or maintenance in an unfamiliar project that lacks a map or settings list. A tiny isolated correction follows the narrow workflow (§33).
 
 - Map it before changing features. From what the code actually does, write or repair the
   README **Project map** and numbered how-to-run steps, and `docs/architecture/overview.md`

@@ -99,7 +99,6 @@ the final generated text passes the redaction context once more before it is pri
 """
 
 import argparse
-import codecs
 import ctypes
 import errno
 import fnmatch
@@ -119,17 +118,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the modules be
 from checkpoint import STATE_DIR, resolve_project  # noqa: E402
 import childenv  # noqa: E402 — the constructed environment every check runs with (NEW-5 stage 1)
 import emission  # noqa: E402 — the governed emission path and the wrapper status namespace (R2 slice)
-from gitrun import Fail, configure_output, is_link  # noqa: E402
+from gitrun import Fail, configure_output  # noqa: E402
 from evidencefile import Destination, write_lf  # noqa: E402
 from platformgate import PlatformRefusal, require_supported_platform  # noqa: E402
 from secretformats import (Unreadable, commented, dotenv_values, ini_values, json_values, key_values,  # noqa: E402
                            properties_values, text_values, toml_values, values_in, yaml_values)
 from secretforms import BARE, LIST, SECRET_NAME, SETTING, parts, worth  # noqa: E402
-from watched import SECRET_FILES, UNWATCHED_FOLDERS  # noqa: E402 — one list of secret files
+from secretsources import secret_files, secret_text  # noqa: E402
 
-BOMS = ((codecs.BOM_UTF8, "utf-8-sig"), (codecs.BOM_UTF32_LE, "utf-32"), (codecs.BOM_UTF32_BE, "utf-32"),
-        (codecs.BOM_UTF16_LE, "utf-16"), (codecs.BOM_UTF16_BE, "utf-16"))  # UTF-32 first: its mark begins like UTF-16's
-LARGEST_SECRET_FILE = 1 << 20  # a secret file bigger than this is not a secret file
 SHAPES = (  # secret values recognized wherever they appear
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S),
     re.compile(r"\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{8,}"),                  # Stripe
@@ -170,7 +166,7 @@ def named(outer, name, how, part, label):
     return "secret in " + outer if how == "password" or (name and SECRET_NAME.search(name)) else outer
 
 
-def inner(pairs, label=None):
+def inner(pairs, label=None, *, structured=True):
     """pairs, then every value given a name inside one of their values, as written and decoded (the line scan,
     values_in: a list entry NAME=VALUE, a URL's password=…, a connection string's Password=…, each piece also cut at
     '&', ';' and '?'), then each part of every value a check may print alone (parts: its first word, its text up to a
@@ -178,11 +174,12 @@ def inner(pairs, label=None):
     file or a file read as text (`label`), a part is a word of four signs or more, or of two or three that is not only
     letters, and never a number or a yes/no word alone: in a document or a log those are its prose, not its secrets. A
     part is never a name holding a secret word (worth): in a list of field names it names a field."""
-    found = list(pairs)
-    for outer, value in dict.fromkeys(pairs):
+    # Preserve values identified by the reader even when their text resembles an empty assignment.
+    found = [(name, value) for name, value in pairs if value and (structured or worth(value))]
+    for outer, value in dict.fromkeys(found):
         if re.search(r"[=:]", value):
             found += [(named(outer, name, sign, part, label), part)
-                      for name, sign, part in values_in(value, label or outer)]
+                      for name, sign, part in values_in(value, label or outer) if worth(part)]
     for outer, value in dict.fromkeys(found):
         found += [(named(outer, name, how, part, label), part) for name, part, how in parts(value)
                   if worth(part) and (re.search(r"\w", part) or len(part) > 3) and (not label or (
@@ -211,8 +208,8 @@ def read_secret(label, text, written=None, environ=None):
     cannot be masked. A file whose text is one JSON document is also read as JSON (and only as JSON when its own
     reader cannot read it — never a .env file, which a shell sources as it is: its refusal stands). A data format's
     comments add the secrets kept in them (commented). Then every value named inside a value and every part of a value
-    (inner), and each value's stripped form — never a text with nothing in it, or only a setting's name and its '='
-    (worth). `written`, the file as written, carriage returns and a byte order mark and all, goes to the .env reader
+    (inner), and each value's nonempty stripped form. An actual value whose text resembles a setting's name and
+    equals sign is still protected. `written`, the file as written, carriage returns and a byte order mark and all, goes to the .env reader
     for the boundary's byte-order-mark and carriage-return refusals (a shell sourcing the file reads both);
     `environ` is no longer consulted by it — under the literal boundary no .env reading depends on the
     environment. Unreadable when the reader cannot read it all."""
@@ -251,28 +248,27 @@ def read_secret(label, text, written=None, environ=None):
     else:
         try:
             pairs = inner(resolved(reader(text, label) + (commented(text, label) if own is None else []))
-                          + (document or []), own)
+                          + (document or []), own, structured=reader is not text_values)
         except Unreadable as error:
             line = text.split("\n")[error.line - 1] if error.line and not error.final else ""
             if document is not None and not shell:   # a shell sources a .env file as it is, JSON or not: its
                 pairs = inner(document)   # refusal stands; another file its own reader cannot read, one JSON document
             elif (reader is yaml_values and re.search(r"\{\{|\{%", line)) or (reader is ini_values and plain):
-                pairs = inner(resolved(text_values(text, label)), label)   # a template, or no extension, not INI
+                pairs = inner(resolved(text_values(text, label)), label, structured=False)   # a template, or no extension, not INI
             else:
                 raise
-    return [(key, value) for key, value in pairs + [(key, value.strip()) for key, value in pairs
-                                                    if value.strip() != value] if worth(value)]
+    if any(emission.unmaskable(value) for _, value in pairs):
+        raise Unreadable("a nonempty value consists only of whitespace or equals signs")
+    return pairs + [(key, value.strip()) for key, value in pairs if value.strip() and value.strip() != value]
 
 
 def named_safely(triples):
-    """(name, value) for every (name, value, file) with a value — never one made only of '=' (a base64 token's
-    padding), which would mask every '=' — and every name that holds a value from any secret file, or no name,
+    """(name, value) for each admitted (name, value, file), with any name holding a file value, or no name,
     replaced by its file's name ("secret file" when that holds one), still saying secret when the name did (a PIN
     stays masked): any value of two characters or more anywhere in the name (QXZ in backupQXZkey), a one-character
     value as a whole word of it — and a name shaped like a secret itself (a token used as a key, api_key=… as an
     option), or holding a control character (a key decoded from \\u0000). A mask never shows secret text as its name,
     nor does the summary of settings left readable."""
-    triples = [(name, value, label) for name, value, label in triples if re.sub(r"[\s=]+", "", value)]
     values = {value for _, value, _ in triples if len(value) >= 4}
     short, names = {value for _, value, _ in triples if len(value) < 4}, {}
     mixed = {value for value in short if len(value) > 1}
@@ -292,48 +288,6 @@ def named_safely(triples):
     return [(safe(name, label) if holds(name) else name, value) for name, value, label in triples]
 
 
-def secret_text(path):
-    """A secret file's text: decoded by its byte order mark (UTF-8, UTF-16, UTF-32), otherwise as UTF-8 — the mark
-    kept as a leading U+FEFF, for the one reading that takes the file as written (a shell sourcing a .env file reads the
-    mark's bytes as part of its first word). A file that is not text this tool can read — bytes that are not UTF-8, or a
-    NUL character, as in UTF-16 without a mark or a binary key container — stops the run: its values could not be
-    masked."""
-    data = Path(path).read_bytes()
-    encoding = next((encoding for mark, encoding in BOMS if data.startswith(mark)), "utf-8")
-    try:
-        text = data.decode(encoding)
-    except UnicodeDecodeError:
-        text = "\0"
-    if "\0" in text:
-        raise Fail("%s is not text this tool can read (binary, or an encoding without a byte order mark), so its "
-                   "values cannot be masked — keep it outside the project for the migration" % path)
-    return ("\ufeff" if encoding != "utf-8" else "") + text
-
-
-def secret_files(project):
-    """Every secret file in the project, outside dependency, build-output and cache folders — through a link to a
-    plain file too. A folder that cannot be listed, or that is a link, stops the run: a secret file inside it would
-    not be found, and its values would reach the evidence unmasked."""
-    def unreadable(error):
-        raise Fail("cannot list the folder %s to find secret files (%s)" % (error.filename, error.strerror or error))
-    found = []
-    for folder, dirs, names in os.walk(str(project), onerror=unreadable):
-        kept = []
-        for name in dirs:
-            path = os.path.join(folder, name)
-            if name in UNWATCHED_FOLDERS or name in (".git", STATE_DIR):
-                continue
-            if is_link(path):
-                raise Fail("%s is a link to a folder — secret files inside it would not be found; run the check "
-                           "with that folder in place, or add it to the plan as out of scope" % path)
-            kept.append(name)
-        dirs[:] = kept
-        for name in names:
-            if any(fnmatch.fnmatchcase(name.lower(), pattern) for pattern in SECRET_FILES):
-                found.append(os.path.join(folder, name))
-    return found
-
-
 def secret_values(project, environ):
     """(name, value) for every value the project's secret files hold, each file read whole by the one reader its name
     calls for (read_secret): key files, .env, JSON, YAML, TOML, Java .properties, INI, and any other file line by
@@ -344,10 +298,6 @@ def secret_values(project, environ):
     found = []
     for path in secret_files(project):
         try:
-            if not os.path.isfile(path):  # a link to nothing, or to a folder: no values to mask
-                continue
-            if os.path.getsize(path) > LARGEST_SECRET_FILE:
-                raise Fail("%s is larger than a secret file (%d bytes) — its values cannot be masked" % (path, os.path.getsize(path)))
             written = secret_text(path)   # as written: a byte order mark kept, for the shell's reading alone
         except OSError as error:
             raise Fail("cannot read %s to mask its values (%s)" % (path, error.strerror or error))

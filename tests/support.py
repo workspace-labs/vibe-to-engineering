@@ -119,8 +119,16 @@ class Fixture(unittest.TestCase):
         return subprocess.run(["git", "-c", "commit.gpgsign=false", *args], cwd=str(cwd), env=self.env,
                               check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode()
 
-    def tool(self, project, *args, expect=0, env=None):
-        done = subprocess.run([sys.executable, str(TOOL), "--project", str(project), *args], env=dict(self.env, **(env or {})),
+    def tool(self, project, *args, expect=0, env=None, fixture_git=None):
+        command = [sys.executable, str(TOOL)]
+        if fixture_git is not None:
+            # Substitute a known synthetic Git identity in the disposable test
+            # process. The shipping tool never reads a caller-supplied override.
+            script = ("import sys, runpy; sys.path.insert(0,sys.argv.pop(1)); "
+                      "import gitrun; gitrun.SYSTEM_GIT=sys.argv.pop(1); "
+                      "sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0],run_name='__main__')")
+            command = [sys.executable, "-IB", "-c", script, str(TOOL.parent), str(fixture_git), str(TOOL)]
+        done = subprocess.run([*command, "--project", str(project), *args], env=dict(self.env, **(env or {})),
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = done.stdout.decode("utf-8", "replace"), done.stderr.decode("utf-8", "replace")
         if expect is not None:

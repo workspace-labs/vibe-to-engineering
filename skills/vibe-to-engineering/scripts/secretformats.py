@@ -307,7 +307,8 @@ def json_values(text, label):
             around = None if name.replace(LIST, "") == label else name
             pending += [(qualified(around, key), member) for key, member in value[1]]
         elif isinstance(value, tuple):
-            found += [(name, form) for form in forms(value[1], json.dumps(json.loads(value[1])))]
+            spellings = forms(value[1])   # checks the numeric conversion bound before decoding
+            found += [(name, form) for form in spellings + forms(json.dumps(json.loads(value[1])))]
         elif isinstance(value, list):
             pending += [(listed(name), member) for member in value]
         elif isinstance(value, bool):
@@ -521,9 +522,10 @@ def yaml_document_values(text, label):
         return at, value, scalar_forms(value, "\n".join(part for part in parts if part), *parts,
                                        prefix=prefix, plain=True)
 
-    def block(row, digit, name, parent, prefix):
+    def block(row, digit, name, parent, prefix, keep):
         """A block value (| or >) on the lines after row; returns the next row to read."""
-        size, body, row = max(parent, 0) + int(digit) if digit else None, [], row + 1
+        start = row + 1
+        size, body, row = max(parent, 0) + int(digit) if digit else None, [], start
         while row < len(lines):
             line, spaces = lines[row], len(lines[row]) - len(lines[row].lstrip(" "))
             if line.strip() and (spaces <= parent or (spaces == 0 and DOCUMENT_MARK.match(line))):
@@ -535,6 +537,14 @@ def yaml_document_values(text, label):
             row += 1
         while body and not body[-1].strip():
             body.pop()
+        if not body:
+            # Empty blocks normally decode to "". Explicit indentation can leave literal spaces,
+            # and keep-chomping preserves real blank lines (the final split sentinel is not one).
+            blank_lines = lines[start:row]
+            if (any(line.strip(" ") or (digit and len(line) > size) for line in blank_lines)
+                    or (keep and start < min(row, len(lines) - 1))):
+                raise Unreadable("a YAML block has a nonempty whitespace-only reading")
+            return row
         literal, stripped = "\n".join(body), [part.strip() for part in body]
         folded, joined = fold(stripped), " ".join(part for part in stripped if part)
         found.extend((name, form) for form in scalar_forms(literal, literal + "\n", folded, folded + "\n", joined,
@@ -613,7 +623,8 @@ def yaml_document_values(text, label):
             header = YAML_HEADER.match(rest)
             if not header:
                 raise unreadable(text, at, "a block value header this reader does not read")
-            return block(row, header.group(1) or header.group(2), name, parent, tag_prefix), False
+            return block(row, header.group(1) or header.group(2), name, parent, tag_prefix,
+                         "+" in rest.split()[0]), False
         if rest[0] in "%@`,]}" or re.match(r"[-?](?:[ \t]|$)", rest):
             raise unreadable(text, at, "a value this reader does not read")
         return plain(row, rest, name, parent, tag_prefix), False
@@ -865,7 +876,7 @@ def ini_values(text, label):
             raise Unreadable("line %d: an option before any [section]" % number)
         token = token_like(option.group(1), option.group(2))
         found += bare(stripped, label) if token else []   # a base64 token, never a name
-        name, lines = option.group(1), [option.group(2).strip("=") and option.group(2)]
+        name, lines = option.group(1), [option.group(2)]
     for section, name, value in entries:
         unquoted = value[1:-1] if len(value) > 1 and value[0] == value[-1] and value[0] in "\"'" else value
         defaults = sections.get("DEFAULT", {})

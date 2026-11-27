@@ -180,7 +180,9 @@ class Renderer(unittest.TestCase):
 
     @unittest.skipIf(os.name == "nt", "the stand-in browser is a shell script")
     def test_refuses_the_print_when_the_browser_reports_the_policy_ignored(self):
-        browser = self.tmp / "browser"
+        installed = tempfile.TemporaryDirectory(prefix="v2e-fixture-browser-")
+        self.addCleanup(installed.cleanup)
+        browser = Path(installed.name) / "browser"
         browser.write_text('#!/bin/sh\nfor arg in "$@"; do case "$arg" in --print-to-pdf=*) printf "%%s" "%%PDF-1.4 stand-in" '
                            '> "${arg#--print-to-pdf=}";; esac; done\n'
                            'echo "[0924/000000.000000:INFO:CONSOLE:1] \\"The Content Security Policy \'default-src '

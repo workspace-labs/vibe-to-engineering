@@ -48,8 +48,8 @@ not duplicate or corrupt (§43).
   tests/integration/      earned by: the first two stages that must work together
   docs/operations/        earned by: the first build, ship, release, backup, restore or operated
                           run — re-run, backfill and recovery steps; scheduling is not a prerequisite
-  data/backups/           earned by: the first real data the pipeline produces — ignored by
-                          version control from the same day (§27)
+  backup location         earned by: the first real data the pipeline produces — choose it
+                          for the recovery promise (§89). Ignore any in-tree copy from day one (§27)
   docs/security.md        earned by: the first stored data, sign-in, network call or secret
 ```
 

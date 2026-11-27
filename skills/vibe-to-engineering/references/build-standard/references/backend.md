@@ -146,21 +146,28 @@ settings earn `.env.example`. Secret handling applies from the first secret the 
   time** through an environment variable or OS keychain/secure storage is fine. The rule
   forbids the project's key baked into a build.
 - Never log, print or echo a key, or put one in test fixtures, error messages or screenshots.
-- If a key leaks, **REVOKE AND REPLACE IT FIRST, then clean history**. Deleting a commit
-  does not make a leaked key safe.
+- If a key leaks, report where it was exposed immediately without printing the value.
+  A reviewer or an agent without response authority leaves credentials and history alone.
+  The authorized operator revokes and replaces the key immediately.
+  If the key reached a shared repository, get the owner's approval before rewriting shared
+  history (§30). If only a runtime log was exposed, address that log after rotation and
+  leave Git history alone.
+  Deleting a commit does not make a leaked key safe.
 - **Secret scanning, through a pre-commit or CI scanner, is due at the first secret the
   project uses.**
 
 ## §70 Containers (Docker)
 
-**Due at:** the first time the server must run somewhere other than the developer's
-machine, or needs a local service (database, cache, queue) to run at all. Not earlier:
-a small local tool or a static site does not get a Dockerfile (§22).
+**Due at:** add an application Dockerfile when the chosen way to run or deliver the
+app uses a container image. A local development database, cache or queue can run on
+its own. Leave out the Dockerfile for a small local tool, a source-deployed function
+or a static site when its runtime and delivery use no app image (§22).
 
 - If the project already has a working container setup, use it as it is (§61).
 - When a Dockerfile is earned, pin the base image version, never `latest`. Use a multi-stage
   build so build tools stay out of the final image, run as a non-root user, keep one main
   process, and provide a `HEALTHCHECK` or the platform's equivalent.
+  Build and start the image, then check that it becomes healthy.
 - **`.dockerignore` is due at the first Dockerfile.** Exclude `.git`, `.env` and other secret
   files, dependency folders and build output from the build context.
 - No secrets in the image, build arguments or layers. Secrets arrive at run time (§69).

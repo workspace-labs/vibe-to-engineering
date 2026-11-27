@@ -1,6 +1,8 @@
 # Fix first
 
-## Current priority — 2026-10-08
+This file is a historical record. For current work, start with [the latest status](LASTUPDATE.md), [validation commands and prerequisites](README.md#tests) and [observed results](TEST-EVIDENCE.md).
+
+## Archived priorities — 2026-10-08
 
 Use [LASTUPDATE.md](LASTUPDATE.md) for the current status and remaining release checklist.
 A1 and A2 are accepted; independent review verified R2-F2/F4/F6, and the owner has now
@@ -16,7 +18,7 @@ test counts and review statuses. They are preserved as history, not a new order 
 
 What is still open in vibe-to-engineering 0.1.0, in the order to work on it. Each item says what is wrong, how to see it, where it is, and what "fixed" means. Take one item at a time and run the tests after each.
 
-## Before you start
+## Archived September test instructions
 
 - **Run the tests** on the machine you are using, from the repository root: `python3 -m unittest discover -s tests -v` (`py -3` on Windows). Needs Python 3.8+ and git; the three tests that print a PDF also need a Chrome-family browser and are skipped without one, and the one that reads the printed text also needs `pdftotext`. On macOS all 179 pass (branch `fix/f03-f06-f08-new1`, NEW-5 stage 1 with final-review corrective R1, 2026-09-27).
 - **Never point the skill at a real project.** Copy the project to a scratch folder and use the copy.
@@ -187,4 +189,4 @@ Timed only with 20,000 synthetic ignored files (about 0.3 seconds for `create`).
 
 ## Closed
 
-F01, F04, F05, F07, F09 and F10 were closed by the independent re-review of 2026-09-24 — F05 on macOS (FAT and network drives were not tried), F09 and F10 for their wording. The full re-review, with its evidence, is kept on the Mac: `Desktop/vibe-to-engineering-re-review-2026-09-24.md`.
+F01, F04, F05, F07, F09 and F10 were closed by the independent re-review of 2026-09-24 — F05 on macOS (FAT and network drives were not tried), F09 and F10 for their wording. The full re-review and its evidence are retained outside this repository.

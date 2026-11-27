@@ -23,7 +23,7 @@ PORTABLE = (
     "test_package", "test_standard_alignment", "test_reader_platform", "test_a1_matrix_regressions", "test_emission_result",
     "test_protocol", "test_env_literal.Grammar", "test_r2_confidentiality.EmissionModule",
     "test_f3_ambiguous.AmbiguousCollection", "test_platform_evidence",
-    "test_platform_render", "test_enrolled_isolation", "test_recovery_review",
+    "test_platform_render", "test_confidential_names.NameMapPortable", "test_enrolled_isolation", "test_recovery_review",
     "test_scratch_retention", "test_secret_scalars", "test_render_map.MapPortable",
 )
 

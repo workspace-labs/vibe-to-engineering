@@ -14,8 +14,8 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "vibe-to-engineering"
 BUNDLE = SKILL / "references" / "build-standard"
-COMMIT = "15d76887f5b06ac1e22a8b452fe17d425ec196b3"
-VERSION = "1.11.0"
+COMMIT = "cc4e4f1259a439cb94faff651a26454e4ad5f9f9"
+VERSION = "1.18.0"
 REPOSITORY = "https://github.com/workspace-labs/software-engineering-build-standard"
 UPSTREAM_SKILL = "skills/software-engineering-build-standard/"
 GUIDES = {

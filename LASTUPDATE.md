@@ -1,19 +1,23 @@
-# Latest update — 2026-11-30
+# Latest update — 2026-11-27
 
-## Migration Map layout on real plans
+## Deep review fixes, Round 1
+
+Candidate **0.6.2-dev** addresses confidential names, the bundled standard, tool selection, secret handling, map outcomes and historical records. Claude reviews this round next. See [test results](TEST-EVIDENCE.md).
+
+## Migration Map layout on real plans — 2026-11-22
 
 Candidate **0.6.1-dev** on `fix/map-real-plan-layout` addresses the layout finding on
 `6ffdc45`. Phase cards determine A4 pagination. An oversized phase continues between file
 rows with its title and approval stop repeated. Source bars stay proportional, and each row
 shows its linked ranges beneath the filename.
 
-The SmartRoute rehearsal used a disposable copy with a synthetic approval. The map fits
+The layout check used a disposable rehearsal on a real-shaped synthetic map with a synthetic approval. The map fits
 on **one A4 page** with all **15 filenames**, **34 linked ranges**, and **34 connectors**.
 Eight new layout tests fail on the base and pass on the candidate. Portable validation
 passed **183** tests and native macOS validation passed **484** tests, both with zero
 failures, errors or skips. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md).
 
-Claude's re-review follows.
+Claude accepted the 0.6.1-dev layout change on 2026-11-22.
 
 ## November 22 Migration Map fixes J1–J4
 
@@ -252,8 +256,7 @@ matrix and Chromium headless shell. This does not establish Linux or Windows rea
 Unknown/non-`--env` options and whitespace/equals-only values retain their documented
 diagnostic behavior; the reviewer recorded these as unchanged policy, not new defects.
 
-The complete review and raw logs are retained locally in
-the evidence folder `vibe-to-engineering-F3-R1-rereview-2026-09-28/` (`REVIEW.md`, scripts, logs and
+The complete review and raw logs are retained locally outside the package (`REVIEW.md`, scripts, logs and
 integrity records). They are not bundled into the installable skill. The source regression
 tests are included in this repository. Existing delivery-time references remain historical;
 this document records the current acceptance status.
@@ -267,8 +270,7 @@ added; runtime code and tests remained byte-identical to the reviewed version.
 Codex then reran the full suite on a disposable copy with an isolated HOME, the documented
 CLT Python, Node and browser, and both `V2E_REQUIRE_NODE=1` and `V2E_REQUIRE_MATRIX=1`:
 **307 tests passed, zero failures, errors or skips**, in 327.107 seconds. All four required
-reader-matrix tests passed. Local logs and the pre-update backup are retained in
-the evidence folder `v2e-github-update-2026-09-29-qzr8_d34/`. This verifies the repository snapshot;
+reader-matrix tests passed. Local logs and the pre-update backup are retained outside the repository. This verifies the repository snapshot;
 the release workflow exam below is still pending.
 
 ## September 29 release queue (historical; October status above)

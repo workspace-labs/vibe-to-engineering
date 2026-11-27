@@ -33,7 +33,7 @@ def refuse_partial_clone(folder, name):
     from its remote the moment a command reads it — through a remote helper, which may run a configured program
     (G11). Such a repository is refused before git reads anything in it: the one checked, and a repository it
     records (a gitlink) before its commit is read."""
-    if git_version() < (2, 46) and promisor_configured(folder):
+    if git_version(folder) < (2, 46) and promisor_configured(folder):
         raise Fail("%s is a partial clone, and a git older than 2.46 fetches its missing objects from a remote the "
                    "moment they are read — which may run a configured program" % name)
 

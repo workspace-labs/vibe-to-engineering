@@ -11,7 +11,7 @@ def plural(count, one, many):
 MARKS = {"ignored": "[ignored]", "nested": "[nested repository]", "state": "[the skill's own folder]"}
 
 
-def print_tree(title, saved, depth, full=False, ignored=(), nested=(), state_dir=None):
+def print_tree(title, saved, depth, full=False, ignored=(), nested=(), state_dir=None, names=None):
     """The saved files as a tree, folders opened `depth` levels deep. With full=True, also every file git ignores and
     every nested repository, each marked where it sits — a folder holding nothing but ignored files as one line —
     and the skill's own folder (`state_dir`, its name in bytes, when it exists), then the count of each kind.
@@ -24,6 +24,8 @@ def print_tree(title, saved, depth, full=False, ignored=(), nested=(), state_dir
         leaves += [(rel, "nested") for rel in repos] + ([(state_dir + b"/", "state")] if state_dir else [])
     for rel, kind in leaves:
         node, parts = root, show(rel).rstrip("/").split("/")
+        if names:
+            parts = [names.display(part) for part in parts]
         for part in parts[:-1]:
             node = node.setdefault(part + "/", {})
         node[parts[-1] + ("/" if rel.endswith(b"/") else "")] = kind

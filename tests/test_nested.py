@@ -213,13 +213,14 @@ class Nested(Fixture):
             self.git(child, "config", key, value)          # child is a partial clone: git fetches what it lacks when it reads it
         before = disk_state(p)                              # both nested .git folders included
         for git in ("installed", "older"):                  # the installed git first: it leaves the fixture as it is
-            path = ([str(older)] if git == "older" else []) + [str(helper), self.env["PATH"]]
+            fixture_git = older / "git" if git == "older" else None
             for command in (("create", "01-changed"), ("diff", "00-clean"), ("restore", "00-clean"),
                             ("restore", "00-clean", "--apply")):
                 with self.subTest(git=git, command=" ".join(command)):
                     if marker.exists():
                         marker.unlink()                         # each command is judged on its own
-                    _, err = self.tool(p, *command, expect=1, env={"PATH": os.pathsep.join(path)})
+                    _, err = self.tool(p, *command, expect=1, fixture_git=fixture_git,
+                                       env={"PATH": os.pathsep.join((str(helper), self.env["PATH"]))})
                     self.assertFalse(marker.exists(), "git fetched through the remote helper")
                     self.assertIn("nested repository module/", err)
                     if git == "older":
@@ -265,7 +266,7 @@ class Nested(Fixture):
                 self.git(module, "config", key, value)   # a partial clone: git fetches what it lacks when it reads it
             os.rename(module / ".git" / "objects" / tree[:2] / tree[2:], self.tmp / ("missing-tree-" + shape))
             for git in ("installed", "older"):           # the older git is refused as a partial clone first
-                path = ([str(older)] if git == "older" else []) + [str(helper), self.env["PATH"]]
+                fixture_git = older / "git" if git == "older" else None
                 reason = "module/ keeps a sparse index" if git == "installed" else "module/ is a partial clone"
                 for command in (("create", "01-after"), ("diff", "00-clean"), ("restore", "00-clean"),
                                 ("restore", "00-clean", "--apply")):
@@ -273,7 +274,8 @@ class Nested(Fixture):
                         if marker.exists():
                             marker.unlink()                  # each command is judged on its own
                         before = identities(module)          # module/.git included: objects, bytes and times
-                        _, err = self.tool(p, *command, expect=1, env={"PATH": os.pathsep.join(path)})
+                        _, err = self.tool(p, *command, expect=1, fixture_git=fixture_git,
+                                           env={"PATH": os.pathsep.join((str(helper), self.env["PATH"]))})
                         self.assertFalse(marker.exists(), "git fetched through the remote helper")
                         self.assertEqual(identities(module), before, "git wrote into the nested repository")
                         self.assertIn("cannot tell whether the nested repository module/", err)

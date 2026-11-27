@@ -57,7 +57,7 @@ class RendererPlatform(unittest.TestCase):
             base = Path(folder)
             scripts = base / "scripts"
             scripts.mkdir()
-            for name in ("render_pdf.py", "platformgate.py"):
+            for name in ("render_pdf.py", "platformgate.py", "trusted_tools.py"):
                 (scripts / name).write_bytes((SCRIPTS / name).read_bytes())
             html, pdf = base / "plan.html", base / "plan.pdf"
             html.write_bytes(b"<!DOCTYPE html><p>synthetic plan</p>")
@@ -104,6 +104,85 @@ class RendererPlatform(unittest.TestCase):
             self.assertEqual(snapshot(), before, "refusal changed files after interpreter startup")
             self.assertFalse(any(scripts.rglob("__pycache__")), "the skill created a bytecode cache")
             self.assertFalse(any(scripts.rglob("*.pyc")), "the skill created bytecode")
+
+
+class PreapprovalTools(unittest.TestCase):
+    """Inspect proposed launches without executing any fixture executable."""
+
+    def test_git_pins_the_program_and_helper_search_path(self):
+        import gitrun
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory).resolve()
+            inherited = os.pathsep.join((".", str(project), "relative-tools"))
+            reply = subprocess.CompletedProcess([], 0, b"", b"")
+            with mock.patch.dict(os.environ, {"PATH": inherited, "GIT_EXEC_PATH": str(project)}), \
+                    mock.patch.object(gitrun.subprocess, "run", return_value=reply) as launch:
+                gitrun.git(["version"], cwd=project)
+            program = Path(launch.call_args.args[0][0])
+            self.assertTrue(program.is_absolute())
+            self.assertTrue(program.is_file())
+            child = launch.call_args.kwargs["env"]
+            self.assertNotIn("GIT_EXEC_PATH", child)
+            self.assertTrue(all(Path(entry).is_absolute() for entry in child["PATH"].split(os.pathsep)))
+            self.assertNotIn(str(project), child["PATH"].split(os.pathsep))
+            if sys.platform == "darwin":
+                # The caller's trusted working directory can be anywhere outside the project.
+                (project / "fixture.txt").write_text("sample", encoding="utf-8")
+                with tempfile.TemporaryDirectory() as profile:
+                    env = {"PATH": "/usr/bin:/bin", "HOME": profile, "TMPDIR": profile}
+                    done = subprocess.run([sys.executable, "-IB", str(SCRIPTS / "checkpoint.py"),
+                                           "--project", str(project), "tree", "--current"],
+                                          cwd="/", capture_output=True, timeout=15, env=env)
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertIn(b"fixture.txt", done.stdout)
+
+    def test_git_refuses_an_unavailable_or_project_owned_identity_before_launch(self):
+        import gitrun
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory).resolve()
+            fixture = project / "git"
+            fixture.touch()
+            fixture.chmod(0o700)
+            for identity in (fixture, project / "missing", Path("relative-git")):
+                with self.subTest(identity=identity), \
+                        mock.patch.object(gitrun, "SYSTEM_GIT", identity, create=True), \
+                        mock.patch.object(gitrun.subprocess, "run") as launch:
+                    with self.assertRaises(gitrun.Fail):
+                        gitrun.git(["version"], cwd=project)
+                    launch.assert_not_called()
+
+    def test_plan_renderer_refuses_project_and_relative_browser_choices_before_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory).resolve()
+            state = project / ".vibe-to-engineering"
+            state.mkdir()
+            html, pdf = state / "plan.html", state / "plan.pdf"
+            html.write_text("<!DOCTYPE html><p>Sample</p>", encoding="utf-8")
+            fixture = project / "browser"
+            fixture.touch()
+            fixture.chmod(0o700)
+            relative = os.path.relpath(str(fixture))
+            for choice in (str(fixture), relative):
+                with self.subTest(choice=choice), \
+                        mock.patch.object(render_pdf, "require_supported_platform"), \
+                        mock.patch.dict(os.environ, {"V2E_BROWSER": choice}), \
+                        mock.patch.object(render_pdf.subprocess, "run") as launch, \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    code = render_pdf.main(["render_pdf.py", str(html), str(pdf)])
+                    launch.assert_not_called()
+                    self.assertEqual(code, 3)
+                    self.assertFalse(pdf.exists())
+            if os.name == "posix":
+                alias = project / "plan-folder"
+                alias.symlink_to(state, target_is_directory=True)
+                with mock.patch.object(render_pdf, "require_supported_platform"), \
+                        mock.patch.dict(os.environ, {"V2E_BROWSER": str(fixture)}), \
+                        mock.patch.object(render_pdf.subprocess, "run", side_effect=AssertionError("launch")) as launch, \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    code = render_pdf.main(["render_pdf.py", str(alias / html.name), str(pdf)])
+                    launch.assert_not_called()
+                    self.assertEqual(code, 3)
+                    self.assertFalse(pdf.exists())
 
 
 if __name__ == "__main__":

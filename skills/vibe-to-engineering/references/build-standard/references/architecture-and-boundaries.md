@@ -62,12 +62,14 @@ Do not split a cohesive file merely to satisfy an arbitrary line-count target.
 
 ### File-size alarms
 
-The rule above decides. These numbers only start a review of responsibilities; no number decides anything alone.
+Apply the table when a change adds a responsibility, materially grows the file, or exposes coupling that affects the work. For an isolated fix within the existing responsibility, check the affected behavior without making a line-range inventory. Stricter project or owner limits still apply (§61).
+
+These numbers only start a review of responsibilities; no number decides anything alone.
 
 | Size | What it means | What to do |
 |---|---|---|
 | About 300 lines | Soft target | Nothing. |
-| 400 to 500 lines | Review | List the file's responsibilities with line ranges, then check the warning signs above. The review starts here; a longer file that has not had it (first met at 650 lines, say) gets the same review. |
+| 400 to 500 lines | Review | List the file's responsibilities with line ranges, then check the warning signs above. When the review is due, include a longer file that has not had it (for example, one first met at 650 lines). |
 | Over 1,000 lines | Written reason | After the same review, the file stays whole only with a written reason: generated code, a pure data table, or proven cohesion. Otherwise split it by responsibility. |
 
 - **Functions and hooks:** review any that pass about 40 to 50 lines.

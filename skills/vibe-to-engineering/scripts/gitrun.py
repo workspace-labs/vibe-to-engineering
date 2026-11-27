@@ -18,6 +18,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+from trusted_tools import external_executable, tool_environment
+
+SYSTEM_GIT = (Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git/cmd/git.exe"
+              if os.name == "nt" else Path("/usr/bin/git"))
+
 IDENTITY = {
     "GIT_AUTHOR_NAME": "vibe-to-engineering",
     "GIT_AUTHOR_EMAIL": "checkpoint@vibe-to-engineering.invalid",
@@ -138,11 +143,16 @@ def remove_temp(path):
 
 # ---------------------------------------------------------------- git
 
-def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(0,), quiet=False, english=False):
+def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(0,), quiet=False, english=False,
+        project=None):
     """Run one git command; raise Fail on an unexpected exit code — and, with quiet=True, on any warning: for a
     listing that means git could not see everything (an unreadable folder, for example). english=True keeps git's
     messages untranslated, for a message the tool has to recognize."""
-    command = ["git"]
+    project = Path(project or work_tree or cwd or store or os.getcwd()).resolve()
+    executable = external_executable(SYSTEM_GIT, project)
+    if executable is None:
+        raise Fail("the system Git executable outside the project is unavailable")
+    command = [executable]
     for setting in SAFE_SETTINGS + (STORE_SETTINGS + fidelity_settings() if store is not None else ()):
         command += ["-c", setting]
     if store is not None:
@@ -150,7 +160,7 @@ def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(
     if work_tree is not None:
         command.append("--work-tree=" + str(work_tree))
     command += args
-    env = {key: value for key, value in os.environ.items()
+    env = {key: value for key, value in tool_environment(project).items()
            if key not in GIT_ENV_TO_DROP and not key.startswith(GIT_ENV_PREFIXES_TO_DROP)}
     env.update(IDENTITY)
     env["GIT_OPTIONAL_LOCKS"] = "0"  # read-only commands never refresh the project's index
@@ -167,7 +177,7 @@ def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(
         done = subprocess.run(command, cwd=None if cwd is None else str(cwd), input=stdin,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     except FileNotFoundError:
-        raise Fail("git is not installed or not on the PATH")
+        raise Fail("the selected system Git is unavailable")
     if done.returncode not in ok or (quiet and done.stderr.strip()):
         detail = done.stderr.decode("utf-8", "replace").strip() or "exit code %d" % done.returncode
         raise Fail("git %s %s: %s" % (args[0], "failed" if done.returncode not in ok else "reported a problem", detail))
@@ -186,18 +196,18 @@ _GIT_VERSION = []
 PROMISOR_KEYS = r"^(extensions\.partialclone|remote\..*\.(promisor|partialclonefilter))$"
 
 
-def git_version():
-    """(major, minor) of the git on the PATH, read once."""
+def git_version(project=None):
+    """(major, minor) of the selected system Git, read once."""
     if not _GIT_VERSION:
-        found = re.search(rb"(\d+)\.(\d+)", git(["version"]).stdout)
+        found = re.search(rb"(\d+)\.(\d+)", git(["version"], project=project).stdout)
         _GIT_VERSION.append((int(found.group(1)), int(found.group(2))) if found else (0, 0))
     return _GIT_VERSION[0]
 
 
-def promisor_configured(folder=None, config=None):
+def promisor_configured(folder=None, config=None, project=None):
     """Whether a repository (or a configuration file) tells git to fetch missing objects from a remote."""
     where = ["--file", str(config)] if config is not None else []
-    return git(["config"] + where + ["--get-regexp", "-z", PROMISOR_KEYS], cwd=folder, ok=(0, 1)).returncode == 0
+    return git(["config"] + where + ["--get-regexp", "-z", PROMISOR_KEYS], cwd=folder, project=project, ok=(0, 1)).returncode == 0
 
 
 # ---------------------------------------------------------------- git's index, read without git

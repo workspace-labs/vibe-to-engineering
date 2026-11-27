@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3 -I
 """Render Engineering-Migration-Plan.html to a PDF with a Chrome-family browser.
 
-    python3 render_pdf.py <plan.html> <plan.pdf>        (macOS only)
+    /usr/bin/python3 -IB render_pdf.py <plan.html> <plan.pdf>        (macOS only)
 
 Standard library only. It uses a Chrome, Chromium, Edge or Brave browser that is
 already installed, or one downloaded by Playwright; set V2E_BROWSER to a browser's
@@ -25,12 +25,13 @@ sys.dont_write_bytecode = True
 import glob
 import os
 import re
-import shutil
 import subprocess
 import tempfile
 from html.parser import HTMLParser
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # support isolated Python (-I)
+from trusted_tools import external_executable, inside_project, tool_environment
 from platformgate import PlatformRefusal, require_supported_platform
 
 PLACEHOLDER = re.compile(r"\{\{[^{}]*\}\}|\{\{")
@@ -151,9 +152,7 @@ def with_policy(text):
 def browser_candidates():
     """Where Chrome-family browsers usually live on this operating system."""
     home = Path.home()
-    names = ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge",
-             "microsoft-edge-stable", "brave-browser", "chrome", "msedge", "chrome-headless-shell")
-    found = [shutil.which(name) for name in names]
+    found = []
     if sys.platform == "darwin":
         for root in (Path("/Applications"), home / "Applications"):
             for app in ("Google Chrome", "Chromium", "Microsoft Edge", "Brave Browser", "Google Chrome for Testing"):
@@ -178,23 +177,20 @@ def browser_candidates():
     return [str(path) for path in found if path]
 
 
-def find_browser():
+def find_browser(project=None):
+    project = Path.cwd() if project is None else project
     chosen = os.environ.get("V2E_BROWSER")
     if chosen:
-        return chosen if Path(chosen).is_file() and os.access(chosen, os.X_OK) else None
+        return external_executable(chosen, project)
     for candidate in browser_candidates():
-        if Path(candidate).is_file() and os.access(candidate, os.X_OK):
-            return candidate
+        executable = external_executable(candidate, project)
+        if executable:
+            return executable
     return None
 
 
 def page_count(pdf):
-    """Pages in the PDF, from pdfinfo when it is installed, else by counting page objects."""
-    if shutil.which("pdfinfo"):
-        info = subprocess.run(["pdfinfo", str(pdf)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-        match = re.search(rb"^Pages:\s+(\d+)", info.stdout, re.M)
-        if match:
-            return int(match.group(1))
+    """Count page objects in the generated Chrome PDF without launching another tool."""
     count = len(re.findall(rb"/Type\s*/Page(?![a-zA-Z])", pdf.read_bytes()))
     return count or None
 
@@ -222,15 +218,34 @@ def output_path(requested, html):
     return pdf
 
 
-def render_plan(argv):
+def plan_project(requested_html):
+    """Use the state directory's owning project, including when reached through an alias."""
+    requested = Path(requested_html).expanduser().absolute()
+    actual = requested.resolve()
+    owners = {folder.parent.resolve() for path in (requested, actual) for folder in path.parents
+              if folder.name.casefold() == ".vibe-to-engineering"}
+    if len(owners) > 1:
+        raise ValueError("plan path refers to conflicting project state directories")
+    if owners:
+        project = owners.pop()
+        if not inside_project(actual, project):
+            raise ValueError("plan path leaves its project state directory")
+        return project
+    return requested.parent.resolve()  # standalone HTML uses its containing directory
+
+
+def render_plan(argv, names=None):
     if len(argv) != 3:
         print("usage: render_pdf.py <plan.html> <plan.pdf>", file=sys.stderr)
         return 2
-    html = Path(argv[1]).expanduser().resolve()
+    requested_html = Path(argv[1]).expanduser().absolute()
+    html = requested_html.resolve()
     if not html.is_file():
         print("render_pdf.py: error: plan not found: %s" % html, file=sys.stderr)
         return 2
     text = html.read_text(encoding="utf-8")
+    if names:
+        names.check_html(text)
     left = sorted(set(PLACEHOLDER.findall(text)))
     if left:
         print("render_pdf.py: error: the plan still has unfilled placeholders: %s. Fill them, or write text "
@@ -257,9 +272,10 @@ def render_plan(argv):
         return 1
     requested_pdf = Path(argv[2])
     pdf = output_path(requested_pdf, html)
-    browser = find_browser()
+    project = plan_project(requested_html)
+    browser = find_browser(project)
     if browser is None:
-        where = "V2E_BROWSER=%s does not exist or is not executable" % os.environ["V2E_BROWSER"] if os.environ.get("V2E_BROWSER") \
+        where = "V2E_BROWSER=%s must select an absolute executable outside the inspected project" % os.environ["V2E_BROWSER"] if os.environ.get("V2E_BROWSER") \
             else "no Chrome, Chromium, Edge or Brave browser was found"
         print("render_pdf.py: error: %s. The plan is still readable in any browser: %s. To make the PDF, install "
               "one of those browsers or set V2E_BROWSER to one's full path." % (where, html), file=sys.stderr)
@@ -283,7 +299,8 @@ def render_plan(argv):
                    "--host-resolver-rules=MAP * ~NOTFOUND",  # no host name resolves: nothing is fetched
                    "--print-to-pdf=" + str(rendered), page.as_uri()]
         try:
-            done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
+            done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180,
+                                  cwd=str(work), env=tool_environment(project))
         except subprocess.TimeoutExpired:
             print("render_pdf.py: error: %s did not finish within 3 minutes" % browser, file=sys.stderr)
             return 1
@@ -314,8 +331,22 @@ def main(argv):
         print("render_pdf.py: error: %s" % error, file=sys.stderr)
         return 1
     try:
+        if "--name-map" in argv:
+            import contextlib
+            import io
+            from private_names import load_name_map
+
+            if len(argv) != 5 or argv[3] != "--name-map":
+                raise ValueError("usage: render_pdf.py <plan.html> <plan.pdf> --name-map <absolute-file>")
+            names = load_name_map(argv[4], plan_project(argv[1]))
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                code = render_plan(argv[:3], names)
+            print("Confidential plan written." if code == 0 else "Confidential plan printing failed.")
+            return code
         return render_plan(argv)
     except (OSError, UnicodeError, RuntimeError, ValueError) as error:
+        if "--name-map" in argv:
+            error = "confidential plan refused; check the name map and plan text"
         print("render_pdf.py: error: %s" % error, file=sys.stderr)
         return 1
 

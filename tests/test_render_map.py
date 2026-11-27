@@ -607,6 +607,81 @@ class MapPortable(MapFixture, unittest.TestCase):
         self.write_mapping()
         self.assert_refuses("src/flow.py", "link")
 
+    def test_round1_warning_decisions_govern_the_shown_outcome(self):
+        self.seed_approved_copy()
+        completed = (APPROVAL, "PHASE 1 COMPLETE", "PHASE 2 COMPLETE")
+        accepted = "Verification Warning: ACCEPTED BY OWNER — sample behavior"
+        for report in (accepted, "Not verified (accepted by the owner): sample behavior — sample check"):
+            with self.subTest(report=report):
+                self.write_ledger(*completed, ALL_GREEN, body=report + "\n")
+                text = self.map_text()
+                self.assertIn("<span>Status</span><strong>Complete with accepted gaps</strong>", text)
+                self.assertNotIn("All green", text)
+        self.write_ledger(*completed, ALL_GREEN, body="Verification Warning: OPEN — sample behavior\n")
+        self.assert_refuses("open verification warning")
+        self.write_ledger(*completed, ALL_GREEN, body=accepted + "\nStill failing (approved at the baseline): sample check\n")
+        self.assertIn("Complete with approved failures and accepted gaps", self.map_text())
+
+    def test_round1_warning_lasts_until_its_own_closure_or_new_run(self):
+        self.seed_approved_copy()
+        self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", "PHASE 2 COMPLETE", ALL_GREEN)
+        prefix, finish = self.ledger.read_text().split("## 2026-11-21T10:00:03Z")
+        accepted = "Verification Warning: ACCEPTED BY OWNER — sample behavior\n"
+        full = prefix + accepted + "## 2026-11-21T10:00:03Z" + finish
+        self.ledger.write_text(full + "Verification Warning: CLOSED — different behavior\n")
+        self.assertIn("Complete with accepted gaps", self.map_text())
+        self.ledger.write_text(full + "Verification Warning: CLOSED — sample behavior\n")
+        self.assertIn("<span>Status</span><strong>All green</strong>", self.map_text())
+        self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", "MIGRATION STOPPED", APPROVAL,
+                          "PHASE 1 COMPLETE", "PHASE 2 COMPLETE", ALL_GREEN)
+        self.ledger.write_text(self.ledger.read_text().replace("## 2026-11-21T10:00:02Z",
+                                                               accepted + "## 2026-11-21T10:00:02Z"))
+        self.assertIn("<span>Status</span><strong>All green</strong>", self.map_text())
+
+        next_approval = "## 2026-11-21T10:00:03Z"
+        self.ledger.write_text(self.ledger.read_text().replace(next_approval, accepted + next_approval))
+        self.assertIn("Complete with accepted gaps", self.map_text())
+
+    def test_round1_final_status_includes_preapproval_and_refuses_late_warning_decisions(self):
+        self.seed_approved_copy()
+        self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", "PHASE 2 COMPLETE", ALL_GREEN)
+        record = self.ledger.read_text()
+        decision = "Verification Warning: ACCEPTED BY OWNER — sample behavior\n"
+        self.ledger.write_text(decision + record)
+        self.assertIn("Complete with accepted gaps", self.map_text())
+        self.ledger.write_text(record + "## 2026-11-21T10:01:00Z — NOTE — recorded\n" + decision)
+        self.assert_refuses("follows the final outcome")
+
+    def test_round1_stopped_run_refuses_later_progress_without_a_new_approval(self):
+        self.seed_approved_copy()
+        for event in ("PHASE 1 COMPLETE", "PHASE 1 FAILED", "PHASE 1 STARTED"):
+            with self.subTest(event=event):
+                self.write_ledger(APPROVAL, "PHASE 1 STARTED", "MIGRATION STOPPED", event)
+                self.assert_refuses("stopped")
+        self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", "PHASE 2 COMPLETE", "MIGRATION STOPPED", ALL_GREEN)
+        self.assert_refuses("stopped")
+        self.write_ledger(APPROVAL, "MIGRATION STOPPED", "PHASE 1 COMPLETE", APPROVAL)
+        self.assert_refuses("approval")
+
+    def test_round1_only_next_unfinished_phase_can_advance(self):
+        self.seed_approved_copy()
+        for first in ((), ("PHASE 1 STARTED",), ("PHASE 1 STARTED", "PHASE 1 FAILED")):
+            for event in ("PHASE 2 STARTED", "PHASE 2 COMPLETE", "PHASE 2 FAILED"):
+                with self.subTest(first=first, event=event):
+                    self.write_ledger(APPROVAL, *first, event)
+                    self.assert_refuses("phase order")
+        self.write_ledger(APPROVAL, "PHASE 1 COMPLETE", "PHASE 2 STARTED", "PHASE 1 STARTED")
+        self.assert_refuses("phase order")
+        self.write_ledger(APPROVAL, "PHASE 1 STARTED", "PHASE 1 STARTED")
+        self.assert_refuses("already")
+
+        self.specification["plan_version"] = "2"
+        self.specification["phases"].reverse()
+        self.write_plan()
+        self.write_mapping()
+        self.write_ledger("PLAN APPROVED v2", "PHASE 2 STARTED")
+        self.assert_refuses("phase order")
+
     def test_fix_g4_finished_map_shows_specific_outcome_and_no_next_stop(self):
         self.seed_approved_copy()
         for event, state in (

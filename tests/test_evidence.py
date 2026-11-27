@@ -543,17 +543,14 @@ class Evidence(unittest.TestCase):
         }
         for name, (files, secrets, blamed) in refused.items():
             self.refused_run(name, files, secrets, blamed)
-        # SUPERSEDED (A1 literal boundary, 2026-09-27): "R2 a bare .env token with == padding" and "... with one = of
-        # padding" expected the whole line masked as a bare token ("<masked .env>"); the grammar reads each line as
-        # an ordinary assignment every claimed reader decodes alike (a NAME over A-Za-z0-9, '=', then a value of '='
-        # signs or empty), so the line stays readable and every other = is untouched.
-        for name, bare in (("R2 a bare .env token with == padding", padded),
-                           ("R2 a bare .env token with one = of padding", single)):
-            _, shown, _, _ = self.admitted_run(name, {".env": "APP_NAME=demo\n%s\n" % bare},
-                                               "print(open('.env').read().splitlines()[1]); print('x = y == z')")
-            self.assertIn(bare, shown)                  # an ordinary assignment: its name is not a secret
-            self.assertIn("x = y == z", shown)          # a lone = is never a value: every other = stays readable
-            self.assertNotIn("<masked", shown)
+        # One separator means the assignment is empty. The second equals sign is a real
+        # one-character value which the emission boundary cannot mask.
+        self.refused_run("a nonempty padding-only value", {".env": "APP_NAME=demo\n%s\n" % padded}, (), ".env")
+        _, shown, _, _ = self.admitted_run("an empty assignment", {".env": "APP_NAME=demo\n%s\n" % single},
+                                           "print(open('.env').read().splitlines()[1]); print('x = y == z')")
+        self.assertIn(single, shown)
+        self.assertIn("x = y == z", shown)
+        self.assertNotIn("<masked", shown)
         project = self.tmp / "settings-in-a-list"   # a number in a list entry under ordinary names stays readable
         (project / ".vibe-to-engineering").mkdir(parents=True)
         (project / "secrets.yaml").write_text("environment:\n  - PORT=8000\n  - API_TOKEN=r3-list-token-8803\n")
@@ -601,14 +598,6 @@ class Evidence(unittest.TestCase):
             "R2' a list of field names leaves the net for named values on": (
                 {".env": "LOG_REDACT_FIELDS=password,secret,token\n", "runtime/fetched.txt": "r3-r18-fetched-1105\n"},
                 fetched + "print('token=' + fetched)", ("r3-r18-fetched-1105",), "=<masked>"),
-            "R2' a padded token and a comment in an INI file with no extension": (
-                {"credentials": "[default]\n" + ini_token + " ; rotated\n"},
-                "for line in open('credentials'):\n    print(line.strip())\n    print(line.split()[0])",
-                (ini_token.rstrip("="),), "<masked credentials>"),
-            "R2' a padded token in a .properties file": (
-                {"secrets.properties": "db.user=admin\n" + prop_token + "\n"},
-                "print(open('secrets.properties').read().splitlines()[1])", (prop_token.rstrip("="),),
-                "<masked secrets.properties>"),
             "R2' a .properties line with no separator": (
                 {"secrets.properties": "db.user=admin\nr3-r18-keyonly-1301\n"},
                 "print(open('secrets.properties').read().splitlines()[1])", ("r3-r18-keyonly-1301",),
@@ -719,6 +708,12 @@ class Evidence(unittest.TestCase):
         # escape); "R14 ... a shell continues on the next line" and "... joins from quoted parts": a backslash or
         # quote inside an unquoted value; "R14 ... a shell's C quotes": a '$' in a value (interpolation).
         refused = {   # name: ({file: text}, the values and pieces that must not be seen, the file the report names)
+            # Their format readers also identify a nonempty padding-only scalar.
+            "R2' a padded token and a comment in an INI file with no extension": (
+                {"credentials": "[default]\n" + ini_token + " ; rotated\n"}, (ini_token.rstrip("="),), "credentials"),
+            "R2' a padded token in a .properties file": (
+                {"secrets.properties": "db.user=admin\n" + prop_token + "\n"},
+                (prop_token.rstrip("="),), "secrets.properties"),
             "R2' a password written as #... in .env leaves the net for named values on": (
                 {".env": "DB_PASSWORD=#r3-r18-hash-1102\n", "runtime/fetched.txt": "r3-r18-fetched-1103\n"},
                 ("r3-r18-hash-1102", "r3-r18-fetched-1103"), ".env"),
@@ -743,16 +738,8 @@ class Evidence(unittest.TestCase):
         }
         for name, (files, secrets, blamed) in refused.items():
             self.refused_run(name, files, secrets, blamed)
-        # SUPERSEDED (A1 literal boundary, 2026-09-27): "R2' a padded token printed as the name a .env reader sees"
-        # expected the token masked even as the would-be name a reader sees; the grammar reads the line as an
-        # ordinary assignment (a NAME over A-Za-z0-9, '=', a value of '=' signs — every claimed reader agrees), and
-        # a name is never a secret — masks are named by them — so the name prints readably beside PORT.
-        _, shown, _, _ = self.admitted_run(
-            "R2' a padded token printed as the name a .env reader sees",
-            {".env": padded + "\nPORT=8000\n"},
-            "for line in open('.env'):\n    print('setting', line.strip().split('=', 1)[0])")
-        self.assertIn("setting " + padded.rstrip("="), shown)   # a name is never a secret: the mask names it
-        self.assertIn("setting PORT", shown)
+        self.refused_run("a nonempty padding-only value alongside a readable setting",
+                         {".env": padded + "\nPORT=8000\n"}, (), ".env")
         # SUPERSEDED (A1 literal boundary, 2026-09-27): this block's .env.example held "API_KEY= # set me" and
         # expected the run with the --env value kept out of the header; whitespace and '#' after '=' are outside the
         # grammar (readers disagree on cut vs keep), so the run now refuses before launch — an --env flag does not
@@ -947,15 +934,8 @@ class Evidence(unittest.TestCase):
         }
         for name, (files, reader, secrets, blamed) in refused.items():
             self.refused_run(name, files, secrets, blamed, reader=reader)
-        # SUPERSEDED (A1 literal boundary, 2026-09-27): "a base32 token with its padding" expected the whole bare
-        # line masked, token included; the grammar reads the line as an ordinary assignment every claimed reader
-        # decodes alike (NAME=JBSWY3DPINXHE2LOMFXGG5DPKE, a value of '=' padding), so the name stays readable and
-        # the padding alone is masked.
-        _, shown, saved, _ = self.admitted_run("a base32 token with its padding",
-                                               {".env": "APP=demo\nJBSWY3DPINXHE2LOMFXGG5DPKE======\n"},
-                                               "print(open('.env').read().split()[1])")
-        self.assertEqual(shown, "JBSWY3DPINXHE2LOMFXGG5DPKE=<masked>\n")   # the name is never a secret
-        self.assertIn("JBSWY3DPINXHE2LOMFXGG5DPKE=<masked>", saved)
+        self.refused_run("a base32 assignment with a padding-only value",
+                         {".env": "APP=demo\nJBSWY3DPINXHE2LOMFXGG5DPKE======\n"}, (), ".env")
         # SUPERSEDED (A1 literal boundary, 2026-09-27): "a number after a token on a .env line" expected the number
         # masked as part of a token reading; the grammar reads the line as an ordinary assignment (NAME over
         # A-Za-z0-9, '=', value 4841), and a number under a name holding no secret word is a setting left readable
@@ -1023,14 +1003,8 @@ class Evidence(unittest.TestCase):
                 for secret in secrets:
                     for text in (shown, saved, report):
                         self.assertNotIn(secret, text)
-        # SUPERSEDED (A1 literal boundary, 2026-09-27): "a base32 token whose would-be name holds a secret word"
-        # expected the whole KEYA==== line masked as a bare token, its name hidden too; the grammar reads the line
-        # as an ordinary assignment every claimed reader decodes alike (NAME=KEYA, a value of '=' padding), and a
-        # name is never a secret — the mask is named by it — so KEYA stays readable and only the padding is masked.
-        _, shown, saved, _ = self.admitted_run("a base32 token whose would-be name holds a secret word",
-                                               {".env": "KEYA====\n"}, "print(open('.env').read().strip())")
-        self.assertEqual(shown, "KEYA=<masked>\n")       # not a piece of the value is left
-        self.assertEqual(set(re.findall(r"<masked[^>]*>", saved)), {"<masked>"})
+        self.refused_run("a secret-named assignment with a padding-only value",
+                         {".env": "KEYA====\n"}, (), ".env")
         # SUPERSEDED (A1 literal boundary, 2026-09-27): "a JSON list with an escape, in a .env file" expected the
         # file read as JSON as well as .env, masked both ways; the grammar admits only literal assignments, and a
         # JSON document is not one (no NAME=VALUE line), so the file now refuses before launch.

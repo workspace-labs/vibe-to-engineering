@@ -60,6 +60,7 @@ myapp/
                           interaction or performance requirements justify it (§45)
 ```
 
-If the product later grows a desktop or web twin, shared rules move to `packages/domain/` on
-the day the second app needs them — and `platform/` at the root is earned only when **two**
+If the product later grows a desktop or web twin, move shared rules on the day the second
+app needs them. Use the recorded home, either a shared package such as `packages/domain/`
+or the shared feature at the root. `platform/` at the root is earned only when **two**
 apps share that one concern, never earlier.

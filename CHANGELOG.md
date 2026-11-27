@@ -1,6 +1,15 @@
 # Changelog
 
-## [0.6.1-dev] - 2026-11-30
+## [0.6.2-dev] - 2026-11-27
+
+- Use consistent neutral labels for owner-designated confidential names in inventories, plans and maps.
+- Pin new plans to engineering standard 1.18.0 and preserve the basis of earlier approvals.
+- Establish trusted tool paths before inspection or printing. Refuse incomplete secret sources and retain supported protected readings before launching checks.
+- Reconcile map outcomes with warnings, stops and phase order. Correct the historical layout review date and direct readers to current validation.
+
+## [0.6.1-dev] - 2026-11-22
+
+Claude accepted this layout change on 2026-11-22.
 
 - Fit Migration Maps to A4 using the phase cards for pagination. Keep phase titles and
   approval stops visible when a phase continues across file rows.

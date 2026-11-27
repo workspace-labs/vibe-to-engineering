@@ -31,6 +31,8 @@ myproduct/
 
 ## Stage 2 — the first thing two apps share
 
+This example records packages as the shared home in `docs/architecture/boundaries.md`.
+
 Each of these is earned by the **second app that needs that exact thing** — before that, the
 code lives in the app's own folders, and that is correct, not a finding.
 
@@ -52,7 +54,7 @@ two apps import it today, not because something *might* be shared someday.
 ```
   platform/
     persistence/          earned by: TWO apps sharing that one concern — until then it
-    logging/                  lives in each app's own infrastructure/ (§11)
+    logging/                  lives in each app's own infrastructure/ (§67)
     authentication/
     telemetry/
   apps/worker/              earned by: the first background work that cannot run inside the
@@ -68,14 +70,15 @@ two apps import it today, not because something *might* be shared someday.
   docs/risks-and-debt.md    earned by: the first known problem or deliberate shortcut (§57)
 ```
 
-`packages/` against `platform/`: if it carries product rules, it is a package; `platform/` is
+In this example, shared product rules live in a package. `platform/` is
 the machinery beneath them.
 
 ## What a monorepo must never do
 
 - Never create `apps/` with one child, or `packages/` with nothing two apps import today.
-- Never let app A import app B's internals — sharing goes through a package, decided in
-  `boundaries.md`.
+- Never let app A import app B's internals. Both apps use the shared home recorded
+  in `docs/architecture/boundaries.md`. A shared package and a root `features/<feature>/`
+  are both valid. Keep a root feature there when the one-home rule names it.
 - Never treat different runtimes' lockfiles as competing resolutions of one dependency
   graph. Follow each package manager's workspace rules and document who owns each graph.
 - Never split one product into several repositories or several apps without the Human Gate —
