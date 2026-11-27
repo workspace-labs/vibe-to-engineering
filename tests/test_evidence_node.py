@@ -1,11 +1,6 @@
-"""Tests for the Node-loader readings behind scripts/evidence.py: the keys Node's own .env loader
-(process.loadEnvFile(), --env-file, util.parseEnv()) and npm dotenv read, each from its release's own source,
-and what a check meets under the constructed environment (NEW-5 stage 1) when the parent environment holds
-such a key. Moved out of tests/test_evidence_readings.py to keep each test file under the 1,000-line limit.
-
-Since the A1 literal boundary (2026-09-27) nearly all of these files are outside the literal .env grammar, so
-evidence.py refuses the run before the check launches; the tests below are the refusal proofs, with the three
-fixtures whose secret text sits in comment lines (inside the grammar) keeping their run-and-masked proofs.
+"""Wrapper refusal and masking checks for literal .env input on fixtures derived from Node loader behavior.
+These tests exercise evidence.py with synthetic parent values. The differential reader matrix in
+test_literal_matrix.py runs the actual Node --env-file readers.
 
 Run from the repository root:  python3 -m unittest discover -s tests -p test_evidence_node.py -v
 """
@@ -181,15 +176,8 @@ class NodeLoaders(unittest.TestCase):
                 self.assertNotIn("throwaway-4471", text)
                 self.assertNotIn(self.SECRET, text)
 
-    def test_each_key_the_real_node_keeps_an_inherited_value_for_stops_the_run(self):
-        # SUPERSEDED (A1 literal boundary, 2026-09-27): the old expectation probed the real Node on this
-        # machine — util.parseEnv() reads each key, process.loadEnvFile() keeps the inherited value for it —
-        # then showed that through the tool the check still ran masked (skipped as NOT VERIFIED without Node,
-        # a failure with V2E_REQUIRE_NODE set). Every NODE_KEYS fixture is outside the literal grammar under
-        # the same rules as the test above, so the run is now refused before any check exists for Node to
-        # read: Node is no longer part of what happens to such a file, and the node probing and the skip
-        # logic are dropped accordingly. The one fixture inside the boundary (a comment on the last line)
-        # keeps its run-and-masked proof, restated without Node
+    def test_wrapper_refuses_nonliteral_node_fixtures_with_and_without_parent_values(self):
+        """Admitted comment fixtures still exercise a real child and its saved masked output."""
         for name, (source, key) in self.NODE_KEYS.items():
             if name in self.LITERAL_COMMENT_FIXTURES:
                 self.runs_masked(name, source, key)

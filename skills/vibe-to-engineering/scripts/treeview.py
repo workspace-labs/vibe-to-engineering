@@ -12,7 +12,7 @@ MARKS = {"ignored": "[ignored]", "nested": "[nested repository]", "state": "[the
 
 
 def print_tree(title, saved, depth, full=False, ignored=(), nested=(), state_dir=None, names=None):
-    """The saved files as a tree, folders opened `depth` levels deep. With full=True, also every file git ignores and
+    """The saved files as a tree, folders opened fully unless an explicit depth limits the view. With full=True, also every file git ignores and
     every nested repository, each marked where it sits — a folder holding nothing but ignored files as one line —
     and the skill's own folder (`state_dir`, its name in bytes, when it exists), then the count of each kind.
     ignored or nested None: the checkpoint did not record them."""
@@ -52,7 +52,7 @@ def print_tree(title, saved, depth, full=False, ignored=(), nested=(), state_dir
             if found["ignored"] and not (found["saved"] or found["nested"]):
                 folded.append(name)
                 lines.append((line, "[ignored — %s]" % plural(found["ignored"], "file", "files")))
-            elif level >= depth:
+            elif depth is not None and level >= depth:
                 counts = [plural(found["saved"], "file", "files")] + (
                     ["%d ignored" % found["ignored"]] if found["ignored"] else []) + (
                     [plural(found["nested"], "nested repository", "nested repositories")] if found["nested"] else [])

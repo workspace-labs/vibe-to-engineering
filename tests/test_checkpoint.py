@@ -72,12 +72,28 @@ class Contract(Fixture):
         self.tool(p, "create", "00-baseline")
         write(p / STATE / "Engineering-Migration-Plan.html", b"<html></html>")
         write(p / STATE / "ledger.md", b"# ledger\n")
-        self.git(p, "add", "-f", STATE + "/ledger.md")   # someone added the ledger to the project's own index
-        (p / STATE / ".gitignore").unlink()
-        self.tool(p, "create", "01-after")
-        self.assertEqual((p / STATE / ".gitignore").read_text(), "*\n", "the ignore file was not put back")
+        ignore = p / STATE / ".gitignore"
+        ignore.unlink()
+        self.tool(p, "create", "01-after")  # untracked private state can restore its own ignore file
+        self.assertEqual(ignore.read_text(), "*\n", "the ignore file was not put back")
         out, _ = self.tool(p, "diff", "00-baseline", "01-after")
         self.assertIn("no changes", out)
+
+        self.git(p, "add", "-f", STATE + "/ledger.md")
+        before = identities(p)
+        for source in ("--current", "01-after"):
+            out, _ = self.tool(p, "tree", source, "--saved-only")
+            self.assertIn("unix.txt", out)
+            self.assertNotIn(STATE, out)
+            self.assertNotIn("ledger.md", out)
+            self.assertNotIn("Engineering-Migration-Plan.html", out)
+        self.assertEqual(identities(p), before)
+
+        ignore.unlink()  # tracked state must refuse before any repair or new checkpoint
+        before = identities(p)
+        _, err = self.tool(p, "create", "02-tracked", expect=1)
+        self.assertIn("Git already tracks", err)
+        self.assertEqual(identities(p), before)
 
     # ------------------------------------------------------------ G3 permanent labels
 

@@ -16,7 +16,7 @@ the approval and generates the Migration Map. For a project you explicitly confi
 and uses synthetic secrets, the approval also covers the verified recovery baseline and Phase 1.
 On entry and resume, `check-approval` verifies the current plan against the active approval before backup or execution. Runner enrollment requires a separate human decision. Every later phase has its own approval.
 
-The 0.6.3-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
+The 0.6.4-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
 **1.18.0**, including its layout map and ten project-type trees. File-size alarms live only in §7 of
 that standard; this skill keeps no number of its own. The versioned references are
 bundled for offline use; plans record the source commit and the selected project tree.
@@ -40,7 +40,7 @@ a disposable project with synthetic secrets. See the [validation results](TEST-E
 - **Verifies a recovery baseline.** After approval and explicit confirmation that the project is disposable with synthetic secrets, it saves the recovery contract's covered files, including uncommitted work in that set, and proves those files restore byte for byte. Ignored files and nested repositories are outside that saved set; checkpoints do not comprehensively back up local data or secrets. It refuses when it cannot account for the covered files or a nested repository has uncommitted work.
 - **One phase per approval.** After each phase: checks compared with the baseline, the change compared with the plan, a new verified checkpoint, a report, and a stop.
 - **Investigates failures instead of guessing.** A break stops the work, saves the broken state, compares it with the last known-good checkpoint and reports the root cause and the options. A restore needs the human's approval. A refusal before rewriting leaves the covered files as they were. If verification fails after rewriting, the tool reports an incomplete restore and names the checkpoint holding their previous state. A saved-file match with missing, changed or unverified ignored data returns status 3.
-- **Finishes with an independent review.** The approved target tree is compared with the actual final tree, and `VIBE-TO-ENGINEERING — ALL GREEN` is reported only when nothing blocking remains and every final check passes. Checks that were already failing when the human approved going ahead anyway are named in a separate completion status instead.
+- **Names who performed the final review.** A separate reviewer records an independent review. When only the builder can re-inspect the project, the final report names the builder and labels the result a builder self-check, with independent review pending. The approved target tree is compared with the actual final tree, and `VIBE-TO-ENGINEERING — ALL GREEN` is reported only when nothing blocking remains and every final check passes. Checks that were already failing when the human approved going ahead anyway are named in a separate completion status instead.
 
 It never adds features, fixes bugs or changes dependencies, commits nothing unless asked, never pushes, and never touches files git ignores, secrets, data or nested repositories.
 
@@ -105,7 +105,7 @@ or `Use the vibe-to-engineering skill.` (in Codex, `$vibe-to-engineering`). The 
 
 ## What it writes in a project
 
-Nothing during inspection and diagnosis, and nothing at all when no migration is needed. Otherwise, one folder that git never sees:
+Inspection and diagnosis write nothing. When migration is needed, private records go in the self-ignoring folder below. Before writing, the tools check the project’s Git index for entries in that folder. If Git already tracks one, they stop. The owner decides how to handle tracking or whether to use a clean project copy. The tools leave the index unchanged.
 
 ```
 <project>/.vibe-to-engineering/
@@ -142,7 +142,7 @@ precedes that boundary. This restriction is not a release-readiness claim.
 
 | Platform | Current scope |
 |---|---|
-| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.6.3-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
+| macOS | Development execution target. See [validation results](TEST-EVIDENCE.md) for the 0.6.4-dev candidate and earlier revisions. Workflow exams and release approval remain pending. |
 | Linux | Unsupported execution target. Portable package/unit and refusal checks do not establish Linux support. |
 | Windows | Unsupported execution target. Portable package/unit and refusal checks do not establish Windows support. |
 
@@ -158,15 +158,37 @@ Portable validation on Windows, Linux or macOS (Python 3.9+):
 python -B tests/run_validation.py --scope portable
 ```
 
+Both scopes scan the current public source for personal home-path patterns before starting the worker. To check a release candidate against confidential names, keep the owner’s JSON name-to-label map outside the checkout and run:
+
+```bash
+python -B tests/package_privacy.py --root . --history --name-map /absolute/external/names.json
+```
+
+The report gives counts for current source and for the paths, blobs and commit objects reachable from local refs. Omit `--name-map` for a path-pattern-only check. A source archive has no history to check. Shallow history, matching entries or an incomplete scan return a nonzero status.
+
 This explicitly selected scope checks package metadata, pure logic and unsupported-platform refusal.
 It does not enroll a real runner or run the full migration workflow. Run the native macOS regression
 scope from a disposable checkout with the pinned readers and browser prepared:
 
 ```bash
-V2E_REQUIRE_NODE=1 V2E_REQUIRE_MATRIX=1 /Library/Developer/CommandLineTools/usr/bin/python3 -B tests/run_validation.py --scope macos
+# Start in the reviewed checkout or its git archive on native macOS arm64.
+# Select the installed Node v20.20.2 and either full Chrome or the pinned CI shell.
+export V2E_NODE="$(command -v node)"
+export V2E_BROWSER="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+validation_tmp="$(mktemp -d)"
+export V2E_READER_MATRIX_DIR="$validation_tmp/readers"
+"$V2E_NODE" --version
+/Library/Developer/CommandLineTools/usr/bin/python3 -B tests/reader_matrix_prepare.py "$V2E_READER_MATRIX_DIR"
+/Library/Developer/CommandLineTools/usr/bin/python3 -B tests/run_validation.py --scope macos --output "$validation_tmp/results"
 ```
 
-The native scope must report its prerequisites and actual tests, failures and skips. Missing required
+Install the Command Line Tools (Git, cc and Apple Python), Bash 3.2 at `/bin/sh`, and Poppler
+(`pdftotext` and `pdfinfo` in a standard system or Homebrew prefix). CI selects the Playwright
+1.64.0 Chromium headless shell revision 1248 instead of full Chrome. The summary records the
+selected browser executable, version and SHA-256 so the two runs can be distinguished. It also
+records the host, Python, Node, reader manifest, harness, pinned provenance and source revision.
+A checkout records local changes alongside HEAD; a Git export carries its source commit.
+An ordinary copy without Git metadata records its revision as unavailable. Missing required
 readers are failures. A partial or skipped run cannot replace the macOS release exam. The original
 `python3 -B -m unittest discover -s tests -v` remains the complete suite command on a suitable macOS host;
 its supported-platform execution expectations are intentionally not converted into Windows/Linux passes.
@@ -186,7 +208,7 @@ escaped plan examples in `tests/test_render_pdf.py`, destination integrity in
 higher ancestor or intermediate symlink, stale path-pin assumptions, and malformed registry encodings and
 schema versions. It uses real compiled invocation markers, isolated registries and safe-run controls.
 
-`tests/test_checkpoint.py`, `tests/test_nested.py`, `tests/test_watched.py` and `tests/test_tree.py` check every guarantee of the recovery contract on throwaway projects, under deliberately hostile git settings (`tests/support.py` holds the fixtures they share; to run one file, `python3 -m unittest discover -s tests -p test_nested.py -v` — discovery is what puts the shared fixtures on the path). Point `V2E_CHECKPOINT` at another implementation to test it against the same contract. `tests/test_render_pdf.py` checks the template and the PDF renderer; its render test is skipped when no browser is installed. `tests/test_evidence.py` checks that a check's output is kept with every secret value masked, and only inside the evidence folder; `tests/test_evidence_readings.py` checks that a value is masked whole as each program reading its format reads it — or that the run stops before the check when only that program can make the reading out (its `.env` reader-model expectations are superseded by the literal boundary below); `tests/test_env_literal.py` checks the v0.1 literal `.env` boundary itself — the grammar, the end-to-end admission/refusal contract, the brace regression and the combination tests against the real local readers; `tests/test_literal_matrix.py` re-proves the boundary differentially against every claimed reader (bash 3.2, six Node versions, npm dotenv 0.4.0–18.0.4, python-dotenv 1.2.3) from hash-verified artifacts prepared by `tests/reader_matrix_prepare.py`, and is skipped as NOT VERIFIED when they are not prepared — set `V2E_REQUIRE_MATRIX=1` to make that a failure instead. One readings test runs the local Node's own `.env` loader, and without Node it is skipped as NOT VERIFIED — set `V2E_REQUIRE_NODE=1` to make that a failure instead. `tests/test_childenv.py` checks the constructed check environment itself — the synthesized profile, retained run-owned scratch roots and tamper detection, `--with-path` validation, the prohibited names, and the Windows case-folding and `SystemRoot` rules (structurally; native Windows verification is pending). `tests/test_evidence_stage1.py` and `tests/test_evidence_node.py` check the launch path against that construction: declared names only in the header, never values; a declared winner masked rather than refused; `.env.vault` refused; an unsupported runner refused before it runs. `tests/test_check_registry.py` guards the supported-check registry and its revalidation gate. `tests/test_stage1_acceptance.py` is the stage-1 acceptance suite: paired adversarial runs under hostile parent environments, prohibited-name admission attempts, refusal-means-no-launch proofs, real `sh` and Node exercises, and seeded property runs (environment invariance, declared-value confidentiality, masking). `tests/test_final_review_r1.py` holds one regression test per finding of the stage-1 final review's R1 corrective, each failing against the reviewed candidate. `tests/test_final_review_r2.py` holds the R2 corrective's regressions — A2 runner identity (enrollment disclosure and approval, hash-only routine validation, the launched bytes pinned to the enrolled ones, swap and registry-tampering refusals) and the confidentiality/status slice (safe mask labels and the governed emission path, two-phase admission with redacted parser and refusal diagnostics, the recorded `--with-path` entries pinned to the child's, and the wrapper's 0/1/2/3 status namespace with the child's exit code or signal recorded as data); `tests/test_r2_confidentiality.py` adds the deterministic adversarial battery over generated `--env` name/value sets and orderings, plus the emission module's unit contract, and `tests/test_r2_status.py` the full status matrix (child exits and real signals, pre-launch refusals, spawn and evidence-write failures, post-launch failures never reported as refusals); the shared evidence fixture in `tests/enrolled.py` isolates both POSIX and Windows home variables and checks the registry path before enrolling the suite's runners; native regression runs also require an isolated process environment. `tests/test_protocol.py` guards the wording the protocol depends on in `SKILL.md`, its references and the plan template: gate transitions, completion outcomes, the full trees, the every-file table, the documentation phase, throwaway data and secrets.
+`tests/test_checkpoint.py`, `tests/test_nested.py`, `tests/test_watched.py` and `tests/test_tree.py` check every guarantee of the recovery contract on throwaway projects, under deliberately hostile git settings (`tests/support.py` holds the fixtures they share; to run one file, `python3 -m unittest discover -s tests -p test_nested.py -v` — discovery is what puts the shared fixtures on the path). Point `V2E_CHECKPOINT` at another implementation to test it against the same contract. `tests/test_render_pdf.py` checks the template and the PDF renderer; its render test is skipped when no browser is installed. `tests/test_evidence.py` checks that a check's output is kept with every secret value masked, and only inside the evidence folder; `tests/test_evidence_readings.py` checks that a value is masked whole as each program reading its format reads it — or that the run stops before the check when only that program can make the reading out (its `.env` reader-model expectations are superseded by the literal boundary below); `tests/test_env_literal.py` checks the v0.1 literal `.env` boundary itself — the grammar, the end-to-end admission/refusal contract, the brace regression and the combination tests against the real local readers; `tests/test_literal_matrix.py` re-proves the boundary differentially against every claimed reader (bash 3.2, six Node versions, npm dotenv 0.4.0–18.0.4, python-dotenv 1.2.3) from hash-verified artifacts prepared by `tests/reader_matrix_prepare.py`, and is skipped as NOT VERIFIED when they are not prepared — set `V2E_REQUIRE_MATRIX=1` to make that a failure instead. `tests/test_evidence_node.py` checks wrapper refusal before launch for nonliteral fixtures and masking for admitted comment fixtures. Live Node reads come from `DifferentialMatrix.test_every_claimed_reader_stays_inside_the_masked_set` in `tests/test_literal_matrix.py`, which invokes the pinned Node executables with `--env-file`. `tests/test_childenv.py` checks the constructed check environment itself — the synthesized profile, retained run-owned scratch roots and tamper detection, `--with-path` validation, the prohibited names, and the Windows case-folding and `SystemRoot` rules (structurally; native Windows verification is pending). `tests/test_evidence_stage1.py` and `tests/test_evidence_node.py` check the launch path against that construction: declared names only in the header, never values; a declared winner masked rather than refused; `.env.vault` refused; an unsupported runner refused before it runs. `tests/test_check_registry.py` guards the supported-check registry and its revalidation gate. `tests/test_stage1_acceptance.py` is the stage-1 acceptance suite: paired adversarial runs under hostile parent environments, prohibited-name admission attempts, refusal-means-no-launch proofs, real `sh` and Node exercises, and seeded property runs (environment invariance, declared-value confidentiality, masking). `tests/test_final_review_r1.py` holds one regression test per finding of the stage-1 final review's R1 corrective, each failing against the reviewed candidate. `tests/test_final_review_r2.py` holds the R2 corrective's regressions — A2 runner identity (enrollment disclosure and approval, hash-only routine validation, the launched bytes pinned to the enrolled ones, swap and registry-tampering refusals) and the confidentiality/status slice (safe mask labels and the governed emission path, two-phase admission with redacted parser and refusal diagnostics, the recorded `--with-path` entries pinned to the child's, and the wrapper's 0/1/2/3 status namespace with the child's exit code or signal recorded as data); `tests/test_r2_confidentiality.py` adds the deterministic adversarial battery over generated `--env` name/value sets and orderings, plus the emission module's unit contract, and `tests/test_r2_status.py` the full status matrix (child exits and real signals, pre-launch refusals, spawn and evidence-write failures, post-launch failures never reported as refusals); the shared evidence fixture in `tests/enrolled.py` isolates both POSIX and Windows home variables and checks the registry path before enrolling the suite's runners; native regression runs also require an isolated process environment. `tests/test_protocol.py` guards the wording the protocol depends on in `SKILL.md`, its references and the plan template: gate transitions, completion outcomes, the full trees, the every-file table, the documentation phase, throwaway data and secrets.
 
 `tests/test_emission_corrective.py`, `tests/test_r2_emission_corrective.py` and
 `tests/test_emission_result.py` cover the F2/F3/F6 review counterexamples, full output boundaries,
@@ -248,13 +270,15 @@ MIT — see [LICENSE](LICENSE).
 Prepare reader artifacts separately (recorded hashes; no dependency installation):
 
 ```bash
-python3 -B tests/reader_matrix_prepare.py /tmp/v2e-readers-new
-V2E_READER_MATRIX_DIR=/tmp/v2e-readers-new V2E_REQUIRE_MATRIX=1 python3 -B -m unittest discover -s tests -v
+export V2E_NODE="$(command -v node)"
+export V2E_READER_MATRIX_DIR="$(mktemp -d)/readers"
+python3 -B tests/reader_matrix_prepare.py "$V2E_READER_MATRIX_DIR"
+V2E_REQUIRE_MATRIX=1 python3 -B -m unittest discover -s tests -p 'test_literal_matrix.py' -v
 ```
 
 Choose a fresh preparation directory on macOS arm64. Preparation requires Bash 3.2 at `/bin/sh`,
-local Node v20.20.2 on PATH, and the documented reader artifacts. Preparation may fetch a missing artifact; tests never fetch.
-Existing extractions must match their archives exactly. Altered imports, redirected entries, changed
+the selected local Node v20.20.2 executable, and the documented reader artifacts. Preparation may fetch a missing artifact; tests never fetch.
+The output name must be unused. Set `V2E_READER_ARCHIVES` to a retained archive directory to prepare offline. All extractions must match their archives exactly. Altered imports, redirected entries, changed
 harnesses, crashes, malformed output and missing observations cannot count as successful coverage.
 Boundary and matrix-integrity regressions also run without the downloaded matrix:
 `python3 -B -m unittest discover -s tests -p 'test_a1_*regressions.py' -v`.

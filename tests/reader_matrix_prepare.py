@@ -13,19 +13,20 @@ v22.16.0, v24.21.0, v26.10.0, the python-dotenv 1.2.3 wheel):
 2. FETCH the exact artifact from the recorded URL (network, this step only) and verify the same sha256.
 
 Anything that fails verification stops the preparation — the matrix test never sees an unverified artifact.
-Existing extractions are verified file-for-file against the archive before reuse; changed files, links,
-extra files (including stale Python bytecode), or a redirected entry refuse. Use a new target directory rather
-than overwriting a refused one. The matrix also verifies its actual harness against the repository copy.
+The target must be new. Its parent must already exist. Preparation exclusively creates the private
+target, then verifies every extraction against its archive. On failure keep the partial preparation
+for inspection and select another new target. The matrix also verifies its actual harness against the repository copy.
 
 The artifacts are then extracted under the target directory (each dotenv release's real entry file resolved from
 its own package.json "main", each Node dist's bin/node, the wheel unzipped), tests/reader_matrix_harness.js is
-copied beside them (byte-identical to the experiment's v3 harness — the bytes, not a copy by reference), and
+copied beside them, and
 manifest.json records the resolved entry paths and the provenance of each artifact (reused or fetched).
 """
 
 import hashlib
 import json
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -55,12 +56,12 @@ def artifact(name, meta, target):
     """The artifact file inside the target dir, verified against the recorded sha256 — reused from the
     experiment's working copy when it verifies, fetched from the recorded URL otherwise."""
     dest = os.path.join(target, "artifacts", meta["file"])
-    if os.path.exists(dest) and sha256(dest) == meta["sha256"]:
-        return "kept"
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     reuse = os.path.join(COMPAT, meta["file"]) if COMPAT else None
     if reuse and os.path.exists(reuse) and sha256(reuse) == meta["sha256"]:
         shutil.copyfile(reuse, dest)
+        if sha256(dest) != meta["sha256"]:
+            raise SystemExit("retained archive changed during copy for %s" % name)
         return "reused (the experiment's verified copy)"
     with urllib.request.urlopen(meta["url"]) as response:   # nosec — the recorded URL, verified below
         data = response.read()
@@ -79,7 +80,20 @@ def main():
     if problems:
         raise SystemExit('NOT VERIFIED: ' + '; '.join(problems) +
                          ' — no reader artifacts were written or downloaded')
-    target = os.path.abspath(TARGET)
+    requested = Path(TARGET).absolute()
+    parent = requested.parent
+    if ".." in requested.parts:
+        raise SystemExit("choose a new reader target without parent traversal")
+    for ancestor in (parent, *parent.parents):
+        if ancestor.is_symlink() and not (sys.platform == "darwin" and ancestor in (Path("/tmp"), Path("/var"))
+                                         and ancestor.resolve() == Path("/private") / ancestor.name):
+            raise SystemExit("reader target parent is a link; choose a plain directory")
+    target = str(parent.resolve() / requested.name)
+    try:
+        os.mkdir(target, mode=0o700)
+    except OSError as error:
+        raise SystemExit("cannot create a new reader target; use an unused name in an existing directory: %s"
+                         % error) from error
     entries, sources = {}, {}
     for name in sorted(PROVENANCE["artifacts"]):
         meta = PROVENANCE["artifacts"][name]
@@ -87,18 +101,17 @@ def main():
     for name in sorted(PROVENANCE["artifacts"]):
         path = os.path.join(target, "artifacts", PROVENANCE["artifacts"][name]["file"])
         dest = extraction(target, name)
-        if not dest.exists():
-            os.makedirs(dest)
-            if name == "python-dotenv-1.2.3":
-                zipfile.ZipFile(path).extractall(dest)
-            else:
-                subprocess.run(["tar", "-xzf", path, "-C", str(dest)], check=True)
-        # Never reuse an unchecked extraction. Refuse rather than overwrite somebody else's files.
+        os.makedirs(dest)
+        if name == "python-dotenv-1.2.3":
+            with zipfile.ZipFile(path) as archive:
+                archive.extractall(dest)
+        else:
+            subprocess.run(["tar", "-xzf", path, "-C", str(dest)], check=True)
         verify_extraction(path, dest)
         entries[name] = str(entry_path(dest, name))
     shutil.copyfile(os.path.join(ROOT, "tests", "reader_matrix_harness.js"),
                     os.path.join(target, "harness.js"))
-    with open(os.path.join(target, "manifest.json"), "w") as stream:
+    with open(os.path.join(target, "manifest.json"), "x") as stream:
         json.dump({"entries": entries, "sources": sources,
                    "provenance": "tests/reader_matrix_provenance.json (sha256 re-verified at preparation)"},
                   stream, indent=1, sort_keys=True)

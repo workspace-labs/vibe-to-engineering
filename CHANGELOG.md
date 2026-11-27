@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.4-dev] - 2026-11-28
+
+- Distinguish restore exceptions and builder-only final checks in migration reports. Inventory includes saved names at every depth by default. Private state writers check whether Git already tracks the destination.
+- Validate reader results, prerequisite ownership, worker isolation and validation provenance. Strengthen tests of approval decisions, public scope, test discovery, completed-file totals, fingerprint-key ACLs and masking evidence.
+- Identify which wrapper checks refuse inputs and which differential matrix runs actual Node readers.
+
 ## [0.6.3-dev] - 2026-11-27
 
 - Require the active plan approval and explicit disposable-fixture confirmation before backup or execution. Tie map allocations and refreshes to the approved run and recover interrupted display publication.

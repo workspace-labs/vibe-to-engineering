@@ -81,7 +81,7 @@ def key_path(project):
     return project / STATE_DIR / KEY_NAME
 
 
-def is_git_project(project):
+def is_git_project(project, *, include_ignored=False):
     """True when the folder is inside a git work tree whose repository does not ignore it. Only a folder with no
     `.git` entry anywhere up to the root — which git calls "not a git repository (or any of the parent
     directories)" — follows the plain-folder rules: a repository git refuses to open, whether another user's folder
@@ -109,7 +109,27 @@ def is_git_project(project):
         return False
     git_dir = os.fsdecode(git(["rev-parse", "--absolute-git-dir"], cwd=project).stdout.rstrip(b"\n"))
     refuse_sparse_index(git_dir, "the project's git repository at %s" % git_dir)  # before git reads its index (G11)
-    return git(["check-ignore", "-q", "."], cwd=project, ok=(0, 1, 128)).returncode != 0
+    return include_ignored or git(["check-ignore", "-q", "."], cwd=project, ok=(0, 1, 128)).returncode != 0
+
+
+class TrackedState(Fail):
+    """A fixed diagnostic can also be shown for a confidential project."""
+
+
+def require_untracked_state(project):
+    """A self-ignore file only covers new paths. Query the index without refreshing it."""
+    # Plain folders need no Git process. A Git worktree or submodule has a .git
+    # entry (directory or file) at its root; retain the existing refusal on an unreadable index.
+    directories = (project, *project.parents)
+    if not any(os.path.lexists(folder / ".git") for folder in directories):
+        return
+    if not is_git_project(project, include_ignored=True):
+        return
+    tracked = git(["ls-files", "--cached", "-z", "--", ":(icase,literal)" + STATE_DIR],
+                  cwd=project, fixed_pathspec=True)
+    if tracked.stdout:
+        raise TrackedState("Git already tracks an entry in " + STATE_DIR + ". Stop before writing private "
+                           "records. The owner must decide how to handle its tracking or use a clean project copy.")
 
 
 def check_state_folder(project):
@@ -509,6 +529,7 @@ def save_checkpoint(store, tree, label, found, contents):
     git(["update-ref", REF_PREFIX + label, commit, ""], store=store)  # "": only if the ref does not exist
     tx = ACTIVE.get()
     if tx:
+        require_untracked_state(tx.project)
         tx.publish()
     return commit
 
@@ -676,7 +697,7 @@ def cmd_tree(project, args):
     title_name = names.display(project.name) if names else project.name
     if args.label and args.current:
         raise Fail("give a label or --current, not both")
-    if args.depth < 1:
+    if args.depth is not None and args.depth < 1:
         raise Fail("--depth must be 1 or more")
     if args.label:
         store = read_store(project)
@@ -689,6 +710,8 @@ def cmd_tree(project, args):
         saved, ignored, nested = found.files, found.ignored, found.nested
         state = os.path.lexists(str(project / STATE_DIR))
         title = "%s (current files)" % title_name
+    if args.depth is not None:
+        title += " — shortened view (depth %d)" % args.depth
     if names:
         names.check_text(title)
     print_tree(title, saved, args.depth, not args.saved_only, ignored, nested, STATE_DIR.encode() if state else None, names)
@@ -893,7 +916,7 @@ def build_parser():
     tree.add_argument("--name-map", help="absolute path to the owner-held confidential name map")
     tree.add_argument("label", nargs="?")
     tree.add_argument("--current", action="store_true", help="the current files (the default)")
-    tree.add_argument("--depth", type=int, default=3, help="folder levels to open (default 3)")
+    tree.add_argument("--depth", type=int, help="shortened view: open this many folder levels (default: all)")
     tree.add_argument("--saved-only", action="store_true", help="only the files checkpoints save, unmarked")
     extract = add("extract", "write a checkpoint's files into a new or empty folder outside the project")
     extract.add_argument("label")
@@ -910,6 +933,8 @@ def main(argv=None):
     try:
         require_supported_platform()
         project = resolve_project(getattr(args, "project", "."))
+        if args.command == "create" or (args.command == "restore" and args.apply):
+            require_untracked_state(project)
         if os.name == "posix" and args.command not in ("list", "tree"):
             if args.command == "create":
                 check_label(args.label)

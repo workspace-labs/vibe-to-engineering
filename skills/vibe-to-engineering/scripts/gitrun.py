@@ -144,7 +144,7 @@ def remove_temp(path):
 # ---------------------------------------------------------------- git
 
 def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(0,), quiet=False, english=False,
-        project=None):
+        project=None, fixed_pathspec=False):
     """Run one git command; raise Fail on an unexpected exit code — and, with quiet=True, on any warning: for a
     listing that means git could not see everything (an unreadable folder, for example). english=True keeps git's
     messages untranslated, for a message the tool has to recognize."""
@@ -169,6 +169,11 @@ def git(args, store=None, work_tree=None, cwd=None, index=None, stdin=None, ok=(
     # Trace2 can enable these three targets in global/system config. An explicit
     # disabled environment target wins without losing the user's normal ignore rules.
     env.update(GIT_TRACE2="0", GIT_TRACE2_EVENT="0", GIT_TRACE2_PERF="0")
+    if fixed_pathspec:
+        # This pathspec is the tool's own literal boundary. Host settings must
+        # not reinterpret its Git magic prefix as part of a file name.
+        for key in ("GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS"):
+            env.pop(key, None)
     env.update(IDENTITY)
     env["GIT_OPTIONAL_LOCKS"] = "0"  # read-only commands never refresh the project's index
     env["GIT_TERMINAL_PROMPT"] = "0"

@@ -10,7 +10,7 @@ import uuid
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from checkpoint import STATE_DIR, resolve_project
+from checkpoint import STATE_DIR, require_untracked_state, resolve_project
 from gitrun import Fail, git
 from platformgate import PlatformRefusal, require_supported_platform
 from render_map import LEDGER, MAP_DATA, PLAN, PlanEntries, project_directory_fd
@@ -128,6 +128,8 @@ def check_record(directory, name, original):
 
 def run(project, operation, data=None):
     import fcntl
+    if operation != "check-approval":
+        require_untracked_state(project)
     with project_directory_fd(project, ()) as parent:
         owner = os.fstat(parent)
         if owner.st_uid != os.geteuid() or owner.st_mode & 0o022 or not no_acl(parent):

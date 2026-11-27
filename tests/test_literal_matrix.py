@@ -291,8 +291,8 @@ class DifferentialMatrix(unittest.TestCase):
     def test_dotenv_0_5_0s_recorded_limitation_stands(self):
         # without .env.<NODE_ENV>, 0.5.0's load() fails — it applies values only when BOTH .env and the
         # env-specific file load (`_loadEnv() && _loadEnvDotEnvironment()`, then _setEnvs) — so nothing is
-        # applied and the environment stays empty: fail-closed, never a wrong reading (it does not throw;
-        # the harness's exception flag stays false). The matrix runs it in its two-file setup above, where it
+        # applied and the environment stays empty. The API returns false without throwing. This failure
+        # is excluded from coverage. The matrix runs it in its two-file setup above, where it
         # decodes normally
         rundir = self.tmp / "run-0.5.0-alone"
         rundir.mkdir(exist_ok=True)
@@ -304,8 +304,8 @@ class DifferentialMatrix(unittest.TestCase):
                      self.entries["dotenv-0.5.0"], str(rundir / ".env"), str(rundir / "result.json"), "cwd"],
                     cwd=str(rundir))
         report = json.loads((rundir / "result.json").read_text())
-        self.assertFalse(report.get("failed"), "dotenv 0.5.0 threw — the recorded mechanism (a quiet failed "
-                                               "load()) changed; re-check the claim")
+        self.assertIs(report.get("failed"), True, "a failed load must be excluded from coverage")
+        self.assertEqual(report.get("failure"), "returned", "dotenv 0.5.0 signals failure without throwing")
         self.assertEqual(report.get("env"), {"A": None, "B": None, "C": None},
                          "dotenv 0.5.0 applied values without .env.<NODE_ENV> — the recorded limitation "
                          "changed; re-check the claim")

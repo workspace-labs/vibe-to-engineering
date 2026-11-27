@@ -1,8 +1,16 @@
 # Skill validation evidence
 
+## Deep review fixes, Round 3 — 2026-11-28
+
+Candidate **0.6.4-dev** builds on approved Round 2 commit `7b3236fe0c7fe121fd4f5ff36b5ec059562ef521`. See the validation instructions in the [README](README.md) for the portable scope and local macOS prerequisites.
+
+- On macOS arm64, Apple Python 3.9.6 and Homebrew Python 3.12.14 each ran all 223 portable methods. Both runs reported 223 passes, zero failures, zero errors and zero skips. All 24 required groups were discovered. The unmodified base passed 206 portable methods on Apple Python.
+- Each of the 15 original single-change mutations failed its own run of all 223 portable methods. Twelve mutations failed one method each and three failed two methods each. The completed-file mutation failed four subcases in one method. All mutant runs reported zero errors and zero skips. The checks include both workflow decisions and explicit editorial checks on protected wording.
+- The separate native ACL regression also passed on the base, which already contained the refusal. Removing that guard in an isolated copy made the regression fail. The dated Round 3 delivery records the native selection, exclusions and commit-specific results.
+
 ## Deep review fixes, Round 2 — 2026-11-27
 
-Candidate **0.6.3-dev** starts at the independently approved Round 1 commit `ef755b8`. Claude’s review of this candidate is pending.
+Candidate **0.6.3-dev** starts at the independently approved Round 1 commit `ef755b8`. Claude approved Round 2 on 2026-11-28 with two carryovers. Claude separately ran all 45 security methods on this Round 2 commit.
 
 - On macOS arm64 the portable scope passed **206 tests** with Apple Python 3.9.6 and **206 tests** with Homebrew Python 3.12.14. Each run reported 0 failures, errors or skips. The unmodified base passed 196 on Apple Python.
 - New checks cover confidential names, current approval and allocation, recoverable map publication, watched-file reporting, read-only inspection, protected project writes and runner enrollment. The private-map location guard already worked on the base. Removing it in a disposable copy made its new regression fail.
@@ -681,11 +689,21 @@ pure logic, protocol wording, fixture containment, recovery unit regressions and
 refusal. Some tests simulate platforms or filesystem metadata; native Windows/Linux CLI
 refusal is also exercised. Unit simulations are not native macOS execution evidence.
 
-On a prepared macOS arm64 host with the exact reader versions and a Chrome-family browser:
+On macOS arm64, use Apple Command Line Tools Python 3.9+, Git and cc, Bash 3.2 at
+`/bin/sh`, Node v20.20.2, and Poppler's `pdftotext` and `pdfinfo`. CI selects Playwright
+1.64.0's headless shell revision 1248. This local example selects full Chrome. The JSON
+summary identifies the selected executable with its absolute path, version and SHA-256.
 
-```text
-/Library/Developer/CommandLineTools/usr/bin/python3 -B tests/reader_matrix_prepare.py /path/to/readers
-V2E_READER_MATRIX_DIR=/path/to/readers /Library/Developer/CommandLineTools/usr/bin/python3 -B tests/run_validation.py --scope macos --output validation-results
+```bash
+# Start in the reviewed checkout or its git archive on native macOS arm64.
+# Select the installed Node v20.20.2 and either full Chrome or the pinned CI shell.
+export V2E_NODE="$(command -v node)"
+export V2E_BROWSER="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+validation_tmp="$(mktemp -d)"
+export V2E_READER_MATRIX_DIR="$validation_tmp/readers"
+"$V2E_NODE" --version
+/Library/Developer/CommandLineTools/usr/bin/python3 -B tests/reader_matrix_prepare.py "$V2E_READER_MATRIX_DIR"
+/Library/Developer/CommandLineTools/usr/bin/python3 -B tests/run_validation.py --scope macos --output "$validation_tmp/results"
 ```
 
 The runner copies source/tests into a disposable tree, isolates the user profile and Git

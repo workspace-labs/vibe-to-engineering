@@ -10,6 +10,16 @@ import zipfile
 
 
 class MapUpdateCases:
+    def test_completed_file_count_follows_ledger_progress(self):
+        events = ["PLAN APPROVED v1"]
+        for event, done in ((None, 0), ("PHASE 1 STARTED", 0), ("PHASE 1 COMPLETE", 1),
+                            ("PHASE 2 STARTED", 1), ("PHASE 2 COMPLETE", 2)):
+            with self.subTest(event=event):
+                if event:
+                    events.append(event)
+                self.write_ledger(*events)
+                self.assertIn("<span>New files done</span><strong>%d of 2</strong>" % done, self.map_text())
+
     def test_round2_v08_approved_allocation_is_required_before_first_archive(self):
         self.map_text()
         self.approved_copy().unlink()

@@ -1,8 +1,12 @@
-# Latest update — 2026-11-27
+# Latest update — 2026-11-28
+
+## Deep review fixes, Round 3
+
+Candidate **0.6.4-dev** addresses the remaining deep-review findings and both Round 2 carryovers. Independent review by Claude is pending. See [validation evidence](TEST-EVIDENCE.md).
 
 ## Deep review fixes, Round 2
 
-Candidate **0.6.3-dev** addresses the two confidential-name carryovers and findings V07–V18. Claude approved the Round 1 base on 2026-11-27. Round 2 awaits independent review. See [test results](TEST-EVIDENCE.md).
+Candidate **0.6.3-dev** addresses the two confidential-name carryovers and findings V07–V18. Claude approved the Round 1 base on 2026-11-27. Claude approved Round 2 on 2026-11-28 and carried two checks into Round 3. See [test results](TEST-EVIDENCE.md).
 
 ## Deep review fixes, Round 1
 

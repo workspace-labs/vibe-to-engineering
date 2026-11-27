@@ -18,6 +18,10 @@ import time
 import unittest
 
 sys.dont_write_bytecode = True
+from package_privacy import scan_current
+from suite_scope import discovery
+from validation_prerequisites import validation_identity, worker_environment
+
 ROOT = Path(__file__).resolve().parents[1]
 PORTABLE = (
     "test_package", "test_standard_alignment", "test_reader_platform", "test_a1_matrix_regressions", "test_emission_result",
@@ -25,6 +29,8 @@ PORTABLE = (
     "test_f3_ambiguous.AmbiguousCollection", "test_platform_evidence",
     "test_platform_render", "test_confidential_names.NameMapPortable", "test_enrolled_isolation", "test_recovery_review",
     "test_scratch_retention", "test_secret_scalars", "test_render_map.MapPortable",
+    "test_round3_state.TreeInventory", "test_review_protocol", "test_validation_prerequisites",
+    "test_workflow_decisions", "test_validation_scope",
 )
 
 
@@ -33,6 +39,7 @@ def worker(scope, summary):
     loader = unittest.TestLoader()
     suite = (loader.loadTestsFromNames(PORTABLE) if scope == "portable" else
              loader.discover(str(ROOT / "tests"), pattern="test_*.py"))
+    selection = discovery(scope, suite)
     started = time.time()
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     report = {
@@ -41,11 +48,15 @@ def worker(scope, summary):
         "tests_run": result.testsRun, "failures": len(result.failures),
         "errors": len(result.errors), "skips": [(str(t), why) for t, why in result.skipped],
         "seconds": round(time.time() - started, 3),
-        "passed": result.wasSuccessful() and not result.skipped,
+        "passed": selection["complete"] and result.wasSuccessful() and not result.skipped,
+        "discovery": selection,
         "portable_selection": list(PORTABLE) if scope == "portable" else None,
         "scratch_redirection": "test-owned disposable base; runtime source copy only",
         "release_readiness": False,
     }
+    preparation = json.loads(summary.read_text(encoding="utf-8"))
+    for key in ("prerequisites", "source_privacy"):
+        report[key] = preparation[key]
     summary.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2))
     return 0 if report["passed"] else 1
@@ -75,6 +86,25 @@ def main():
     (output / "tests.log").write_text("Preparing isolated validation.\n", encoding="utf-8")
     with tempfile.TemporaryDirectory(prefix="v2e-validation-") as directory:
         base = Path(directory).resolve()
+        home, temp = base / "home", base / "temp"
+        home.mkdir()
+        temp.mkdir()
+        config = home / "gitconfig"
+        config.write_text("[user]\n\tname = Validation\n\temail = validation@example.invalid\n", encoding="utf-8")
+        env = worker_environment(base, args.scope == "macos", os.environ)
+        identity, problems = validation_identity(ROOT, env, args.scope == "macos")
+        summary = output / "summary.json"
+        current = json.loads(summary.read_text(encoding="utf-8"))
+        privacy = scan_current(ROOT)
+        if not privacy["entries"] or any(privacy[k] for k in ("matching_paths", "matching_contents", "unreadable")):
+            problems.append("Public source privacy check found matches or unreadable entries.")
+        current.update(prerequisites=identity, prerequisite_errors=problems, source_privacy=privacy)
+        summary.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
+        if problems:
+            message = "\n".join(problems)
+            (output / "tests.log").write_text(message + "\n", encoding="utf-8")
+            print(message, file=sys.stderr)
+            return 2
         copy = base / "repo"
         copy.mkdir()
         for name in ("skills", "tests"):
@@ -90,25 +120,6 @@ def main():
         if text.count(marker) != 1:
             raise RuntimeError("test scratch redirection needs review: source marker changed")
         source.write_text(text.replace(marker, "SCRATCH_BASE = " + repr(str(scratch))), encoding="utf-8")
-        home, temp = base / "home", base / "temp"
-        home.mkdir()
-        temp.mkdir()
-        config = home / "gitconfig"
-        config.write_text("[user]\n\tname = Validation\n\temail = validation@example.invalid\n", encoding="utf-8")
-        env = {k: v for k, v in os.environ.items()
-               if not k.startswith(("GIT_", "PYTHON", "V2E_"))}
-        # Only explicit external test prerequisites cross into the isolated process.
-        for name in ("V2E_READER_MATRIX_DIR", "V2E_BROWSER"):
-            if name in os.environ:
-                env[name] = str(Path(os.environ[name]).expanduser().resolve())
-        drive, tail = os.path.splitdrive(str(home))
-        env.update(HOME=str(home), USERPROFILE=str(home), HOMEDRIVE=drive, HOMEPATH=tail,
-                   APPDATA=str(home / "AppData" / "Roaming"), LOCALAPPDATA=str(home / "AppData" / "Local"),
-                   TMP=str(temp), TEMP=str(temp), TMPDIR=str(temp), GIT_CONFIG_GLOBAL=str(config),
-                   GIT_CONFIG_NOSYSTEM="1", PYTHONUTF8="1", PYTHONDONTWRITEBYTECODE="1",
-                   V2E_VALIDATION_ROOT=str(base))
-        if args.scope == "macos":
-            env.update(V2E_REQUIRE_NODE="1", V2E_REQUIRE_MATRIX="1")
         command = [sys.executable, "-B", "-u", str(copy / "tests" / "run_validation.py"),
                    "--scope", args.scope, "--worker", "--output", str(output)]
         with (output / "tests.log").open("wb") as log:

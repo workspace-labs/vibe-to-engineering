@@ -112,7 +112,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True   # unsupported startup must not write sibling-module caches before refusal
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the modules beside this file
-from checkpoint import STATE_DIR, resolve_project  # noqa: E402
+from checkpoint import STATE_DIR, require_untracked_state, resolve_project  # noqa: E402
 import childenv  # noqa: E402 — the constructed environment every check runs with (NEW-5 stage 1)
 import emission  # noqa: E402 — the governed emission path and the wrapper status namespace (R2 slice)
 from gitrun import Fail, configure_output  # noqa: E402
@@ -828,6 +828,7 @@ def main(argv=None):
     try:
         project = resolve_project(args.project)
         out = Destination(project, evidence_path(project, args.out))
+        require_untracked_state(project)
         scratch_base = Path(os.path.realpath(childenv.SCRATCH_BASE))
         if project == scratch_base or project in scratch_base.parents:
             raise Fail("the project contains the fixed scratch base %s — a run's retained scratch must be "
@@ -880,6 +881,7 @@ def main(argv=None):
                                     frozenset(secrets))   # a declared value is masked wherever it appears (R1)
                 text = context.scrub(text if text.endswith("\n") else text + "\n")   # newline included
                 try:
+                    require_untracked_state(project)
                     write_lf(out, text)
                     saved = True
                 except OSError as error:

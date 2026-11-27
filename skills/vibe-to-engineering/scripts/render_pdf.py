@@ -272,6 +272,10 @@ def render_plan(argv, names=None):
         return 1
     requested_pdf = Path(argv[2])
     pdf = output_path(requested_pdf, html)
+    from checkpoint import STATE_DIR, require_untracked_state
+    state_owner = next((part.parent for part in pdf.parents if part.name.casefold() == STATE_DIR), None)
+    if state_owner is not None:
+        require_untracked_state(state_owner)
     project = plan_project(requested_html)
     browser = find_browser(project)
     if browser is None:
@@ -319,6 +323,8 @@ def render_plan(argv, names=None):
         pages = page_count(rendered)
         size = rendered.stat().st_size // 1024
         output_path(requested_pdf, html)  # refuse a destination changed while the browser ran
+        if state_owner is not None:
+            require_untracked_state(state_owner)
         os.replace(rendered, pdf)
     print("wrote %s (%s pages, %d KB) with %s" % (pdf, pages if pages else "?", size, browser))
     return 0
@@ -330,6 +336,8 @@ def main(argv):
     except PlatformRefusal as error:
         print("render_pdf.py: error: %s" % error, file=sys.stderr)
         return 1
+    from checkpoint import TrackedState
+    from gitrun import Fail
     try:
         if "--name-map" in argv:
             import contextlib
@@ -344,8 +352,8 @@ def main(argv):
             print("Confidential plan written." if code == 0 else "Confidential plan printing failed.")
             return code
         return render_plan(argv)
-    except (OSError, UnicodeError, RuntimeError, ValueError) as error:
-        if "--name-map" in argv:
+    except (Fail, OSError, UnicodeError, RuntimeError, ValueError) as error:
+        if "--name-map" in argv and not isinstance(error, TrackedState):
             error = "confidential plan refused; check the name map and plan text"
         print("render_pdf.py: error: %s" % error, file=sys.stderr)
         return 1

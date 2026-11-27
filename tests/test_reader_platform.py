@@ -27,6 +27,7 @@ class ReaderPlatformTests(unittest.TestCase):
                      subprocess.CompletedProcess([], node_code, node_output, b'')]
         with mock.patch.object(readers.sys, 'platform', 'darwin'), \
              mock.patch.object(readers.platform, 'machine', return_value='arm64'), \
+             mock.patch.dict(readers.os.environ, {'V2E_NODE': ''}), \
              mock.patch.object(readers.shutil, 'which', return_value='/trusted/node'), \
              mock.patch.object(readers.subprocess, 'run', side_effect=responses) as run:
             result = readers.reader_prerequisites()

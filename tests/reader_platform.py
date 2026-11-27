@@ -3,6 +3,7 @@
 Keep executable identity checks separate from archive integrity checks, so synthetic
 artifact tests do not accidentally depend on the host's shell or Node installation.
 """
+import os
 import platform
 import re
 import shutil
@@ -23,7 +24,11 @@ def reader_prerequisites():
             problems.append('/bin/sh is not the claimed GNU bash 3.2 reader')
     except (OSError, subprocess.TimeoutExpired):
         problems.append('the claimed /bin/sh (bash 3.2) reader cannot be verified')
-    local = shutil.which('node')
+    selected = os.environ.get('V2E_NODE')
+    if selected:
+        local = selected if os.path.isabs(selected) and os.path.isfile(selected) and os.access(selected, os.X_OK) else None
+    else:
+        local = shutil.which('node', path=os.defpath)
     if not local:
         problems.append('no local Node (the v20.20.2 claimed point)')
     else:

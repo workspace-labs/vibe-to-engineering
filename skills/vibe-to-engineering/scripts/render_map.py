@@ -30,7 +30,7 @@ import render_pdf
 from mappair import MAP_HTML, MAP_PDF, PENDING_PAIR, check_pending, publish_pair, recover_pair
 from private_names import load_name_map
 from mapledger import SAFE_VERSION, approved_map_name, phase_states
-from checkpoint import STATE_DIR, check_state_folder, resolve_project
+from checkpoint import STATE_DIR, TrackedState, check_state_folder, require_untracked_state, resolve_project
 from gitrun import Fail, git, is_link
 from platformgate import PlatformRefusal, require_supported_platform
 
@@ -187,6 +187,7 @@ def project_file(project, parts):
 
 
 def state_paths(project):
+    require_untracked_state(project)
     check_state_folder(project)
     state = project / STATE_DIR
     for name in (PLAN, LEDGER, MAP_DATA, MAP_HTML, MAP_PDF):
@@ -903,6 +904,7 @@ def read_map_inputs(project):
 
 
 def render_project(project, names=None):
+    require_untracked_state(project)
     check_state_folder(project)
     state = project / STATE_DIR
     with approved_map_state(project, state) as directory:
@@ -990,7 +992,7 @@ def main(argv):
             return code
         return render_project(project)
     except (Fail, PlatformRefusal, OSError, UnicodeError, ValueError, OverflowError) as error:
-        if confidential:
+        if confidential and not isinstance(error, TrackedState):
             error = "confidential map refused; check the name map, plan and ledger"
         print("render_map.py: error: %s" % error, file=sys.stderr)
         return 1

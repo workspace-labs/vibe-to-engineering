@@ -25,12 +25,12 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - run: python -B tests/run_validation.py --scope portable --output validation-results
+      - run: python -B tests/run_validation.py --scope portable --output "${{ runner.temp }}/v2e-validation-results"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: portable-${{ matrix.os }}
-          path: validation-results
+          path: ${{ runner.temp }}/v2e-validation-results
   macos-regression:
     name: Native macOS arm64 regression
     runs-on: macos-latest
@@ -43,13 +43,14 @@ jobs:
       - name: Prepare test prerequisites
         run: |
           echo "V2E_READER_MATRIX_DIR=$RUNNER_TEMP/v2e-reader-matrix" >> "$GITHUB_ENV"
+          echo "V2E_NODE=$(command -v node)" >> "$GITHUB_ENV"
           test "$(uname -m)" = arm64
           /Library/Developer/CommandLineTools/usr/bin/python3 --version
           node --version
           cc --version
           command -v pdftotext || brew install poppler
       - name: Check portable behavior with the release interpreter
-        run: /Library/Developer/CommandLineTools/usr/bin/python3 -B tests/run_validation.py --scope portable --output macos-preflight-results
+        run: /Library/Developer/CommandLineTools/usr/bin/python3 -B tests/run_validation.py --scope portable --output "${{ runner.temp }}/v2e-preflight-results"
       - name: Prepare pinned Chromium headless shell
         timeout-minutes: 5
         env:
@@ -65,11 +66,11 @@ jobs:
       - name: Prepare pinned and hash-verified readers
         run: /Library/Developer/CommandLineTools/usr/bin/python3 -B tests/reader_matrix_prepare.py "$V2E_READER_MATRIX_DIR"
       - name: Run complete regression with mandatory readers
-        run: /Library/Developer/CommandLineTools/usr/bin/python3 -B tests/run_validation.py --scope macos --output validation-results
+        run: /Library/Developer/CommandLineTools/usr/bin/python3 -B tests/run_validation.py --scope macos --output "${{ runner.temp }}/v2e-validation-results"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: macos-native-regression
           path: |
-            validation-results
-            macos-preflight-results
+            ${{ runner.temp }}/v2e-validation-results
+            ${{ runner.temp }}/v2e-preflight-results

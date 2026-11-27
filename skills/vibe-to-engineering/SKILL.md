@@ -3,7 +3,7 @@ name: vibe-to-engineering
 description: "Decides from evidence whether an existing software project's structure shows vibe-coded or ad-hoc development and, only if restructuring is justified, converts it into a project-specific engineered architecture through a controlled migration the human approves step by step: read-only inspection and diagnosis, current and target trees, a phased plan with Engineering-Migration-Plan.pdf, a verified recovery baseline, one approved phase at a time with tests and a checkpoint after each, failure investigation against the last known-good checkpoint, and a final review that reports ALL GREEN only when every final check passes. Use when the user invokes vibe-to-engineering, asks whether a project is vibe-coded or structurally sound, or asks to restructure a whole existing project into a proper engineering architecture. Not for building features, fixing bugs or small local refactors."
 license: MIT
 metadata:
-  version: "0.6.3-dev"
+  version: "0.6.4-dev"
 ---
 
 # vibe-to-engineering
@@ -69,7 +69,29 @@ The human owns every decision that changes the project. Stop and wait at:
 | Plan change | reality contradicts the approved plan, or the human asks for a different target |
 | Corrective phase | the final review found blocking findings |
 
-**What counts as approval:** the human's explicit words approving that exact step ("approve", "approved", "yes, go ahead with phase 2"). A question, a comment, silence, or approval of something else is not approval — ask. **ONE APPROVAL = ONE STEP:** even if the human says "do all the phases", stop after each one, explaining that the protocol stops there so a failure is caught at the phase that caused it and the next approval takes one word. Record every approval in the ledger with the human's words, the time and what it approved.
+**ONE APPROVAL = ONE STEP.** The decision table below governs these cases. Read each row from the observed facts to the action. If the facts are unclear, ask before proceeding. Record every approval in the ledger with the human's words, the time and what it approved.
+
+| Decision | Observed facts (alternatives separated by commas) | Action | Instructions |
+|---|---|---|---|
+| Approval | question, comment, silence, other step | Ask | A question, a comment, silence, or approval of something else is not approval — ask. |
+| Approval | this step explicitly approved | Take this step | Record the exact words and the named step. |
+| Phase boundary | blanket permission, one phase approved | Wait | For either request, even if the human says "do all the phases", stop after each one and wait for the next approval. |
+| Scope | feature, bug fix, small local refactor | Decline migration workflow | Follow the scope in the skill description. |
+| Scope | whole-project structural review | Inspect | Inspect the existing project read-only. |
+| Inspection | unread, inaccessible | Report unknown | Identify the part and the reason. Never judge what you did not read. |
+| Standard | conflicting local decision | Follow project decision | Use the project's rules and decisions. They outrank this skill's standard. |
+| Diagnosis | layout preference only | No finding | Never make a finding because the tree differs from a preferred layout. |
+| Verdict | no findings, minor findings only | NO MIGRATION REQUIRED | Give the evidenced verdict in section 2. Then stop. Write nothing. |
+| Verdict | material structural finding | Design read-only | Record the finding and its practical cost first. |
+| Resume | phase completed | Wait at next gate | Use the ledger instructions under Start here. |
+| Resume | phase started but incomplete | Report break | Follow section 8. |
+| Final review | all required checks passed and warnings closed | ALL GREEN | Use the section 9 evidence and report format. |
+| Final review | approved baseline failures only, approved failures and accepted gaps | COMPLETE WITH APPROVED BASELINE FAILURES | List each exception, including every accepted gap. |
+| Final review | accepted gaps and all required checks passed | COMPLETE WITH ACCEPTED VERIFICATION GAPS | List each accepted gap. |
+| Final review | blocking finding, open warning | AWAITING HUMAN APPROVAL | Use section 9 steps 5 and 6. |
+| Tree | full inventory requested | Show complete tree | Use the unabridged inventory from section 1. |
+| Abstraction | simpler alternative unexamined | Withhold abstraction | Complete the C16 comparison in section 3 before proposing it. |
+| Abstraction | evidenced C16 reason and simpler alternative insufficient | Record decision | Record the trade-off and the finding that justifies it. |
 
 ### Stop, restore, correct, retry
 
@@ -121,9 +143,9 @@ Establish, with paths as evidence:
 - its size: source files, lines, the largest files, the most-imported modules and, with git history, which files change together;
 - where the application reads and writes data — database files, upload and export folders — and the environment variables or settings that choose them: checks must be pointed away from all of it;
 - **external contracts** that must keep working: entry points, public API or package exports, command names, routes and URLs, configuration and environment-variable names, data and database files, and paths used by CI, containers, deploy scripts or other projects;
-- the project's own rules and decisions (README, CONTRIBUTING, architecture notes, ADRs, AGENTS.md, CLAUDE.md). They outrank this skill's standard.
+- the project's own rules and decisions (README, CONTRIBUTING, architecture notes, ADRs, AGENTS.md, CLAUDE.md). Apply the Standard row above.
 
-If part of the project cannot be inspected, say which part and why. Never judge what you did not read.
+Use the Inspection row for any part you cannot read.
 
 ## 2. DIAGNOSE (read-only)
 
@@ -135,11 +157,11 @@ and each finding with: an ID (F1, F2…), the criterion and applicable standard 
 it), the practical impact, and the severity (Material or Minor). Broader product, security or operations
 work is reported separately, never silently added to the migration.
 
-Never make a finding because the tree differs from a preferred layout. Framework conventions, documented decisions, generated or vendored code and a small project being simple are not findings.
+Apply the Diagnosis row. Framework conventions, documented decisions, generated or vendored code and a small project being simple are not findings.
 
 Apply the verdict rule in the standard:
 
-- **No migration justified:** report `NO MIGRATION REQUIRED`, explain in plain language why the current structure fits this project (with its evidence), list every finding judged Minor with its one-line reason as optional notes, and say that the human may still ask for a migration: the verdict is evidence for their decision, not a refusal. Then stop. Write nothing.
+- **No migration justified:** report `NO MIGRATION REQUIRED`, explain in plain language why the current structure fits this project (with its evidence), list every finding judged Minor with its one-line reason as optional notes, and say that the human may still ask for a migration: the verdict is evidence for their decision, not a refusal. Follow the Verdict row.
 - **Migration justified:** continue straight to design. Nothing in the project changes until the plan is approved.
 
 ## 3. DESIGN TARGET ARCHITECTURE (read-only)
@@ -173,7 +195,7 @@ Cut the migration into phases with the rules in `references/migration-plan.md`: 
 
 Define the checks that prove the application still works — build, type check, tests and a smoke run of the real entry point — and what counts as a pass. If the project lacks the checks to prove its behavior is preserved, the first phase adds a safety net of characterization checks; that phase is part of the plan the human approves. When a result you rely on is old, or no check exercises what the plan changes the way it is really used, write a `VERIFICATION WARNING` (`references/migration-plan.md`, section 3) instead of calling it verified. Approving the plan does not accept an open warning unless the human's approval says so — ask. The human answers each open warning in one of two ways, and they are different: **add the check** — a plan revision that puts the covering check into the plan (new version, new fingerprint, approved again), after which the warning stays open until that check runs and passes; or **accept the gap** — recorded in the ledger in their words, and the behavior stays unverified.
 
-Compose the filled plan from `<skill>/assets/plan-template.html` in memory. Supply its complete UTF-8 bytes on standard input to `/usr/bin/python3 -IB <skill>/scripts/planstate.py --project <project> plan`. The state publisher holds the directory lock, checks owner, type, links and identity and creates the self-ignore file before publishing the plan. Use `append-ledger` on that command for every new ledger entry, and `map-data` for the approved map input. Never copy a template onto a project file, edit a record in place, or redirect the shell to a project destination. The state folder is the only place written before approval.
+Compose the filled plan from `<skill>/assets/plan-template.html` in memory. Supply its complete UTF-8 bytes on standard input to `/usr/bin/python3 -IB <skill>/scripts/planstate.py --project <project> plan`. Before writing any private record, the tools check the project’s Git index for the entire state folder. If an entry is already tracked, stop and ask the owner to decide how to handle its tracking or whether to use a clean copy. Never stage, untrack or rewrite history on the owner’s behalf. The state publisher holds the directory lock, checks owner, type, links and identity and creates the self-ignore file before publishing the plan. Use `append-ledger` on that command for every new ledger entry, and `map-data` for the approved map input. Never copy a template onto a project file, edit a record in place, or redirect the shell to a project destination. The state folder is the only place written before approval.
 
 ## 5. GENERATE PDF, then stop
 
@@ -284,11 +306,12 @@ AWAITING HUMAN APPROVAL
 
 6. Do exactly the transition the human chose (Human gates → Stop, restore, correct, retry) and record it in the ledger. After a CORRECT, the architecture check counts the approved correction as planned. A RESTORE never completes the phase, and nothing moves on after it without a RETRY MIGRATION approval.
 
-**Restoring is never automatic.** `checkpoint.py restore <label>` only shows what it would change. Run it with `--apply` only after the human approves that restore. Before it changes anything, it saves the current state as a new checkpoint and proves that this checkpoint and `<label>` both come back byte for byte; it refuses, changing nothing, when either does not, or when the restore would overwrite or remove something no checkpoint holds (files git ignores, nested repositories, a folder holding them). Report a refusal as it is and stop. After a restore it checks its own result; verify it with `checkpoint.py diff <label>` (no changes) and the plan's checks, then report and stop:
+**Restoring is never automatic.** `checkpoint.py restore <label>` only shows what it would change. Run it with `--apply` only after the human approves that restore. Before it changes anything, it saves the current state as a new checkpoint and proves that this checkpoint and `<label>` both come back byte for byte; it refuses, changing nothing, when either does not, or when the restore would overwrite or remove something no checkpoint holds (files git ignores, nested repositories, a folder holding them). Report a refusal as it is and stop. After a restore, run `checkpoint.py diff <label>` and the plan's checks, then choose the matching form and stop:
 
 ```
 RESTORED <label>
-Restore: VERIFIED — checkpoint.py diff <label> reports no changes; the state before it is saved as pre-restore-<time>
+Restore: VERIFIED — checkpoint.py diff <label> reports no changes
+Pre-restore checkpoint: <actual saved label, or none created when no covered files needed rewriting>
 Limit: the comparison covers local file states; it does not prove the absence of reads, remote writes or temporary changes
 Checks: <results, compared with those recorded for <label>>
 Phase n: NOT COMPLETE — its changes were undone
@@ -297,11 +320,34 @@ AWAITING HUMAN APPROVAL
 
 Verification warnings that are still open or accepted appear in this block too, one `Verification Warning:` line each, above `Phase n: NOT COMPLETE`. A restore neither closes nor accepts a warning, and listing one is not an approval to retry.
 
+Use the preceding form only when both `restore --apply` and the independent `diff` exit 0 and the required checks support the result. If either exits 3, use the following form even when no covered file needed rewriting. Use the actual paths and classifications from the comparison. Keep each open or accepted verification warning in this report. If the tool reports an operational failure after rewriting, report the incomplete operation and its recovery checkpoint separately.
+
+```
+RESTORED <label>
+Restore: EXCEPTIONS REMAIN
+Covered files: <what the independent diff found>
+Differences: <each changed or missing ignored file or nested repository, or none reported>
+Unknown: <each item whose earlier contents cannot be compared, or none reported>
+Pre-restore checkpoint: <actual saved label, or none created>
+Limit: the comparison covers local file states; it does not prove the absence of reads, remote writes or temporary changes
+Checks: <actual results and any outstanding checks>
+Phase n: NOT COMPLETE
+AWAITING HUMAN APPROVAL
+```
+
 ## 9. FINAL REVIEW
 
 After the human approves it:
 
-1. **Re-inspect independently.** If your environment can start a fresh agent, give it only the approved plan and the project and have it make the comparison below; it reads and runs checks, and changes nothing. Otherwise redo INSPECT from scratch before you read your own phase notes.
+1. **Identify the reviewer.** When a separate agent is available, give it only the approved plan and the project. It reads, runs the checks and makes the comparison below. If the builder is the only agent available, redo INSPECT from scratch before reading your own phase notes. Record who built the migration and who actually performed the review.
+
+   Include the applicable line with every final report, including a blocked review. Replace the names and checks with the actual record.
+
+   | Who performed the review | Line to include |
+   |---|---|
+   | A separate reviewer | `Review: INDEPENDENT — built by <builder>; reviewed by <reviewer>; checked: <actual checks>` |
+   | The builder alone | `Review: BUILDER SELF-CHECK — built and checked by <builder>; independent review pending; checked: <actual checks>` |
+
 2. Compare the APPROVED TARGET TREE with the ACTUAL FINAL TREE (`checkpoint.py tree --current`), marked lines included — an ignored file or nested repository that moved or disappeared is a difference too. Every difference must be covered by an approved plan revision; anything else is a finding.
 3. Verify: responsibility boundaries and dependency direction as designed; no dependency added or removed unless planned (compare the manifests and lockfiles with `00-baseline`); the build; the tests (none fewer than at the baseline, no new failures); the smoke run behaves as at the baseline; every ignored file and nested repository of `00-baseline` still there and unchanged, apart from files the checks rewrite (`checkpoint.py diff 00-baseline` reports none `gone` or `changed`); no migration remnants (unintended live references to old paths, temporary shims not meant to stay, empty folders, backup or scratch files, migration notes left in code); documentation that describes the structure matches it — above all the record the documentation phase wrote: every folder and file it names exists and holds what it says, and a mismatch is a finding. If the human declined the record, say that the project holds none.
 4. Final architecture and code review: reload [standard alignment](references/standard-alignment.md)
@@ -426,7 +472,7 @@ For a display-only failure, report `Map: NOT UPDATED — <reason>` and continue 
 ## Files written in the project
 
 ```
-<project>/.vibe-to-engineering/          ignores itself — never enters the project's git
+<project>/.vibe-to-engineering/          self-ignoring private state; publication refuses indexed state
 ├── .gitignore                           the single line: *
 ├── Engineering-Migration-Plan.html      the plan: its one source of truth
 ├── Engineering-Migration-Plan.pdf       what the human reads and approves

@@ -17,6 +17,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = Path(os.environ.get("V2E_EVIDENCE", ROOT / "skills" / "vibe-to-engineering" / "scripts" / "evidence.py"))
 import enrolled  # noqa: E402 — the isolated HOME with the suite's runners enrolled (A2)
+from emission import read_result  # noqa: E402 — use the wrapper result decoder
+
 SECRETS = ("hunter2-not-real", "abcd1234efgh5678", "sk_live_ABCDEFGH12345678", "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC",
            "hunter22", "zzzz9999")
 CHECK = r"""
@@ -182,8 +184,15 @@ class Evidence(unittest.TestCase):
                     (project / file).write_text(content)
                 self.project = project
                 out = project / ".vibe-to-engineering" / "evidence" / "check.txt"
-                code, printed, report = self.run_tool(out, sys.executable, "-c", check)
+                marker = "masking fixture read the input"
+                code, printed, report = self.run_tool(out, sys.executable, "-c", check + "; print(%r)" % marker)
                 self.assertEqual(code, 0, report)
+                self.assertEqual(read_result(report),
+                                 {"v": 1, "wrapper": 0, "launched": True, "saved": True, "child": {"exit": 0}})
+                for output in (printed, out.read_text(encoding="utf-8")):
+                    payload = output.split("\n\n", 1)[1].splitlines()
+                    self.assertIn(marker, payload)
+                    self.assertRegex(payload[0], r"^<masked(?: [^>]+)?>$")
                 secret = "xyz" if "three" in name else 'abc"def-98765' if "escaped" in name else token
                 for word in secret.split():                 # no part of the value survives, not only the whole
                     self.assertNotIn(word, printed.split("\n\n", 1)[1])   # (the header repeats the check's code)
