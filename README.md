@@ -16,7 +16,7 @@ the approval and generates the Migration Map. For a project you explicitly confi
 and uses synthetic secrets, the approval also covers the verified recovery baseline and Phase 1.
 On entry and resume, `check-approval` verifies the current plan against the active approval before backup or execution. Runner enrollment requires a separate human decision. Every later phase has its own approval.
 
-The 0.6.5-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
+The 0.6.6-dev candidate keeps diagnosis, target design and final review aligned with engineering standard
 **1.18.0**, including its layout map and ten project-type trees. File-size alarms live only in §7 of
 that standard; this skill keeps no number of its own. The versioned references are
 bundled for offline use; plans record the source commit and the selected project tree.

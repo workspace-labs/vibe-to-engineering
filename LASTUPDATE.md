@@ -2,7 +2,9 @@
 
 ## Windows portable checks
 
-Candidate **0.6.5-dev** fixes credential-file timestamp comparison and cleanup of the recovery ZIP after an interrupted map refresh. Claude's review and a Windows CI run on this candidate are pending.
+Candidate **0.6.6-dev** writes the valid `.env` fixture with LF on Windows and prints the refusal reason if the control fails. Candidate Windows CI is pending.
+
+Claude approved **0.6.5-dev**. Its hosted Windows run passed 223 of 224 portable tests, including credential-file timestamp comparison and map recovery. The remaining regular-file control used the host's text line ending.
 
 ## Deep review fixes, Round 3
 

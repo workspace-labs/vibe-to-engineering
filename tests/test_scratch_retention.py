@@ -165,9 +165,10 @@ class ScratchRetention(unittest.TestCase):
                     self.assertEqual(self.outfile.read_bytes(), sentinel)
                 finally:
                     remove()
-        source.write_text("LABEL=fixture-text\n", encoding="utf-8")
-        code, printed, _, facts = self.invoke(output=b"checked fixture-text\n")
-        self.assertEqual((code, len(self.roots), facts["saved"]), (0, 1, True))
+        # The valid .env control needs LF on every host.
+        source.write_bytes(b"LABEL=fixture-text\n")
+        code, printed, report, facts = self.invoke(output=b"checked fixture-text\n")
+        self.assertEqual((code, len(self.roots), facts["saved"]), (0, 1, True), msg=report)
         self.assertIn("checked <masked", printed)
         self.assertEqual(self.outfile.read_text(encoding="utf-8"), printed)
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.6.6-dev] - 2026-11-28
+
+- Write the portable test's valid `.env` fixture with an explicit LF on every host. The control now includes the wrapper's diagnostic if it fails.
+
 ## [0.6.5-dev] - 2026-11-28
 
 - Compare change times on the same open handle for Windows credential reads so an unchanged file can reach masking.
